@@ -1,0 +1,8 @@
+% Example configuration file
+host = localhost
+user = edacc
+password = edacc
+database = EDACC
+port = 3306
+idExperiment = 40
+jobCPUTimeLimit = 10
