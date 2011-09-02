@@ -52,6 +52,10 @@ public class PROAR {
 	 * */
 	private boolean raceCondition;
 	
+	/** If raceCondigition == true then there has to be a competitior which the configurator will try to beat!
+	 */
+	private SolverConfiguration competitor;
+	
 	/**List of (instance,seed)-pairs on which the solver configurations are going to be evaluated.
 	 * The bestSC is always going to be the configuration that is farthest on this parcours. 
 	 */
@@ -117,8 +121,17 @@ public class PROAR {
 	 */
 	private int computeOptimalExpansion(){
 		return 10;
-		//TODO: was geschickteres implementieren, denn von diesem Wert haengt sehr stark der Grad der parallelisierung statt.
-		//denkbar ware noch api.getNumComputingUnits(); wenn man die Methode haette. 
+		/*TODO: was geschickteres implementieren, denn von diesem Wert haengt sehr stark der Grad der parallelisierung statt.
+		* denkbar ware noch api.getNumComputingUnits(); wenn man die Methode haette. 
+		* eine andere geschicktere Moeglichkeit ist es:
+		* Anzahl cores = numCores 
+		* Größe der besseren solver configs in letzter runde = numBests
+		* Anzahl der jobs die in der letzten Iteration berechnet wurden = numJobs
+		* Anzahl der neuen solver configs beim letzten Aufruf zurückgeliefert wurden = lastExpansion
+		* CPUTimeLimit = time
+		* Dann kann man die Anzahl an neuen konfigs berechnen durch
+		* newNumConfigs = TODO
+		*/
 		
 	}
 	/**
@@ -141,6 +154,13 @@ public class PROAR {
 		return null;
 	}
 	
+	/**
+	 * adds random num new runs/jobs from the solver configuration "from" to  the solver configuration "toAdd"  
+	 */
+	private void addRandomJob(int num, SolverConfiguration toAdd, SolverConfiguration from){
+		//T
+	}
+	
 	public void start() {
 		// TODO: implement PROAR
 		//first initialize the best individual if there is a default or if there are already some solver configurations in the experiment
@@ -151,6 +171,14 @@ public class PROAR {
 			//da man sonst nicht weiter machen kann. Gerade am Anfang wo best sehr wenige Läufe hat.
 			listBestSC.clear();
 			this.listNewSC = generateNewSC(numNewSC);
+			
+			for (SolverConfiguration sc : listNewSC){
+				addRandomJob(1,sc,bestSC);
+			}
+			/*
+			while(!this.listNewSC.isEmpty()){
+				
+			}
 		
 			
 		}
