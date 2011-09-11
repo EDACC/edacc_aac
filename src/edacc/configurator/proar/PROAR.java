@@ -1,19 +1,26 @@
 package edacc.configurator.proar;
 
 import java.io.File;
+import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 import java.util.Scanner;
 
 import edacc.api.API;
 import edacc.api.APIImpl;
+import edacc.configurator.proar.algorithm.PROARMethods;
+import edacc.model.ExperimentResultDAO;
+import edacc.parameterspace.ParameterConfiguration;
 
 public class PROAR {
 	
 	private API api;
 	private int idExperiment;
 	private int jobCPUTimeLimit;
+	private String algorithm;
 	private Random rng;
+	private PROARMethods methods;
 	
 	/**tells if the cost function is to be minimized; if 0 it should be maximized*/
 	private boolean minimize; 
@@ -62,21 +69,34 @@ public class PROAR {
 	//TODO: definiere eine Klasse oder andere Datenstruktur instance seed pair
 	//private List<InstanceSeed> parcours;
 	
+	/**
+	 * just for debugging
+	 */
+	private int level;
 	
-	public PROAR(String hostname, int port, String database, String user, String password, int idExperiment, int jobCPUTimeLimit, long seed) throws Exception {
+	public PROAR(String hostname, int port, String database, String user, String password, int idExperiment, int jobCPUTimeLimit, long seed, String algorithm) throws Exception {
 		api = new APIImpl();
 		api.connect(hostname, port, database, user, password);
 		this.idExperiment = idExperiment;
 		this.jobCPUTimeLimit = jobCPUTimeLimit;
+		this.algorithm = algorithm;
 		rng = new edacc.util.MersenneTwister(seed);
+		listBestSC = new ArrayList<SolverConfiguration>();
+		listNewSC = new ArrayList<SolverConfiguration>();
+		
+		methods = (PROARMethods) ClassLoader.getSystemClassLoader().loadClass("edacc.configurator.proar.algorithm." + algorithm).getDeclaredConstructors()[0].newInstance(api, idExperiment, rng);
 	}
 	
 	/**
 	 * Checks if there are solver configurations in the experiment that would match the configuration scenario
 	 * if there are more than one such configuration it will pick the best one as the best configuration found so far 
+	 * @throws Exception  
 	 */
-	private void initializeBest(){
-		
+	private void initializeBest() throws Exception {
+		// currently a random sc is generated as best one
+		ParameterConfiguration config = api.loadParameterGraphFromDB(idExperiment).getRandomConfiguration(rng);
+		int idSolverConfiguration = api.createSolverConfig(idExperiment, config, "First Configuration " + api.getCanonicalName(idExperiment, config) + " level " + level);
+		bestSC = new SolverConfiguration(idSolverConfiguration, api.getParameterConfiguration(idExperiment, idSolverConfiguration), level);
 	}
 	
 	/**
@@ -106,14 +126,19 @@ public class PROAR {
 	}
 	/**
 	 *  Add num additional runs/jobs from the parcours to the configuration sc. 
+	 * @throws Exception 
 	 */
-	private void expandParcoursSC(SolverConfiguration sc,int num){
+	private void expandParcoursSC(SolverConfiguration sc,int num) throws Exception{
 		//TODO implement
 		//fuer deterministische solver sollte man allerdings beachten, 
 		//dass wenn alle instanzen schon verwendet wurden das der parcours nicht weiter erweitert werden kann.
 		//fuer probabilistische solver kann der parcours jederzeit erweitert werden, jedoch 
 		//waere ein Obergrenze sinvoll die als funktion der anzahl der instanzen definiert werden sollte
 		//z.B: 10*#instanzen
+		for (int i = 0; i < num; i++) {
+			int idJob = api.launchJob(idExperiment, sc.getIdSolverConfiguration(), jobCPUTimeLimit, rng);
+			sc.putJob(ExperimentResultDAO.getById(idJob));
+		}
 	}
 	
 	/**
@@ -132,65 +157,110 @@ public class PROAR {
 		* Dann kann man die Anzahl an neuen konfigs berechnen durch
 		* newNumConfigs = TODO
 		*/
-		
-	}
-	/**
-	 * Generates num new solver configurations
-	 * @return a List of the new solver configurations 
-	 */
-	private List<SolverConfiguration> generateNewSC(int num){
-		//TODO: Implement
-		//hier kann man die neuen konfigs aus der Liste der besten, dem besten selber und zulaellige configs erzeugen 
-		//
-		return null;
-	}
-	
-	/** Generates num new random solver configurations
-	 * @return a List of the new solver configurations 
-	 */
-	
-	private List<SolverConfiguration> generateNewRandomSC(int num){
-		//TODO: Implement
-		return null;
 	}
 	
 	/**
 	 * adds random num new runs/jobs from the solver configuration "from" to  the solver configuration "toAdd"  
+	 * @throws Exception 
 	 */
-	private void addRandomJob(int num, SolverConfiguration toAdd, SolverConfiguration from){
-		//T
+	private int addRandomJob(int num, SolverConfiguration toAdd, SolverConfiguration from) throws Exception{
+		toAdd.updateJobs();
+		from.updateJobs();
+		List<InstanceIdSeed> instanceIdSeedList = toAdd.getInstanceIdSeed(from, num);
+		int generated = 0;
+		for (InstanceIdSeed is : instanceIdSeedList) {
+			int idJob = api.launchJob(idExperiment, toAdd.getIdSolverConfiguration(), is.instanceId, BigInteger.valueOf(is.seed), jobCPUTimeLimit);
+			toAdd.putJob(ExperimentResultDAO.getById(idJob));
+			generated ++;
+		}
+		return generated;
 	}
 	
-	public void start() {
+	public void start() throws Exception {
 		// TODO: implement PROAR
 		//first initialize the best individual if there is a default or if there are already some solver configurations in the experiment
+		level = 0;
+		
 		initializeBest();
+		
 		int numNewSC = computeOptimalExpansion();
 		while (!terminate()){
+			level++;
+			bestSC.updateJobs();
 			expandParcoursSC(bestSC,1); //Problem, es kann sein, dass man auf diesen Ergebniss warten muss, 
 			//da man sonst nicht weiter machen kann. Gerade am Anfang wo best sehr wenige Läufe hat.
+			System.out.println("Waiting for currently best solver config to finish a job.");
+			while (true) {
+				bestSC.updateJobs();
+				if (bestSC.getNotStartedJobs().isEmpty() && bestSC.getRunningJobs().isEmpty()) {
+					break;
+				}
+				
+				Thread.sleep(1000);
+			}
+			updateSolverConfigName(bestSC, true);
+			System.out.println("Generating new Solver Configurations.");
+			
+			// at this point: best solver config should have computed all jobs because jobs aren't updated in the main loop.
+			
+			this.listNewSC = methods.generateNewSC(numNewSC, listBestSC, bestSC, level);
 			listBestSC.clear();
-			this.listNewSC = generateNewSC(numNewSC);
 			
 			for (SolverConfiguration sc : listNewSC){
 				addRandomJob(1,sc,bestSC);
+				updateSolverConfigName(sc, false);
 			}
-			/*
-			while(!this.listNewSC.isEmpty()){
+			while(!this.listNewSC.isEmpty()){				
+				Thread.sleep(1000);
 				
+				for (int  i = listNewSC.size()-1; i >= 0; i--) {
+					SolverConfiguration sc = listNewSC.get(i);
+					sc.updateJobs();
+					updateSolverConfigName(sc, false);
+					// if finishedAll(sc)
+					if (sc.getNotStartedJobs().size() + sc.getRunningJobs().size() == 0) {
+						int comp = sc.compareTo(bestSC);
+						if (comp >= 0) {
+							// sc better than bestSC
+							if (sc.getJobCount() == bestSC.getJobCount()) {
+								// all jobs from bestSC computed.
+								if (comp > 0) {
+									listBestSC.add(sc);
+								}
+								listNewSC.remove(i);
+							} else {
+								int generated = addRandomJob(sc.getJobCount(), sc, bestSC);
+								System.out.println("Generated " + generated + " jobs");
+							}
+						} else {
+							listNewSC.remove(i);
+						}
+					}
+				}
 			}
-		
-			
+			updateSolverConfigName(bestSC, false);
+			System.out.println("Determining the new best solver config from " + listBestSC.size() + " solver configurations.");
+			if (listBestSC.size() > 0) {
+				for (SolverConfiguration sc : listBestSC) {
+					if (sc.compareTo(bestSC) > 0) {
+						bestSC = sc;
+					}
+				}
+			}
+			updateSolverConfigName(bestSC, true);
 		}
 		
 	}
 	
 	public void shutdown() {
+		System.out.println("halt.");
 		api.disconnect();
 	}
 	
 	
-	
+	public void updateSolverConfigName(SolverConfiguration sc, boolean best) throws Exception {
+		api.updateSolverConfigurationName(sc.getIdSolverConfiguration(), "Runs: " + sc.getFinishedJobs().size() + (best ? " BEST" : "") + " level: " + sc.getLevel() + " " + api.getCanonicalName(idExperiment, sc.getParameterConfiguration()));
+	}
 	
 	/**
 	 * Parses the configuration file and starts the configurator. 
@@ -208,6 +278,7 @@ public class PROAR {
         int port = 3306;
         int jobCPUTimeLimit = 13;
         long seed = System.currentTimeMillis();
+        String algorithm = "ROAR";
         
         while (scanner.hasNextLine()) {
             String line = scanner.nextLine();
@@ -222,12 +293,13 @@ public class PROAR {
             else if ("database".equals(key)) database = value;
             else if ("idExperiment".equals(key)) idExperiment = Integer.valueOf(value);
             else if ("seed".equals(key)) seed = Long.valueOf(value);
+            else if ("jobCPUTimeLimit".equals(key)) jobCPUTimeLimit = Integer.valueOf(value);
+            else if ("algorithm".equals(key)) algorithm = value;
         }
         scanner.close();
         
-        PROAR configurator = new PROAR(hostname, port, database, user, password, idExperiment, jobCPUTimeLimit, seed);
+        PROAR configurator = new PROAR(hostname, port, database, user, password, idExperiment, jobCPUTimeLimit, seed, algorithm);
         configurator.start();
         configurator.shutdown();
 	}
-	
 }
