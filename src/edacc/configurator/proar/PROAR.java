@@ -39,7 +39,7 @@ public class PROAR {
 	//TODO:private whateverType metric; 
 	
 	/**maximum allowed tuning time = sum over all jobs in seconds*/
-	private float maxTuningTime; 
+	private float maxTuningTime; //TODO: take into consideration
 	
 	/**total cumulated time of all jobs the configurator has started so far in seconds*/
 	private float cumulatedCPUTime;
@@ -63,18 +63,14 @@ public class PROAR {
 	 */
 	private SolverConfiguration competitor;
 	
-	/**List of (instance,seed)-pairs on which the solver configurations are going to be evaluated.
-	 * The bestSC is always going to be the configuration that is farthest on this parcours. 
-	 */
-	//TODO: definiere eine Klasse oder andere Datenstruktur instance seed pair
-	//private List<InstanceSeed> parcours;
-	
 	/**
 	 * just for debugging
 	 */
 	private int level;
 	
+	
 	public PROAR(String hostname, int port, String database, String user, String password, int idExperiment, int jobCPUTimeLimit, long seed, String algorithm) throws Exception {
+	//TODO: MaxTuningTime in betracht ziehen!
 		api = new APIImpl();
 		api.connect(hostname, port, database, user, password);
 		this.idExperiment = idExperiment;
@@ -83,7 +79,7 @@ public class PROAR {
 		rng = new edacc.util.MersenneTwister(seed);
 		listBestSC = new ArrayList<SolverConfiguration>();
 		listNewSC = new ArrayList<SolverConfiguration>();
-		
+		//TODO: Die beste config auch noch mittels einer methode bestimmen!
 		methods = (PROARMethods) ClassLoader.getSystemClassLoader().loadClass("edacc.configurator.proar.algorithm." + algorithm).getDeclaredConstructors()[0].newInstance(api, idExperiment, rng);
 	}
 	
@@ -145,7 +141,7 @@ public class PROAR {
 	 * Determines how many new solver configuration can be taken into consideration. 
 	 */
 	private int computeOptimalExpansion(){
-		return 10;
+		return 40;
 		/*TODO: was geschickteres implementieren, denn von diesem Wert haengt sehr stark der Grad der parallelisierung statt.
 		* denkbar ware noch api.getNumComputingUnits(); wenn man die Methode haette. 
 		* eine andere geschicktere Moeglichkeit ist es:
@@ -177,18 +173,18 @@ public class PROAR {
 	}
 	
 	public void start() throws Exception {
-		// TODO: implement PROAR
+		
 		//first initialize the best individual if there is a default or if there are already some solver configurations in the experiment
 		level = 0;
 		
-		initializeBest();
+		initializeBest();//TODO: mittels dem Classloader überschreiben
 		
 		int numNewSC = computeOptimalExpansion();
 		while (!terminate()){
 			level++;
 			bestSC.updateJobs();
-			expandParcoursSC(bestSC,1); //Problem, es kann sein, dass man auf diesen Ergebniss warten muss, 
-			//da man sonst nicht weiter machen kann. Gerade am Anfang wo best sehr wenige Läufe hat.
+			//TODO: nicht nur 1 sonder f(wieviele es in der letzten Runde geschlagen hat)
+			expandParcoursSC(bestSC,1);
 			System.out.println("Waiting for currently best solver config to finish a job.");
 			while (true) {
 				bestSC.updateJobs();
@@ -202,7 +198,8 @@ public class PROAR {
 			System.out.println("Generating new Solver Configurations.");
 			
 			// at this point: best solver config should have computed all jobs because jobs aren't updated in the main loop.
-			
+			// compute the number of new solver configs 
+			numNewSC = computeOptimalExpansion();
 			this.listNewSC = methods.generateNewSC(numNewSC, listBestSC, bestSC, level);
 			listBestSC.clear();
 			

@@ -131,7 +131,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration>{
 	public int getJobCount() {
 		return jobs.size();
 	}
-	
+	//TODO: Alles javadoc 
 	public void updateJobs() throws Exception {
 		LinkedList<Integer> ids = new LinkedList<Integer>();
 		for (ExperimentResult j: jobs) {
@@ -162,41 +162,36 @@ public class SolverConfiguration implements Comparable<SolverConfiguration>{
 		return level;
 	}
 	
-	@Override
+	@Override//TODO : Statistik und metrik in betracht ziehen!
 	public int compareTo(SolverConfiguration other) {
+		float sum=0,otherSum=0;
 		HashMap<InstanceIdSeed, ExperimentResult> ownJobs = new HashMap<InstanceIdSeed, ExperimentResult>();
 		for (ExperimentResult job: getFinishedJobs()) {
 			ownJobs.put(new InstanceIdSeed(job.getInstanceId(), job.getSeed()), job);
 		}
-		boolean allEqual = true;
+		
 		for (ExperimentResult job: other.getFinishedJobs()) {
 			InstanceIdSeed tmp = new InstanceIdSeed(job.getInstanceId(), job.getSeed());
 			ExperimentResult ownJob;
 			if ((ownJob = ownJobs.get(tmp)) != null) {
-				if (ownJob.getStatus().equals(StatusCode.SUCCESSFUL) && job.getStatus().equals(StatusCode.SUCCESSFUL)) {
+				//if (ownJob.getStatus().equals(StatusCode.SUCCESSFUL) && job.getStatus().equals(StatusCode.SUCCESSFUL)) {
 				
 					// TODO: Also use cost
 					float ownCost = ownJob.getResultTime();
+					sum += ownCost;
 					float otherCost = job.getResultTime();
+					otherSum += otherCost;
 
-					if (ownCost < otherCost) {
+					/*if (ownCost < otherCost) {
 						allEqual = false;
 						continue;
 					} else if (ownCost == otherCost) {
 						continue;
 					} else {
 						return -1;
-					}
-				} else if (ownJob.getStatus().equals(StatusCode.SUCCESSFUL) && !job.getStatus().equals(StatusCode.SUCCESSFUL)) {
-					allEqual = false;
-					continue;
-				} else if (!ownJob.getStatus().equals(StatusCode.SUCCESSFUL) && job.getStatus().equals(StatusCode.SUCCESSFUL)) {
-					return -1;
-				} else {
-					continue;
-				}
-			}
+					}*/
+				} 
 		}
-		return allEqual ? 0 : 1;
+		return sum<otherSum? 1 :sum==otherSum? 0 : -1;
 	}
 }
