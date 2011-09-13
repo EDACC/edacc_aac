@@ -241,7 +241,13 @@ public class PROAR {
 			}
 			while (!this.listNewSC.isEmpty()) {
 				Thread.sleep(1000);
-
+				/*TODO: solver configurations cleanup:
+				 * in der config sollte noch ein parameter "maxNumConfigsInDB" hinzugefügt werden
+				 * dieser gibt an welche die maximale Anzahl an solver configs ist die in der DB behalten werden sollte, 
+				 * den Rest kann man löschen. Das sollte dazu dienen noch eine Übersichtlichkeit über die solver configs zu bewahren 
+				 * und sie mit dem web-frontend noch gut sehen zu können.
+				 * Es ist z.B: denkbar nur die 100 besten immer zu behalten und die restlichen zu löschen.  
+				 */
 				for (int i = listNewSC.size() - 1; i >= 0; i--) {
 					SolverConfiguration sc = listNewSC.get(i);
 					sc.updateJobs();
@@ -264,6 +270,22 @@ public class PROAR {
 						} else {
 							listNewSC.remove(i);
 						}
+					}else{
+						;/*TODO: adaptive capping:
+						 *Wir haben eine solver config new die neu jobs bekommen hat um mit der best verglichen zu werden.
+						 *Wir schauen sie momentan nur dann an wenn all ihre jobs schon fertig sind. 
+						 *Mann kann sich aber die ergebnise der jobs schon vorher anschauen um folgende zwei Sachen zu bestimmen.
+						 *1. ist new überhaupt noch in der Lage die best zu schlagen mit den werten die sie schon jetzt hat?
+						 *	dafür bestimmt man deren kosten und vergleicht mit best anhand der schon vorhandenen ergebnisse. 
+						 *	hat sie schon verloren kann man sie löschen ohne auf alle jobs zu warten!
+						 *	das kann gerade gegen Ende des Vergleichs von Vorteil sein!
+						 *2. Wenn die new mit den aktuellen jobs noch nicht verloren hat, kann man noch immer die 
+						 *	timeLimit der bestehenden (noch nicht gestarteten) jobs in Betracht ziehen:
+						 *	sei x die cost der best bzgl. der Auswahl an Instanzen auf die mit new verglichen werden soll
+						 *	dann kann die timeLimit der restlichen jobs auf min(timeLimit, cost(new)-x)) gesetzt werden oder sowas in der 
+						 *	Richtung
+						 *	Das könnte auch einiges an Rechenarbeit sparen!	
+						*/
 					}
 				}
 			}
