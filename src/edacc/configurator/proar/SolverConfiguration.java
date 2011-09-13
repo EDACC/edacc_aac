@@ -4,12 +4,10 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Set;
 
 import edacc.parameterspace.ParameterConfiguration;
 import edacc.model.ExperimentResult;
 import edacc.model.ExperimentResultDAO;
-import edacc.model.InstanceSeed;
 import edacc.model.StatusCode;
 public class SolverConfiguration implements Comparable<SolverConfiguration>{
 	/**the parameter configuration of the solver configuration*/
@@ -25,16 +23,14 @@ public class SolverConfiguration implements Comparable<SolverConfiguration>{
 	/**the name of the configuration*/
 	private String name;
 	
-	/**iteration of the configurator where this configuration was created; 	useful for debuging*/ 
+	/**iteration of the configurator where this configuration was created; 	useful for debugging*/ 
 	private int level;
 	
 	/**List of all jobs that a solver configuration has been executed so far*/
-	//TODO definiere datenstruktur für jobs[idSolverConfig]
-	//man muss schnell über die idSolverConfig auf die jobs zugreifen und mann muss schnell die 
-	//disjunktion von zwei solchen mengen machen können um zu sehen welche jobs man für die neuen config noch erstellen muss
-	//muss auch eine size methode haben
 	private List<ExperimentResult> jobs;
 
+	private StatisticFunction statFunc;
+	
 	/**
 	 * Common initialization
 	 */
@@ -42,13 +38,14 @@ public class SolverConfiguration implements Comparable<SolverConfiguration>{
 		jobs = new LinkedList<ExperimentResult>();
 	}
 	
-	public SolverConfiguration(int idSolverConfiguration, ParameterConfiguration pc, int level){
+	public SolverConfiguration(int idSolverConfiguration, ParameterConfiguration pc, StatisticFunction statFunc, int level){
 		this();
 		
 		this.pConfig = pc;
 		this.idSolverConfiguration = idSolverConfiguration; 
 		this.cost = null;
 		this.name = null;
+		this.statFunc = statFunc;
 		this.level = level;
 	}
 
@@ -59,6 +56,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration>{
 		this.idSolverConfiguration = sc.idSolverConfiguration; 
 		this.cost = sc.cost;
 		this.name = sc.name;
+		this.statFunc = sc.statFunc;
 		this.level = sc.level;
 	}
 	
@@ -98,6 +96,11 @@ public class SolverConfiguration implements Comparable<SolverConfiguration>{
 		jobs.add(job);
 	}
 	
+	/**
+	 * Returns the running jobs at the last <code>updateJobs()</code> call. <br/>
+	 * Running jobs means, <code>statusCode</code> equals <code>StatusCode.RUNNING</code>.
+	 * @return
+	 */
 	public List<ExperimentResult> getRunningJobs() {
 		LinkedList<ExperimentResult> res = new LinkedList<ExperimentResult>();
 		for (ExperimentResult j: jobs) {
@@ -108,6 +111,11 @@ public class SolverConfiguration implements Comparable<SolverConfiguration>{
 		return res;
 	}
 	
+	/**
+	 * Returns the finished jobs at the last <code>updateJobs()</code> call. <br/>
+	 * Finished jobs means, <code>statusCode</code> is different to <code>StatusCode.NOT_STARTED</code> and <code>StatusCode.RUNNING</code>.
+	 * @return
+	 */
 	public List<ExperimentResult> getFinishedJobs() {
 		LinkedList<ExperimentResult> res = new LinkedList<ExperimentResult>();
 		for (ExperimentResult j: jobs) {
@@ -118,6 +126,11 @@ public class SolverConfiguration implements Comparable<SolverConfiguration>{
 		return res;
 	}
 	
+	/**
+	 * Returns the not started jobs at the last <code>updateJobs()</code> call.<br/>
+	 * Not started jobs means, <code>statusCode</code> is equal to <code>StatusCode.NOT_STARTED</code>.
+	 * @return
+	 */
 	public List<ExperimentResult> getNotStartedJobs() {
 		LinkedList<ExperimentResult> res = new LinkedList<ExperimentResult>();
 		for (ExperimentResult j: jobs) {
@@ -128,10 +141,18 @@ public class SolverConfiguration implements Comparable<SolverConfiguration>{
 		return res;
 	}
 	
+	/**
+	 * Returns the number of jobs for this solver configuration at the last <code>updateJobs()</code> call.
+	 * @return
+	 */
 	public int getJobCount() {
 		return jobs.size();
 	}
-	//TODO: Alles javadoc 
+	
+	/**
+	 * Updates the locally cached jobs for this solver configuration.
+	 * @throws Exception
+	 */
 	public void updateJobs() throws Exception {
 		LinkedList<Integer> ids = new LinkedList<Integer>();
 		for (ExperimentResult j: jobs) {
@@ -140,6 +161,17 @@ public class SolverConfiguration implements Comparable<SolverConfiguration>{
 		jobs = ExperimentResultDAO.getByIds(ids);
 	}
 	
+	/**
+	 * Returns a list of <code>InstanceIdSeed</code> where each entry satisfies: <br/>
+	 * 	* this solver configuration has computed/computes/will compute the instance-seed-pair<br/>
+	 * 	* the <code>other</code> solver configuration did not compute/is not currently computing/will not compute the instance-seed-pair<br/>
+	 * 	* the list contains max. <code>num</code> items<br/>
+	 * at the last <code>updateJobs()</code> call.<br/>
+	 * If the list contains less than <code>num</code> items, then there aren't more instance-seed-pairs which would satisfy the first two assertions.
+	 * @param other
+	 * @param num
+	 * @return
+	 */
 	public List<InstanceIdSeed> getInstanceIdSeed(SolverConfiguration other, int num) {
 		LinkedList<InstanceIdSeed> res = new LinkedList<InstanceIdSeed>();
 		HashSet<InstanceIdSeed> ownInstanceIdSeed = new HashSet<InstanceIdSeed>();
@@ -158,40 +190,33 @@ public class SolverConfiguration implements Comparable<SolverConfiguration>{
 		return res;
 	}
 
+	/**
+	 * Returns the <code>level</code> of this solver configuration.
+	 * @return
+	 */
 	public int getLevel() {
 		return level;
 	}
 	
-	@Override//TODO : Statistik und metrik in betracht ziehen!
+	@Override
 	public int compareTo(SolverConfiguration other) {
-		float sum=0,otherSum=0;
+		
+		//TODO : metrik (sollte automatisch durch API gegeben sein -> TODO für api) in betracht ziehen!
+		
 		HashMap<InstanceIdSeed, ExperimentResult> ownJobs = new HashMap<InstanceIdSeed, ExperimentResult>();
 		for (ExperimentResult job: getFinishedJobs()) {
 			ownJobs.put(new InstanceIdSeed(job.getInstanceId(), job.getSeed()), job);
 		}
-		
+		List<ExperimentResult> myJobs = new LinkedList<ExperimentResult>();
+		List<ExperimentResult> otherJobs = new LinkedList<ExperimentResult>();
 		for (ExperimentResult job: other.getFinishedJobs()) {
 			InstanceIdSeed tmp = new InstanceIdSeed(job.getInstanceId(), job.getSeed());
 			ExperimentResult ownJob;
 			if ((ownJob = ownJobs.get(tmp)) != null) {
-				//if (ownJob.getStatus().equals(StatusCode.SUCCESSFUL) && job.getStatus().equals(StatusCode.SUCCESSFUL)) {
-				
-					// TODO: Also use cost
-					float ownCost = ownJob.getResultTime();
-					sum += ownCost;
-					float otherCost = job.getResultTime();
-					otherSum += otherCost;
-
-					/*if (ownCost < otherCost) {
-						allEqual = false;
-						continue;
-					} else if (ownCost == otherCost) {
-						continue;
-					} else {
-						return -1;
-					}*/
-				} 
+				myJobs.add(ownJob);
+				otherJobs.add(job);
+			} 
 		}
-		return sum<otherSum? 1 :sum==otherSum? 0 : -1;
+		return statFunc.compare(myJobs, otherJobs);
 	}
 }

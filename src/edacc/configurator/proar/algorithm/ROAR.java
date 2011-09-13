@@ -6,12 +6,13 @@ import java.util.Random;
 
 import edacc.api.API;
 import edacc.configurator.proar.SolverConfiguration;
+import edacc.configurator.proar.StatisticFunction;
 import edacc.parameterspace.ParameterConfiguration;
 
 public class ROAR extends PROARMethods {
 
-	public ROAR(API api, int idExperiment, Random rng) {
-		super(api, idExperiment, rng);
+	public ROAR(API api, int idExperiment, StatisticFunction statistics, Random rng) {
+		super(api, idExperiment, statistics, rng);
 	}
 
 	@Override
@@ -20,7 +21,7 @@ public class ROAR extends PROARMethods {
 		for (int i = 0; i < num; i++) {
 			ParameterConfiguration paramconfig = api.loadParameterGraphFromDB(idExperiment).getRandomConfiguration(rng);
 			int idSolverConfig = api.createSolverConfig(idExperiment, paramconfig, api.getCanonicalName(idExperiment, paramconfig) + " level " + level);
-			res.add(new SolverConfiguration(idSolverConfig, api.getParameterConfiguration(idExperiment, idSolverConfig), level));
+			res.add(new SolverConfiguration(idSolverConfig, api.getParameterConfiguration(idExperiment, idSolverConfig), statistics, level));
 		}
 		return res;
 	}
