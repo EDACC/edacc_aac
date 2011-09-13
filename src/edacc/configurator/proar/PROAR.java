@@ -86,7 +86,7 @@ public class PROAR {
 		this.idExperiment = idExperiment;
 		this.jobCPUTimeLimit = jobCPUTimeLimit;
 		this.algorithm = algorithm;
-		this.statistics = new StatisticFunction(api.getCostFunctionByName(statFunc), minimize);
+		this.statistics = new StatisticFunction(api.costFunctionByName(statFunc), minimize);
 		rng = new edacc.util.MersenneTwister(seed);
 		listBestSC = new ArrayList<SolverConfiguration>();
 		listNewSC = new ArrayList<SolverConfiguration>();
@@ -226,6 +226,7 @@ public class PROAR {
 				Thread.sleep(1000);
 			}
 			updateSolverConfigName(bestSC, true);
+			api.updateSolverConfigurationCost(bestSC.getIdSolverConfiguration(), bestSC.getCost(), statistics.getCostFunction());
 			System.out.println("Generating new Solver Configurations.");
 
 			// at this point: best solver config should have computed all jobs
@@ -262,12 +263,14 @@ public class PROAR {
 								if (comp > 0) {
 									listBestSC.add(sc);
 								}
+								api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(), sc.getCost(), statistics.getCostFunction());
 								listNewSC.remove(i);
 							} else {
 								int generated = addRandomJob(sc.getJobCount(), sc, bestSC);
 								System.out.println("Generated " + generated + " jobs");
 							}
 						} else {
+							api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(), sc.getCost(), statistics.getCostFunction());
 							listNewSC.remove(i);
 						}
 					}else{

@@ -2,11 +2,10 @@ package edacc.configurator.proar;
 
 import java.util.List;
 
-import edacc.api.API;
-import edacc.api.API.COST_FUNCTIONS;
+import edacc.api.costfunctions.CostFunction;
 import edacc.model.ExperimentResult;
 public class StatisticFunction {
-	private API.COST_FUNCTIONS func;
+	private CostFunction func;
 	private boolean minimize;
 	
 	/**
@@ -14,7 +13,7 @@ public class StatisticFunction {
 	 * @param func
 	 * @param minimize
 	 */
-	public StatisticFunction(API.COST_FUNCTIONS func, boolean minimize) {
+	public StatisticFunction(CostFunction func, boolean minimize) {
 		if (func == null) {
 			throw new IllegalArgumentException("COST_FUNCTION 'null' is invalid!");
 		}
@@ -36,13 +35,13 @@ public class StatisticFunction {
 		if (first_cost == second_cost) {
 			return 0;
 		} else if (first_cost > second_cost) {
-			return minimize ? 0 : 1;
+			return minimize ? -1 : 1;
 		} else {
-			return minimize ? 1 : 0;
+			return minimize ? 1 : -1;
 		}
 	}
 
-	public COST_FUNCTIONS getCostFunction() {
+	public CostFunction getCostFunction() {
 		return func;
 	}
 }

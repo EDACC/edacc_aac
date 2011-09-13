@@ -77,7 +77,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration>{
 	}
 	
 	public final Float getCost(){
-		return this.cost;
+		return statFunc.getCostFunction().calculateCost(jobs);
 	}
 	
 	public final void setCost(Float cost){
