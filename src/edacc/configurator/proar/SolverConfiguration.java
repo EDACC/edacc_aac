@@ -20,6 +20,11 @@ public class SolverConfiguration implements Comparable<SolverConfiguration>{
 	*/
 	private Float cost;
 	
+	/**total runtime in seconds of all the jobs in the jobs list
+	 * 
+	 */
+	private Float totalRuntime;
+	
 	/**the name of the configuration*/
 	private String name;
 	
@@ -151,6 +156,8 @@ public class SolverConfiguration implements Comparable<SolverConfiguration>{
 	
 	/**
 	 * Updates the locally cached jobs for this solver configuration.
+	 * It collects the id's of its own jobs and passes them to the api as a list of id's
+	 * getting back the ExperimentResults list for this id's
 	 * @throws Exception
 	 */
 	public void updateJobs() throws Exception {
@@ -172,6 +179,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration>{
 	 * @param num
 	 * @return
 	 */
+	//TODO: Simon : random hier einbauen!
 	public List<InstanceIdSeed> getInstanceIdSeed(SolverConfiguration other, int num) {
 		LinkedList<InstanceIdSeed> res = new LinkedList<InstanceIdSeed>();
 		HashSet<InstanceIdSeed> ownInstanceIdSeed = new HashSet<InstanceIdSeed>();

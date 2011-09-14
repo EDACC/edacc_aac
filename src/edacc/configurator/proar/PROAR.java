@@ -78,6 +78,9 @@ public class PROAR {
 	 * just for debugging
 	 */
 	private int level;
+	
+	private int statNumSolverConfigs;
+	
 
 	public PROAR(String hostname, int port, String database, String user, String password, int idExperiment, int jobCPUTimeLimit, long seed, String algorithm, String statFunc, boolean minimize) throws Exception {
 		// TODO: MaxTuningTime in betracht ziehen!
@@ -159,7 +162,7 @@ public class PROAR {
 		// z.B: 10*#instanzen
 		for (int i = 0; i < num; i++) {
 			int idJob = api.launchJob(idExperiment, sc.getIdSolverConfiguration(), jobCPUTimeLimit, rng);
-			sc.putJob(api.getJob(idJob));
+			sc.putJob(api.getJob(idJob)); //add the job to the solver configuration own job store
 		}
 	}
 
@@ -168,7 +171,7 @@ public class PROAR {
 	 * consideration.
 	 */
 	private int computeOptimalExpansion() {
-		return 200;
+		return 400;
 		/*
 		 * TODO: was geschickteres implementieren, denn von diesem Wert haengt
 		 * sehr stark der Grad der parallelisierung statt. denkbar ware noch
@@ -191,6 +194,7 @@ public class PROAR {
 	private int addRandomJob(int num, SolverConfiguration toAdd, SolverConfiguration from) throws Exception {
 		toAdd.updateJobs();
 		from.updateJobs();
+		//compute a list with num  jobs that "from" has computed and "toadd" has not in its job list
 		List<InstanceIdSeed> instanceIdSeedList = toAdd.getInstanceIdSeed(from, num);
 		int generated = 0;
 		for (InstanceIdSeed is : instanceIdSeedList) {
@@ -202,30 +206,31 @@ public class PROAR {
 	}
 
 	public void start() throws Exception {
-
+		int numNewSC;
 		// first initialize the best individual if there is a default or if
 		// there are already some solver configurations in the experiment
 		level = 0;
-
 		initializeBest();// TODO: mittels dem Classloader überschreiben
-
-		int numNewSC = computeOptimalExpansion();
+		
 		while (!terminate()) {
 			level++;
 			bestSC.updateJobs();
-			// TODO: nicht nur 1 sonder f(wieviele es in der letzten Runde
-			// geschlagen hat)
-			expandParcoursSC(bestSC, 1);
+			//expandParcoursSC(bestSC, 1);
+			expandParcoursSC(bestSC, Math.min(listBestSC.size()+2,10));
 			System.out.println("Waiting for currently best solver config to finish a job.");
-			while (true) {
+			//TODO: nicht mehr darauf warten sondern erst am Ende der Iteration noch einmal testen
+			if (level == 1){
+				while (true) {
 				bestSC.updateJobs();
 				if (bestSC.getNotStartedJobs().isEmpty() && bestSC.getRunningJobs().isEmpty()) {
 					break;
 				}
-
 				Thread.sleep(1000);
+				}
 			}
 			updateSolverConfigName(bestSC, true);
+			//update the cost of the configuration in the EDACC tables
+			//This can not be done if not all jobs have finished???
 			api.updateSolverConfigurationCost(bestSC.getIdSolverConfiguration(), bestSC.getCost(), statistics.getCostFunction());
 			System.out.println("Generating new Solver Configurations.");
 
@@ -262,6 +267,8 @@ public class PROAR {
 								// all jobs from bestSC computed.
 								if (comp > 0) {
 									listBestSC.add(sc);
+									//womoeglich hier schon ein job hinzufügen für die besten, damit der Vergleich, danach 
+									//aussagekraeftiger ist!
 								}
 								api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(), sc.getCost(), statistics.getCostFunction());
 								listNewSC.remove(i);
@@ -270,7 +277,8 @@ public class PROAR {
 								System.out.println("Generated " + generated + " jobs");
 							}
 						} else {
-							api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(), sc.getCost(), statistics.getCostFunction());
+							//api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(), sc.getCost(), statistics.getCostFunction());
+							api.removeSolverConfig(sc.getIdSolverConfiguration());
 							listNewSC.remove(i);
 						}
 					}else{
@@ -299,9 +307,12 @@ public class PROAR {
 					if (sc.compareTo(bestSC) > 0) {
 						bestSC = sc;
 					}
+					else {
+						api.removeSolverConfig(sc.getIdSolverConfiguration());
+					}
 				}
 			}
-			updateSolverConfigName(bestSC, true);
+			//updateSolverConfigName(bestSC, true); not neccessary because we update this in the beginning of the loop!
 		}
 
 	}
@@ -312,7 +323,7 @@ public class PROAR {
 	}
 
 	public void updateSolverConfigName(SolverConfiguration sc, boolean best) throws Exception {
-		api.updateSolverConfigurationName(sc.getIdSolverConfiguration(), "Runs: " + sc.getFinishedJobs().size() + (best ? " BEST" : "") + " level: " + sc.getLevel() + " " + api.getCanonicalName(idExperiment, sc.getParameterConfiguration()));
+		api.updateSolverConfigurationName(sc.getIdSolverConfiguration(), (best ? " BEST " : "") + sc.getIdSolverConfiguration()+ " Runs: " + sc.getFinishedJobs().size()+" Level: " + sc.getLevel()  +  " " + api.getCanonicalName(idExperiment, sc.getParameterConfiguration()));
 	}
 
 	/**
