@@ -10,6 +10,7 @@ import java.util.Scanner;
 import edacc.api.API;
 import edacc.api.APIImpl;
 import edacc.configurator.proar.algorithm.PROARMethods;
+import edacc.model.ExperimentResult;
 import edacc.parameterspace.ParameterConfiguration;
 
 public class PROAR {
@@ -110,6 +111,9 @@ public class PROAR {
 			idSolverConfiguration = api.createSolverConfig(idExperiment, config, "First Configuration " + api.getCanonicalName(idExperiment, config) + " level " + level);
 		}
 		bestSC = new SolverConfiguration(idSolverConfiguration, api.getParameterConfiguration(idExperiment, idSolverConfiguration), statistics, level);
+		for (ExperimentResult job : api.getRuns(idExperiment, idSolverConfiguration)) {
+			bestSC.putJob(job);
+		}
 	}
 
 	/**
