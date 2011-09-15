@@ -229,7 +229,7 @@ public class PROAR {
 			bestSC.updateJobs();
 			// expandParcoursSC(bestSC, 1);
 			if (bestSC.getJobCount() < 5 * num_instances) {
-				expandParcoursSC(bestSC, Math.min(5 * num_instances - bestSC.getJobCount(), 4));
+				expandParcoursSC(bestSC, Math.min(5 * num_instances - bestSC.getJobCount(), 20));
 			}
 			
 			System.out.println("Waiting for currently best solver config to finish a job.");
@@ -255,10 +255,11 @@ public class PROAR {
 			// compute the number of new solver configs
 			numNewSC = computeOptimalExpansion();
 			
-			this.listNewSC.addAll(methods.generateNewSC(numNewSC, listBestSC, bestSC, level, level));
+			List<SolverConfiguration> tmpList = methods.generateNewSC(numNewSC, listBestSC, bestSC, level, level);
+			this.listNewSC.addAll(tmpList);
 			listBestSC.clear();
 
-			for (SolverConfiguration sc : listNewSC) {
+			for (SolverConfiguration sc : tmpList) {
 				addRandomJob(1, sc, bestSC, Integer.MAX_VALUE - level);
 				updateSolverConfigName(sc, false);
 			}

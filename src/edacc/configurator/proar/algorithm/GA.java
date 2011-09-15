@@ -1,6 +1,7 @@
 package edacc.configurator.proar.algorithm;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
@@ -31,12 +32,12 @@ public class GA extends PROARMethods {
 		limit = Math.max(limit, num);
 
 		List<Integer> best = new LinkedList<Integer>();
-		System.out.println("GA generate Solver configs: " + num);
+		System.out.println("[GA] GA generate Solver configs: " + num);
 		int index = 0;
 
 		while (oldScs.size() > index) {
 			SolverConfiguration cur = oldScs.get(index);
-			if (cur.getLevel() != currentLevel) {
+			if (cur.getLevel() != currentLevel -1) {
 				index++;
 				continue;
 			}
@@ -53,19 +54,22 @@ public class GA extends PROARMethods {
 				}
 			}
 		}
+		System.out.println("[GA] Sorting solver configurations");
+		Collections.sort(scList);
+		
 		float avg = 0.f;
 		for (SolverConfiguration sc : scList) {
 			avg += sc.getCost();
 		}
 		avg /= scList.size() != 0 ? scList.size() : 1;
 
-		System.out.println("Current best list contains " + scList.size() + " solver configurations.");
-		System.out.println("Average cost is " + avg + ".");
+		System.out.println("[GA] Current best list contains " + scList.size() + " solver configurations.");
+		System.out.println("[GA] Average cost is " + avg + ".");
 
 		for (SolverConfiguration sc : scList) {
-			best.add(sc.getIdSolverConfiguration());
+			best.add(0, sc.getIdSolverConfiguration());
 		}
-
+		System.out.println("[GA] Generating solver configurations");
 		LinkedList<SolverConfiguration> res = new LinkedList<SolverConfiguration>();
 		while (res.size() < num - 2 && best.size() >= 2) {
 			Pair<ParameterConfiguration, ParameterConfiguration> configs = graph.crossover(api.getParameterConfiguration(idExperiment, best.get(0)), api.getParameterConfiguration(idExperiment, best.get(1)), rng);
@@ -99,6 +103,7 @@ public class GA extends PROARMethods {
 			res.add(new SolverConfiguration(idSolverConfig, api.getParameterConfiguration(idExperiment, idSolverConfig), statistics, level));
 		}
 		oldScs.addAll(res);
+		System.out.println("[GA] done.");
 		return res;
 	}
 
