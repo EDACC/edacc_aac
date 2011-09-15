@@ -16,7 +16,7 @@ public class MB extends PROARMethods {
 	}
 
 	@Override
-	public List<SolverConfiguration> generateNewSC(int num, List<SolverConfiguration> lastBestSCs, SolverConfiguration currentBestSC, int level) throws Exception {
+	public List<SolverConfiguration> generateNewSC(int num, List<SolverConfiguration> lastBestSCs, SolverConfiguration currentBestSC, int level, int currentLevel) throws Exception {
 		List<SolverConfiguration> res = new ArrayList<SolverConfiguration>();
 		ParameterConfiguration bestSCP = currentBestSC.getParameterConfiguration();
 		for (int i = 0; i < num; i++) {

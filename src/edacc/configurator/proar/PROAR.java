@@ -255,7 +255,7 @@ public class PROAR {
 			// compute the number of new solver configs
 			numNewSC = computeOptimalExpansion();
 			
-			this.listNewSC.addAll(methods.generateNewSC(numNewSC, listBestSC, bestSC, level));
+			this.listNewSC.addAll(methods.generateNewSC(numNewSC, listBestSC, bestSC, level, level));
 			listBestSC.clear();
 
 			for (SolverConfiguration sc : listNewSC) {
@@ -360,7 +360,7 @@ public class PROAR {
 
 				if (sc_to_generate > 0) {
 					System.out.println("Generating " + sc_to_generate + " solver configurations for the next level.");
-					List<SolverConfiguration> scs = methods.generateNewSC(sc_to_generate, new ArrayList<SolverConfiguration>(), bestSC, level + 1);
+					List<SolverConfiguration> scs = methods.generateNewSC(sc_to_generate, new ArrayList<SolverConfiguration>(), bestSC, level + 1, level);
 					listNewSC.addAll(scs);
 
 					for (SolverConfiguration sc : scs) {

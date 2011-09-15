@@ -27,34 +27,28 @@ public class GA extends PROARMethods {
 	}
 
 	@Override
-	public List<SolverConfiguration> generateNewSC(int num, List<SolverConfiguration> lastBestSCs, SolverConfiguration currentBestSC, int level) throws Exception {
+	public List<SolverConfiguration> generateNewSC(int num, List<SolverConfiguration> lastBestSCs, SolverConfiguration currentBestSC, int level, int currentLevel) throws Exception {
 		limit = Math.max(limit, num);
 
 		List<Integer> best = new LinkedList<Integer>();
 		System.out.println("GA generate Solver configs: " + num);
 		int index = 0;
 
-		int minLevel = level;
-		for (SolverConfiguration sc : oldScs) {
-			minLevel = Math.min(sc.getLevel(), level);
-		}
-		if (minLevel != level) {
-			while (oldScs.size() > index) {
-				SolverConfiguration cur = oldScs.get(index);
-				if (cur.getLevel() != minLevel) {
-					index++;
-					continue;
-				}
-				oldScs.remove(index);
-				if (scList.size() < limit) {
-					scList.add(cur);
-				} else {
-					for (int i = 0; i < scList.size(); i++) {
-						if (cur.compareTo(scList.get(i)) >= 0) {
-							SolverConfiguration tmp = scList.get(i);
-							scList.set(i, cur);
-							cur = tmp;
-						}
+		while (oldScs.size() > index) {
+			SolverConfiguration cur = oldScs.get(index);
+			if (cur.getLevel() != currentLevel) {
+				index++;
+				continue;
+			}
+			oldScs.remove(index);
+			if (scList.size() < limit) {
+				scList.add(cur);
+			} else {
+				for (int i = 0; i < scList.size(); i++) {
+					if (cur.compareTo(scList.get(i)) >= 0) {
+						SolverConfiguration tmp = scList.get(i);
+						scList.set(i, cur);
+						cur = tmp;
 					}
 				}
 			}
