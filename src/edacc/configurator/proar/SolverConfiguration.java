@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Random;
 
 import edacc.parameterspace.ParameterConfiguration;
 import edacc.model.ExperimentResult;
@@ -179,9 +180,8 @@ public class SolverConfiguration implements Comparable<SolverConfiguration>{
 	 * @param num
 	 * @return
 	 */
-	//TODO: Simon : random hier einbauen!
-	public List<InstanceIdSeed> getInstanceIdSeed(SolverConfiguration other, int num) {
-		LinkedList<InstanceIdSeed> res = new LinkedList<InstanceIdSeed>();
+	public List<InstanceIdSeed> getInstanceIdSeed(SolverConfiguration other, int num, Random rng) {
+		LinkedList<InstanceIdSeed> all = new LinkedList<InstanceIdSeed>();
 		HashSet<InstanceIdSeed> ownInstanceIdSeed = new HashSet<InstanceIdSeed>();
 		for (ExperimentResult j : jobs) {
 			ownInstanceIdSeed.add(new InstanceIdSeed(j.getInstanceId(), j.getSeed()));
@@ -189,13 +189,22 @@ public class SolverConfiguration implements Comparable<SolverConfiguration>{
 		for (ExperimentResult j: other.getFinishedJobs()) {
 			InstanceIdSeed tmp = new InstanceIdSeed(j.getInstanceId(), j.getSeed());
 			if (!ownInstanceIdSeed.contains(tmp)) {
-				res.add(tmp);
-				if (res.size() == num) {
-					break;
-				}
+				all.add(tmp);
 			}
 		}
-		return res;
+		
+		if (all.size() <= num) {
+			return all;
+		} else {
+			LinkedList<InstanceIdSeed> res = new LinkedList<InstanceIdSeed>();
+			while (res.size() < num) {
+				int index = rng.nextInt(all.size());
+				res.add(all.get(index));
+				all.remove(index);
+			}
+			return res;
+		}
+		
 	}
 
 	/**

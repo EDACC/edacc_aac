@@ -10,6 +10,7 @@ import java.util.Scanner;
 import edacc.api.API;
 import edacc.api.APIImpl;
 import edacc.configurator.proar.algorithm.PROARMethods;
+import edacc.model.ConfigurationScenarioDAO;
 import edacc.model.ExperimentResult;
 import edacc.parameterspace.ParameterConfiguration;
 
@@ -79,9 +80,8 @@ public class PROAR {
 	 * just for debugging
 	 */
 	private int level;
-	
+
 	private int statNumSolverConfigs;
-	
 
 	public PROAR(String hostname, int port, String database, String user, String password, int idExperiment, int jobCPUTimeLimit, long seed, String algorithm, String statFunc, boolean minimize) throws Exception {
 		// TODO: MaxTuningTime in betracht ziehen!
@@ -166,16 +166,20 @@ public class PROAR {
 		// z.B: 10*#instanzen
 		for (int i = 0; i < num; i++) {
 			int idJob = api.launchJob(idExperiment, sc.getIdSolverConfiguration(), jobCPUTimeLimit, rng);
-			sc.putJob(api.getJob(idJob)); //add the job to the solver configuration own job store
+			api.setJobPriority(idJob, Integer.MAX_VALUE);
+			sc.putJob(api.getJob(idJob)); // add the job to the solver
+											// configuration own job store
 		}
 	}
 
 	/**
 	 * Determines how many new solver configuration can be taken into
 	 * consideration.
+	 * 
+	 * @throws Exception
 	 */
-	private int computeOptimalExpansion() {
-		return 400;
+	private int computeOptimalExpansion() throws Exception {
+		return Math.max(0, api.getComputationCoreCount(idExperiment) - listNewSC.size());
 		/*
 		 * TODO: was geschickteres implementieren, denn von diesem Wert haengt
 		 * sehr stark der Grad der parallelisierung statt. denkbar ware noch
@@ -195,14 +199,16 @@ public class PROAR {
 	 * 
 	 * @throws Exception
 	 */
-	private int addRandomJob(int num, SolverConfiguration toAdd, SolverConfiguration from) throws Exception {
+	private int addRandomJob(int num, SolverConfiguration toAdd, SolverConfiguration from, int priority) throws Exception {
 		toAdd.updateJobs();
 		from.updateJobs();
-		//compute a list with num  jobs that "from" has computed and "toadd" has not in its job list
-		List<InstanceIdSeed> instanceIdSeedList = toAdd.getInstanceIdSeed(from, num);
+		// compute a list with num jobs that "from" has computed and "toadd" has
+		// not in its job list
+		List<InstanceIdSeed> instanceIdSeedList = toAdd.getInstanceIdSeed(from, num, rng);
 		int generated = 0;
 		for (InstanceIdSeed is : instanceIdSeedList) {
 			int idJob = api.launchJob(idExperiment, toAdd.getIdSolverConfiguration(), is.instanceId, BigInteger.valueOf(is.seed), jobCPUTimeLimit);
+			api.setJobPriority(idJob, priority);
 			toAdd.putJob(api.getJob(idJob));
 			generated++;
 		}
@@ -215,52 +221,77 @@ public class PROAR {
 		// there are already some solver configurations in the experiment
 		level = 0;
 		initializeBest();// TODO: mittels dem Classloader überschreiben
-		
+
+		int num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(idExperiment).getCourse().getInitialLength();
+
 		while (!terminate()) {
 			level++;
 			bestSC.updateJobs();
-			//expandParcoursSC(bestSC, 1);
-			expandParcoursSC(bestSC, Math.min(listBestSC.size()+2,10));
+			// expandParcoursSC(bestSC, 1);
+			if (bestSC.getJobCount() < 5 * num_instances) {
+				expandParcoursSC(bestSC, Math.min(5 * num_instances - bestSC.getJobCount(), 4));
+			}
+			
 			System.out.println("Waiting for currently best solver config to finish a job.");
-			//TODO: nicht mehr darauf warten sondern erst am Ende der Iteration noch einmal testen
-			if (level == 1){
+			// TODO: nicht mehr darauf warten sondern erst am Ende der Iteration
+			// noch einmal testen
+			if (level == 1) {
 				while (true) {
+					bestSC.updateJobs();
+					if (bestSC.getNotStartedJobs().isEmpty() && bestSC.getRunningJobs().isEmpty()) {
+						break;
+					}
+					Thread.sleep(1000);
+				}
+			} else {
 				bestSC.updateJobs();
-				if (bestSC.getNotStartedJobs().isEmpty() && bestSC.getRunningJobs().isEmpty()) {
-					break;
-				}
-				Thread.sleep(1000);
-				}
 			}
 			updateSolverConfigName(bestSC, true);
-			//update the cost of the configuration in the EDACC tables
-			//This can not be done if not all jobs have finished???
+			// update the cost of the configuration in the EDACC tables
+			// This can not be done if not all jobs have finished???
 			api.updateSolverConfigurationCost(bestSC.getIdSolverConfiguration(), bestSC.getCost(), statistics.getCostFunction());
 			System.out.println("Generating new Solver Configurations.");
-
-			// at this point: best solver config should have computed all jobs
-			// because jobs aren't updated in the main loop.
+			System.out.println("There are currently " + listNewSC.size() + " solver configurations for the current level (" + level + ") generated in the last level.");
 			// compute the number of new solver configs
 			numNewSC = computeOptimalExpansion();
-			this.listNewSC = methods.generateNewSC(numNewSC, listBestSC, bestSC, level);
+			
+			this.listNewSC.addAll(methods.generateNewSC(numNewSC, listBestSC, bestSC, level));
 			listBestSC.clear();
 
 			for (SolverConfiguration sc : listNewSC) {
-				addRandomJob(1, sc, bestSC);
+				addRandomJob(1, sc, bestSC, Integer.MAX_VALUE - level);
 				updateSolverConfigName(sc, false);
 			}
-			while (!this.listNewSC.isEmpty()) {
+
+			boolean currentLevelFinished = false;
+
+			while (!currentLevelFinished) {
+				currentLevelFinished = true;
 				Thread.sleep(1000);
-				/*TODO: solver configurations cleanup:
-				 * in der config sollte noch ein parameter "maxNumConfigsInDB" hinzugefügt werden
-				 * dieser gibt an welche die maximale Anzahl an solver configs ist die in der DB behalten werden sollte, 
-				 * den Rest kann man löschen. Das sollte dazu dienen noch eine Übersichtlichkeit über die solver configs zu bewahren 
-				 * und sie mit dem web-frontend noch gut sehen zu können.
-				 * Es ist z.B: denkbar nur die 100 besten immer zu behalten und die restlichen zu löschen.  
+				/*
+				 * TODO: solver configurations cleanup: in der config sollte
+				 * noch ein parameter "maxNumConfigsInDB" hinzugefügt werden
+				 * dieser gibt an welche die maximale Anzahl an solver configs
+				 * ist die in der DB behalten werden sollte, den Rest kann man
+				 * löschen. Das sollte dazu dienen noch eine Übersichtlichkeit
+				 * über die solver configs zu bewahren und sie mit dem
+				 * web-frontend noch gut sehen zu können. Es ist z.B: denkbar
+				 * nur die 100 besten immer zu behalten und die restlichen zu
+				 * löschen.
 				 */
+
 				for (int i = listNewSC.size() - 1; i >= 0; i--) {
 					SolverConfiguration sc = listNewSC.get(i);
+					if (sc.getLevel() == level) {
+						currentLevelFinished = false;
+					}
 					sc.updateJobs();
+					
+					// this might not be very efficient .. if the list sizes are 0 then the check isn't necessary anymore.
+					if (bestSC.getNotStartedJobs().size() + bestSC.getRunningJobs().size() != 0) {
+						bestSC.updateJobs();
+					}
+					
 					updateSolverConfigName(sc, false);
 					// if finishedAll(sc)
 					if (sc.getNotStartedJobs().size() + sc.getRunningJobs().size() == 0) {
@@ -268,41 +299,72 @@ public class PROAR {
 						if (comp >= 0) {
 							// sc better than bestSC
 							if (sc.getJobCount() == bestSC.getJobCount()) {
+								if (sc.getLevel() != level) {
+									continue;
+								}
 								// all jobs from bestSC computed.
 								if (comp > 0) {
 									listBestSC.add(sc);
-									//womoeglich hier schon ein job hinzufügen für die besten, damit der Vergleich, danach 
-									//aussagekraeftiger ist!
+									// womoeglich hier schon ein job hinzufügen
+									// für die besten, damit der Vergleich,
+									// danach
+									// aussagekraeftiger ist!
 								}
 								api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(), sc.getCost(), statistics.getCostFunction());
 								listNewSC.remove(i);
 							} else {
-								int generated = addRandomJob(sc.getJobCount(), sc, bestSC);
-								System.out.println("Generated " + generated + " jobs");
+								int generated = addRandomJob(sc.getJobCount(), sc, bestSC, Integer.MAX_VALUE - sc.getLevel());
+								System.out.println("Generated " + generated + " jobs for level " + sc.getLevel());
 							}
 						} else {
-							//api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(), sc.getCost(), statistics.getCostFunction());
+							// api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(),
+							// sc.getCost(), statistics.getCostFunction());
 							api.removeSolverConfig(sc.getIdSolverConfiguration());
 							listNewSC.remove(i);
 						}
-					}else{
-						;/*TODO: adaptive capping:
-						 *Wir haben eine solver config new die neu jobs bekommen hat um mit der best verglichen zu werden.
-						 *Wir schauen sie momentan nur dann an wenn all ihre jobs schon fertig sind. 
-						 *Mann kann sich aber die ergebnise der jobs schon vorher anschauen um folgende zwei Sachen zu bestimmen.
-						 *1. ist new überhaupt noch in der Lage die best zu schlagen mit den werten die sie schon jetzt hat?
-						 *	dafür bestimmt man deren kosten und vergleicht mit best anhand der schon vorhandenen ergebnisse. 
-						 *	hat sie schon verloren kann man sie löschen ohne auf alle jobs zu warten!
-						 *	das kann gerade gegen Ende des Vergleichs von Vorteil sein!
-						 *2. Wenn die new mit den aktuellen jobs noch nicht verloren hat, kann man noch immer die 
-						 *	timeLimit der bestehenden (noch nicht gestarteten) jobs in Betracht ziehen:
-						 *	sei x die cost der best bzgl. der Auswahl an Instanzen auf die mit new verglichen werden soll
-						 *	dann kann die timeLimit der restlichen jobs auf min(timeLimit, cost(new)-x)) gesetzt werden oder sowas in der 
-						 *	Richtung
-						 *	Das könnte auch einiges an Rechenarbeit sparen!	
-						*/
+					} else {
+						;/*
+						 * TODO: adaptive capping:Wir haben eine solver config
+						 * new die neu jobs bekommen hat um mit der best
+						 * verglichen zu werden.Wir schauen sie momentan nur
+						 * dann an wenn all ihre jobs schon fertig sind.Mann
+						 * kann sich aber die ergebnise der jobs schon vorher
+						 * anschauen um folgende zwei Sachen zu bestimmen.1. ist
+						 * new überhaupt noch in der Lage die best zu schlagen
+						 * mit den werten die sie schon jetzt hat? dafür
+						 * bestimmt man deren kosten und vergleicht mit best
+						 * anhand der schon vorhandenen ergebnisse. hat sie
+						 * schon verloren kann man sie löschen ohne auf alle
+						 * jobs zu warten! das kann gerade gegen Ende des
+						 * Vergleichs von Vorteil sein!2. Wenn die new mit den
+						 * aktuellen jobs noch nicht verloren hat, kann man noch
+						 * immer die timeLimit der bestehenden (noch nicht
+						 * gestarteten) jobs in Betracht ziehen: sei x die cost
+						 * der best bzgl. der Auswahl an Instanzen auf die mit
+						 * new verglichen werden soll dann kann die timeLimit
+						 * der restlichen jobs auf min(timeLimit, cost(new)-x))
+						 * gesetzt werden oder sowas in der Richtung Das könnte
+						 * auch einiges an Rechenarbeit sparen!
+						 */
 					}
 				}
+
+				int coreCount = api.getComputationCoreCount(idExperiment);
+				int jobs = api.getComputationJobCount(idExperiment);
+
+				int sc_to_generate = Math.max(coreCount, 8) - jobs;
+
+				if (sc_to_generate > 0) {
+					System.out.println("Generating " + sc_to_generate + " solver configurations for the next level.");
+					List<SolverConfiguration> scs = methods.generateNewSC(sc_to_generate, new ArrayList<SolverConfiguration>(), bestSC, level + 1);
+					listNewSC.addAll(scs);
+
+					for (SolverConfiguration sc : scs) {
+						addRandomJob(1, sc, bestSC, Integer.MAX_VALUE - level - 1);
+						updateSolverConfigName(sc, false);
+					}
+				}
+
 			}
 			updateSolverConfigName(bestSC, false);
 			System.out.println("Determining the new best solver config from " + listBestSC.size() + " solver configurations.");
@@ -310,13 +372,13 @@ public class PROAR {
 				for (SolverConfiguration sc : listBestSC) {
 					if (sc.compareTo(bestSC) > 0) {
 						bestSC = sc;
-					}
-					else {
-						api.removeSolverConfig(sc.getIdSolverConfiguration());
+					} else {
+						// api.removeSolverConfig(sc.getIdSolverConfiguration());
 					}
 				}
 			}
-			//updateSolverConfigName(bestSC, true); not neccessary because we update this in the beginning of the loop!
+			// updateSolverConfigName(bestSC, true); not neccessary because we
+			// update this in the beginning of the loop!
 		}
 
 	}
@@ -327,7 +389,7 @@ public class PROAR {
 	}
 
 	public void updateSolverConfigName(SolverConfiguration sc, boolean best) throws Exception {
-		api.updateSolverConfigurationName(sc.getIdSolverConfiguration(), (best ? " BEST " : "") + sc.getIdSolverConfiguration()+ " Runs: " + sc.getFinishedJobs().size()+" Level: " + sc.getLevel()  +  " " + api.getCanonicalName(idExperiment, sc.getParameterConfiguration()));
+		api.updateSolverConfigurationName(sc.getIdSolverConfiguration(), (best ? " BEST " : "") + sc.getIdSolverConfiguration() + " Runs: " + sc.getFinishedJobs().size() + " Level: " + sc.getLevel() + " " + api.getCanonicalName(idExperiment, sc.getParameterConfiguration()));
 	}
 
 	/**
