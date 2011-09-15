@@ -290,6 +290,9 @@ public class PROAR {
 					// this might not be very efficient .. if the list sizes are 0 then the check isn't necessary anymore.
 					if (bestSC.getNotStartedJobs().size() + bestSC.getRunningJobs().size() != 0) {
 						bestSC.updateJobs();
+						if (bestSC.getNotStartedJobs().size() + bestSC.getRunningJobs().size() == 0) {
+							api.updateSolverConfigurationCost(bestSC.getIdSolverConfiguration(), bestSC.getCost(), statistics.getCostFunction());
+						}
 					}
 					
 					updateSolverConfigName(sc, false);
@@ -300,6 +303,7 @@ public class PROAR {
 							// sc better than bestSC
 							if (sc.getJobCount() == bestSC.getJobCount()) {
 								if (sc.getLevel() != level) {
+									// don't add solver configurations from the next level to the best sc list
 									continue;
 								}
 								// all jobs from bestSC computed.
@@ -349,9 +353,9 @@ public class PROAR {
 					}
 				}
 
+				// determine how many idleing cores we have and generate new solver configurations for the next level
 				int coreCount = api.getComputationCoreCount(idExperiment);
 				int jobs = api.getComputationJobCount(idExperiment);
-
 				int sc_to_generate = Math.max(coreCount, 8) - jobs;
 
 				if (sc_to_generate > 0) {
