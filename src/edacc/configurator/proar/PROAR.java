@@ -109,7 +109,7 @@ public class PROAR {
 	private void initializeBest() throws Exception {
 		int idSolverConfiguration = api.getBestConfiguration(idExperiment, statistics.getCostFunction());
 		if (idSolverConfiguration == 0) {
-			// no solver configs in db
+			// no solver configs in db, that have the specified statistic function
 			ParameterConfiguration config = api.loadParameterGraphFromDB(idExperiment).getRandomConfiguration(rng);
 			idSolverConfiguration = api.createSolverConfig(idExperiment, config, "First Configuration " + api.getCanonicalName(idExperiment, config) + " level " + level);
 		}
@@ -260,12 +260,14 @@ public class PROAR {
 			listBestSC.clear();
 
 			for (SolverConfiguration sc : tmpList) {
+				//add 1 random job from the best configuration with the priority corresponding to the level
+				//lower levels -> higher priorities
 				addRandomJob(1, sc, bestSC, Integer.MAX_VALUE - level);
 				updateSolverConfigName(sc, false);
 			}
 
 			boolean currentLevelFinished = false;
-
+			//only when all jobs of the current level are finished we can continue
 			while (!currentLevelFinished) {
 				currentLevelFinished = true;
 				Thread.sleep(1000);
@@ -283,6 +285,8 @@ public class PROAR {
 
 				for (int i = listNewSC.size() - 1; i >= 0; i--) {
 					SolverConfiguration sc = listNewSC.get(i);
+					//take only solver configs of the current level into consideration
+					//there might be some configs for the next level already generated and evaluated
 					if (sc.getLevel() == level) {
 						currentLevelFinished = false;
 					}
@@ -301,7 +305,9 @@ public class PROAR {
 					if (sc.getNotStartedJobs().size() + sc.getRunningJobs().size() == 0) {
 						int comp = sc.compareTo(bestSC);
 						if (comp >= 0) {
-							// sc better than bestSC
+							// sc better or equal than bestSC 
+							// a timeout is not better than a timeout!!! so maybe ">" would be better
+							//if the first instance is not solvable at all, then this might be also a problem!
 							if (sc.getJobCount() == bestSC.getJobCount()) {
 								if (sc.getLevel() != level) {
 									// don't add solver configurations from the next level to the best sc list
@@ -311,9 +317,7 @@ public class PROAR {
 								if (comp > 0) {
 									listBestSC.add(sc);
 									// womoeglich hier schon ein job hinzufügen
-									// für die besten, damit der Vergleich,
-									// danach
-									// aussagekraeftiger ist!
+									// für die besten, damit der Vergleich, danach aussagekraeftiger ist!
 								}
 								api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(), sc.getCost(), statistics.getCostFunction());
 								listNewSC.remove(i);
