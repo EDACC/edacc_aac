@@ -102,6 +102,18 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 		return statFunc.getCostFunction().calculateCost(jobs);
 	}
 
+	/**
+	 * Computes the cost of the solver configuration according to the
+	 * statistical function that the solver configuration was initialized. Only
+	 * jobs that are finished are taken into considertion; running, unstarted or
+	 * crashed jobs are ignored
+	 * 
+	 * @return the cost value with regards to the statistic function
+	 */
+	public final Float getCumulatedCost() {
+		return statFunc.getCostFunction().calculateCumulatedCost(jobs);
+	}
+	
 	public final void setCost(Float cost) {
 		this.cost = cost;
 	}
@@ -119,6 +131,20 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	}
 
 	/**
+	 * Returns the all jobs at the last <code>updateJobs()</code> call.<br/>
+	 * 
+	 * @return
+	 */
+	public List<ExperimentResult> getJobs() {
+		LinkedList<ExperimentResult> res = new LinkedList<ExperimentResult>();
+		for (ExperimentResult j : jobs) {
+				res.add(j);
+		}
+		return res;
+	}
+	
+		
+	/**
 	 * Returns the running jobs at the last <code>updateJobs()</code> call. <br/>
 	 * Running jobs means, <code>statusCode</code> equals
 	 * <code>StatusCode.RUNNING</code>.
@@ -134,7 +160,26 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 		}
 		return res;
 	}
-
+	
+	/**
+	 * Returns the number of running jobs at the last <code>updateJobs()</code> call. <br/>
+	 * Running jobs means, <code>statusCode</code> equals
+	 * <code>StatusCode.RUNNING</code>.
+	 * 
+	 * @return
+	 */
+	public int getNumRunningJobs() {
+		int numRunning = 0;
+		for (ExperimentResult j : jobs) {
+			if (j.getStatus().equals(StatusCode.RUNNING)) {
+				numRunning++;
+			}
+		}
+		return numRunning;
+	}
+	
+	
+	
 	/**
 	 * Returns the finished jobs at the last <code>updateJobs()</code> call. <br/>
 	 * Finished jobs means, <code>statusCode</code> is different to
@@ -153,6 +198,23 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	}
 
 	/**
+	 * Returns the finished jobs at the last <code>updateJobs()</code> call. <br/>
+	 * Finished jobs means, <code>statusCode</code> is different to
+	 * <code>StatusCode.NOT_STARTED</code> and <code>StatusCode.RUNNING</code>.
+	 * 
+	 * @return
+	 */
+	public int getNumFinishedJobs() {
+		int numFinished = 0;
+		for (ExperimentResult j : jobs) {
+			if (!j.getStatus().equals(StatusCode.NOT_STARTED) && !j.getStatus().equals(StatusCode.RUNNING)) {
+				numFinished ++;
+			}
+		}
+		return numFinished;
+	}
+	
+	/**
 	 * Returns the not started jobs at the last <code>updateJobs()</code> call.<br/>
 	 * Not started jobs means, <code>statusCode</code> is equal to
 	 * <code>StatusCode.NOT_STARTED</code>.
@@ -170,6 +232,22 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	}
 
 	/**
+	 * Returns the number of not started jobs at the last <code>updateJobs()</code> call.<br/>
+	 * Not started jobs means, <code>statusCode</code> is equal to
+	 * <code>StatusCode.NOT_STARTED</code>.
+	 * 
+	 * @return
+	 */
+	public int getNumNotStartedJobs() {
+		int numNotStarted = 0;
+		for (ExperimentResult j : jobs) {
+			if (j.getStatus().equals(StatusCode.NOT_STARTED)) {
+				numNotStarted ++;
+			}
+		}
+		return numNotStarted;
+	}
+	/**
 	 * Returns the number of jobs for this solver configuration at the last
 	 * <code>updateJobs()</code> call.
 	 * 
@@ -186,9 +264,10 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	 * 
 	 * @throws Exception
 	 */
-	LinkedList<Integer> ids = new LinkedList<Integer>();
+	
 
 	public void updateJobsStatus() throws Exception {
+		LinkedList<Integer> ids = new LinkedList<Integer>();
 		for (ExperimentResult j : jobs) {
 			ids.add(j.getId());
 		}
