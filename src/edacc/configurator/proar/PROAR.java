@@ -35,9 +35,7 @@ public class PROAR {
 	/** inidcates if the results of the solver of deterministic nature or not */
 	private boolean deterministic;
 
-	/** what kind of metric should be optimized? runtime or cost */
-	// TODO:private whateverType metric;
-
+	
 	/** maximum allowed tuning time = sum over all jobs in seconds */
 	private float maxTuningTime; // TODO: take into consideration
 
