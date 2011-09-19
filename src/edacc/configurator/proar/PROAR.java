@@ -288,14 +288,6 @@ public class PROAR {
 					}
 					sc.updateJobs();
 					
-					// this might not be very efficient .. if the list sizes are 0 then the check isn't necessary anymore.
-					if (bestSC.getNotStartedJobs().size() + bestSC.getRunningJobs().size() != 0) {
-						bestSC.updateJobs();
-						if (bestSC.getNotStartedJobs().size() + bestSC.getRunningJobs().size() == 0) {
-							api.updateSolverConfigurationCost(bestSC.getIdSolverConfiguration(), bestSC.getCost(), statistics.getCostFunction());
-						}
-					}
-					
 					updateSolverConfigName(sc, false);
 					// if finishedAll(sc)
 					if (sc.getNotStartedJobs().size() + sc.getRunningJobs().size() == 0) {
@@ -352,7 +344,7 @@ public class PROAR {
 						 * auch einiges an Rechenarbeit sparen!
 						 */
 					}
-				}
+				}		
 
 				// determine how many idleing cores we have and generate new solver configurations for the next level
 				int coreCount = api.getComputationCoreCount(idExperiment);
@@ -369,7 +361,15 @@ public class PROAR {
 						updateSolverConfigName(sc, false);
 					}
 				}
-
+				
+				
+				// this might not be very efficient .. if the list sizes are 0 then the check isn't necessary anymore.
+				if (bestSC.getNotStartedJobs().size() + bestSC.getRunningJobs().size() != 0) {
+					bestSC.updateJobs();
+					if (bestSC.getNotStartedJobs().size() + bestSC.getRunningJobs().size() == 0) {
+						api.updateSolverConfigurationCost(bestSC.getIdSolverConfiguration(), bestSC.getCost(), statistics.getCostFunction());
+					}
+				}
 			}
 			updateSolverConfigName(bestSC, false);
 			System.out.println("Determining the new best solver config from " + listBestSC.size() + " solver configurations.");

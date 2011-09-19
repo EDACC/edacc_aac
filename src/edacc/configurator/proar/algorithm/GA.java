@@ -31,7 +31,6 @@ public class GA extends PROARMethods {
 	public List<SolverConfiguration> generateNewSC(int num, List<SolverConfiguration> lastBestSCs, SolverConfiguration currentBestSC, int level, int currentLevel) throws Exception {
 		limit = Math.max(limit, num);
 
-		List<Integer> best = new LinkedList<Integer>();
 		System.out.println("[GA] GA generate Solver configs: " + num);
 		int index = 0;
 
@@ -46,7 +45,7 @@ public class GA extends PROARMethods {
 				scList.add(cur);
 			} else {
 				for (int i = 0; i < scList.size(); i++) {
-					if (cur.compareTo(scList.get(i)) >= 0) {
+					if (cur.getJobCount() > scList.get(i).getJobCount() && cur.compareTo(scList.get(i)) >= 0) {
 						SolverConfiguration tmp = scList.get(i);
 						scList.set(i, cur);
 						cur = tmp;
@@ -61,17 +60,19 @@ public class GA extends PROARMethods {
 		for (SolverConfiguration sc : scList) {
 			avg += sc.getCost();
 		}
+		
 		avg /= scList.size() != 0 ? scList.size() : 1;
 
 		System.out.println("[GA] Current best list contains " + scList.size() + " solver configurations.");
 		System.out.println("[GA] Average cost is " + avg + ".");
 
+		List<Integer> best = new LinkedList<Integer>();
 		for (SolverConfiguration sc : scList) {
 			best.add(0, sc.getIdSolverConfiguration());
 		}
 		System.out.println("[GA] Generating solver configurations");
 		LinkedList<SolverConfiguration> res = new LinkedList<SolverConfiguration>();
-		while (res.size() < num - 2 && best.size() >= 2) {
+		while (res.size() < num - Math.ceil(0.1 * num) && best.size() >= 2) {
 			Pair<ParameterConfiguration, ParameterConfiguration> configs = graph.crossover(api.getParameterConfiguration(idExperiment, best.get(0)), api.getParameterConfiguration(idExperiment, best.get(1)), rng);
 
 			if (rng.nextFloat() < 0.01) {
