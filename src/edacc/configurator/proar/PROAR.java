@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.Scanner;
 
+
 import edacc.api.API;
 import edacc.api.APIImpl;
 import edacc.configurator.proar.algorithm.PROARMethods;
@@ -95,6 +96,7 @@ public class PROAR {
 	private int initialDefaultParcoursLength; 
 
 	private int statNumSolverConfigs;
+	private int statNumJobs;
 
 	public PROAR(String hostname, int port, String database, String user, String password, int idExperiment, int jobCPUTimeLimit, long seed, String algorithm, String statFunc, boolean minimize, int pe, int mpef, int ipd) throws Exception {
 		// TODO: MaxTuningTime in betracht ziehen!
@@ -110,7 +112,8 @@ public class PROAR {
 		rng = new edacc.util.MersenneTwister(seed);
 		listBestSC = new ArrayList<SolverConfiguration>();
 		listNewSC = new ArrayList<SolverConfiguration>();
-		
+		this.statNumSolverConfigs = 0;
+		this.statNumJobs = 0;
 		// TODO: Die beste config auch noch mittels einer methode bestimmen!
 		methods = (PROARMethods) ClassLoader.getSystemClassLoader().loadClass("edacc.configurator.proar.algorithm." + algorithm).getDeclaredConstructors()[0].newInstance(api, idExperiment, statistics, rng);
 	}
@@ -243,8 +246,6 @@ public class PROAR {
 
 	public void start() throws Exception {
 		int numNewSC;
-		float costBestSC, costSC;
-		
 		// first initialize the best individual if there is a default or if
 		// there are already some solver configurations in the experiment
 		level = 0;
@@ -288,9 +289,10 @@ public class PROAR {
 			// compute the number of new solver configs that should be generated for this level
 			numNewSC = computeOptimalExpansion();
 			List<SolverConfiguration> tmpList = methods.generateNewSC(numNewSC, listBestSC, bestSC, level, level);
+			this.statNumSolverConfigs += numNewSC ;
 			this.listNewSC.addAll(tmpList);
 			listBestSC.clear();
-			System.out.println("Generated " + numNewSC + " new solver configurations");
+			System.out.println(statNumSolverConfigs + "SC -> Generated " + numNewSC + " new solver configurations");
 
 			for (SolverConfiguration sc : tmpList) {
 				// add 1 random job from the best configuration with the
@@ -306,6 +308,7 @@ public class PROAR {
 			while (!currentLevelFinished) {
 				currentLevelFinished = true;
 				Thread.sleep(1000);
+				//TODO : implement a method that determines an optimal wait according to the runtimes of the jobs!
 				
 
 				for (int i = listNewSC.size() - 1; i >= 0; i--) {
@@ -319,7 +322,6 @@ public class PROAR {
 					}
 					sc.updateJobsStatus();
 					updateSolverConfigName(sc, false);
-					// if finishedAll(sc)
 					if (sc.getNumNotStartedJobs() + sc.getNumRunningJobs() == 0) {
 						int comp = sc.compareTo(bestSC);
 						if (comp >= 0) {
@@ -344,6 +346,7 @@ public class PROAR {
 						} else {//lost against best on part of the actual parcours:
 							api.removeSolverConfig(sc.getIdSolverConfiguration());
 							listNewSC.remove(i);//remove from new configurations
+							//System.out.println(">>>>>Config lost!!!");
 						}
 					}else{
 						//---CAPPING RUNS OF BAD CONFIGS---
@@ -352,13 +355,16 @@ public class PROAR {
 						if ((this.statistics.getCostFunction() instanceof edacc.api.costfunctions.PARX)|| (this.statistics.getCostFunction() instanceof edacc.api.costfunctions.Average))
 						//TODO: minimieren / maximieren /negative kosten 
 							if (sc.getCumulatedCost() > bestSC.getCumulatedCost() ){
-							//kill all running jobs of the sc config!
+							System.out.println(sc.getCumulatedCost()+" >"+bestSC.getCumulatedCost());
+							System.out.println(sc.getJobCount() + " > " + bestSC.getJobCount());
+								//kill all running jobs of the sc config!
 							List<ExperimentResult> jobsToKill = sc.getJobs();
 							for (ExperimentResult j : jobsToKill ){
 								this.api.killJob(j.getId());
 							}
 							api.removeSolverConfig(sc.getIdSolverConfiguration());
 							listNewSC.remove(i);
+							System.out.println("-----Config capped!!!");
 						}
 						//	sc.killRunningJobs
 						//	api.removeSolverConfig(sc.)
@@ -373,9 +379,10 @@ public class PROAR {
 				int sc_to_generate = Math.max(coreCount, 8) - jobs;
 
 				if (sc_to_generate > 0) {
-					System.out.println("Generating " + sc_to_generate + " solver configurations for the next level.");
+					//System.out.println(statNumSolverConfigs +"SC -> Generating " + sc_to_generate + " solver configurations for the next level.");
 					List<SolverConfiguration> scs = methods.generateNewSC(sc_to_generate,
 							new ArrayList<SolverConfiguration>(), bestSC, level + 1, level);
+					this.statNumSolverConfigs += sc_to_generate ;
 					listNewSC.addAll(scs);
 
 					for (SolverConfiguration sc : scs) {
@@ -401,7 +408,8 @@ public class PROAR {
 					if (sc.compareTo(bestSC) > 0) {
 						bestSC = sc;
 					} else {
-						// api.removeSolverConfig(sc.getIdSolverConfiguration());
+						if (this.algorithm.equals("ROAR")||(this.algorithm.equals("MB")))
+							api.removeSolverConfig(sc.getIdSolverConfiguration());
 					}
 				}
 			}
@@ -412,6 +420,16 @@ public class PROAR {
 	}
 
 	public void shutdown() {
+		System.out.println("Solver Configurations generated: " + this.statNumSolverConfigs);
+		System.out.println("Jobs generated: "+statNumJobs);
+		System.out.println("Total runtime of the execution system (CPU time): " + cumulatedCPUTime);
+		System.out.println("Best Configuration found: ");
+		System.out.println("ID :" + bestSC.getIdSolverConfiguration());
+		try {
+			System.out.println("Canonical name: " + api.getCanonicalName(this.idExperiment, bestSC.getParameterConfiguration()));
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 		System.out.println("halt.");
 		api.disconnect();
 	}
