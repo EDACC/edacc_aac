@@ -3,7 +3,10 @@ package edacc.configurator.proar;
 import java.io.File;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -13,8 +16,10 @@ import edacc.api.API;
 import edacc.api.APIImpl;
 import edacc.configurator.proar.algorithm.PROARMethods;
 import edacc.model.ConfigurationScenarioDAO;
+import edacc.model.Course;
 import edacc.model.ExperimentResult;
 import edacc.parameterspace.ParameterConfiguration;
+import edacc.parameterspace.graph.ParameterGraph;
 
 public class PROAR {
 
@@ -24,12 +29,6 @@ public class PROAR {
 	private String algorithm;
 	private Random rng;
 	private PROARMethods methods;
-
-	/**
-	 * tells if the cost function is to be minimized; if 0 it should be
-	 * maximized
-	 */
-	private boolean minimize;
 
 	/** The statistics function to be used */
 	private StatisticFunction statistics;
@@ -98,12 +97,14 @@ public class PROAR {
 	private int statNumSolverConfigs;
 	private int statNumJobs;
 
+	private ParameterGraph graph;
 	public PROAR(String hostname, int port, String database, String user, String password, int idExperiment,
 			int jobCPUTimeLimit, long seed, String algorithm, String statFunc, boolean minimize, int pe, int mpef,
 			int ipd, Map<String, String> configuratorMethodParams) throws Exception {
 		// TODO: MaxTuningTime in betracht ziehen!
 		api = new APIImpl();
 		api.connect(hostname, port, database, user, password);
+		this.graph = api.loadParameterGraphFromDB(idExperiment);
 		this.idExperiment = idExperiment;
 		this.jobCPUTimeLimit = jobCPUTimeLimit;
 		this.algorithm = algorithm;
@@ -134,20 +135,70 @@ public class PROAR {
 	// schon mehrere vorhanden sind,
 	// die im konfigurationsszenrio passen!
 	private void initializeBest() throws Exception {
-		// bestimme die configs mit maxJobs
-		// sort und nimm die erste! //faule Variante
-		int idSolverConfiguration = api.getBestConfiguration(idExperiment, statistics.getCostFunction());
-		if (idSolverConfiguration == 0) {
-			// no solver configs in db, that have the specified statistic
-			// function
-			ParameterConfiguration config = api.loadParameterGraphFromDB(idExperiment).getRandomConfiguration(rng);
-			idSolverConfiguration = api.createSolverConfig(idExperiment, config,
-					"First Random Configuration " + api.getCanonicalName(idExperiment, config) + " level " + level);
+		List<Integer> solverConfigIds = api.getSolverConfigurations("default");
+		if (solverConfigIds.isEmpty()) {
+			solverConfigIds = api.getSolverConfigurations(idExperiment);
+			System.out.println("Found " + solverConfigIds.size() + " solver configuration(s)");
+		} else {
+			System.out.println("Found " + solverConfigIds.size() + " default configuration(s)");
 		}
-		bestSC = new SolverConfiguration(idSolverConfiguration, api.getParameterConfiguration(idExperiment,
-				idSolverConfiguration), statistics, level);
-		for (ExperimentResult job : api.getRuns(idExperiment, idSolverConfiguration)) {
-			bestSC.putJob(job);
+		List<SolverConfiguration> solverConfigs = new LinkedList<SolverConfiguration>();
+		int maxRun = -1;
+		for (int id : solverConfigIds) {
+			int runCount = api.getNumJobs(id);
+			if (runCount > maxRun) {
+				solverConfigs.clear();
+				maxRun = runCount;
+			}
+			if (runCount == maxRun) {
+				ParameterConfiguration pConfig = api.getParameterConfiguration(idExperiment, id);
+				solverConfigs.add(new SolverConfiguration(id, pConfig, statistics, level));
+			}
+		}
+		System.out.println("" + solverConfigs.size() + " solver configs with max run");
+		
+		
+		Course c = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(idExperiment).getCourse();
+		for (int sc_index = solverConfigs.size()-1; sc_index >= 0; sc_index--) {
+			SolverConfiguration sc = solverConfigs.get(sc_index);
+			HashSet<InstanceIdSeed> iis = new HashSet<InstanceIdSeed>();
+			for (ExperimentResult job : api.getRuns(idExperiment, sc.getIdSolverConfiguration())) {
+				sc.putJob(job);
+				iis.add(new InstanceIdSeed(job.getInstanceId(), job.getSeed()));
+			}
+			boolean courseValid = true;
+			boolean courseEnded = false;
+			for (int i = 0; i < c.getLength(); i++) {
+				InstanceIdSeed tmp = new InstanceIdSeed(c.get(i).instance.getId(), c.get(i).seed);
+				courseValid = !(courseEnded && iis.contains(tmp));
+				courseEnded = courseEnded || !iis.contains(tmp);
+				if (!courseValid) {
+					System.out.println("Course invalid at instance number " + i + " instance: " + c.get(i).instance.getName());
+					break;
+				}
+			}
+			if (!courseValid) {
+				System.out.println("Removing solver configuration " + api.getSolverConfigName(sc.getIdSolverConfiguration()) + " caused by invalid course.");
+				solverConfigs.remove(sc_index);
+			}
+		}
+		
+		System.out.println("Determining best solver configuration from " + solverConfigs.size() + " solver configurations");
+		
+		if (solverConfigs.isEmpty()) {
+			// no good solver configs in db
+			System.out.println("Generating a random solver configuration");
+
+			ParameterConfiguration config = graph.getRandomConfiguration(rng);
+			int idSolverConfiguration = api.createSolverConfig(idExperiment, config,
+					"First Random Configuration " + api.getCanonicalName(idExperiment, config) + " level " + level);
+			bestSC = new SolverConfiguration(idSolverConfiguration, api.getParameterConfiguration(idExperiment,
+					idSolverConfiguration), statistics, level);
+		} else {
+			Collections.sort(solverConfigs);
+			bestSC = solverConfigs.get(solverConfigs.size()-1);
+			System.out.println("Best solver configuration: " + api.getSolverConfigName(bestSC.getIdSolverConfiguration()));
+			
 		}
 	}
 
