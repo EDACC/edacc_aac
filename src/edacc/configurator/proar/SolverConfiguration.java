@@ -116,7 +116,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	public final Float getCumulatedCost() {
 		return statFunc.getCostFunction().calculateCumulatedCost(jobs);
 	}
-	
+
 	public final void setCost(Float cost) {
 		this.cost = cost;
 	}
@@ -124,7 +124,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	public final String getName() {
 		return this.name;
 	}
-
+	
 	public final void setName(String name) {
 		this.name = name;
 	}
@@ -141,12 +141,11 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	public List<ExperimentResult> getJobs() {
 		LinkedList<ExperimentResult> res = new LinkedList<ExperimentResult>();
 		for (ExperimentResult j : jobs) {
-				res.add(j);
+			res.add(j);
 		}
 		return res;
 	}
-	
-		
+
 	/**
 	 * Returns the running jobs at the last <code>updateJobs()</code> call. <br/>
 	 * Running jobs means, <code>statusCode</code> equals
@@ -163,9 +162,10 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 		}
 		return res;
 	}
-	
+
 	/**
-	 * Returns the number of running jobs at the last <code>updateJobs()</code> call. <br/>
+	 * Returns the number of running jobs at the last <code>updateJobs()</code>
+	 * call. <br/>
 	 * Running jobs means, <code>statusCode</code> equals
 	 * <code>StatusCode.RUNNING</code>.
 	 * 
@@ -174,9 +174,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	public int getNumRunningJobs() {
 		return numRunningJobs;
 	}
-	
-	
-	
+
 	/**
 	 * Returns the finished jobs at the last <code>updateJobs()</code> call. <br/>
 	 * Finished jobs means, <code>statusCode</code> is different to
@@ -204,7 +202,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	public int getNumFinishedJobs() {
 		return numFinishedJobs;
 	}
-	
+
 	/**
 	 * Returns the not started jobs at the last <code>updateJobs()</code> call.<br/>
 	 * Not started jobs means, <code>statusCode</code> is equal to
@@ -223,7 +221,8 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	}
 
 	/**
-	 * Returns the number of not started jobs at the last <code>updateJobs()</code> call.<br/>
+	 * Returns the number of not started jobs at the last
+	 * <code>updateJobs()</code> call.<br/>
 	 * Not started jobs means, <code>statusCode</code> is equal to
 	 * <code>StatusCode.NOT_STARTED</code>.
 	 * 
@@ -254,7 +253,6 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	 * 
 	 * @throws Exception
 	 */
-	
 
 	public void updateJobsStatus() throws Exception {
 		LinkedList<Integer> ids = new LinkedList<Integer>();
@@ -335,10 +333,6 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 
 	@Override
 	public int compareTo(SolverConfiguration other) {
-
-		// TODO : metrik (sollte automatisch durch API gegeben sein -> TODO für
-		// api) in betracht ziehen!
-
 		HashMap<InstanceIdSeed, ExperimentResult> ownJobs = new HashMap<InstanceIdSeed, ExperimentResult>();
 		for (ExperimentResult job : getFinishedJobs()) {
 			ownJobs.put(new InstanceIdSeed(job.getInstanceId(), job.getSeed()), job);
