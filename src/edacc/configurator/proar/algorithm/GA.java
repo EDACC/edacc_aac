@@ -2,6 +2,7 @@ package edacc.configurator.proar.algorithm;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
@@ -15,15 +16,21 @@ import edacc.util.Pair;
 
 public class GA extends PROARMethods {
 	private ParameterGraph graph;
-	private List<SolverConfiguration> scList;
+	private List<Individual> population;
 	private List<SolverConfiguration> oldScs;
+	HashSet<byte[]> checksums;
 	private int limit;
+	
+	private static final float probN = 0.6f;
+	private static final int maxAge = 10;
+	private static final float mutationProb = 0.1f;	
 
 	public GA(API api, int idExperiment, StatisticFunction statistics, Random rng) throws Exception {
 		super(api, idExperiment, statistics, rng);
 		graph = api.loadParameterGraphFromDB(idExperiment);
-		scList = new ArrayList<SolverConfiguration>();
+		population = new ArrayList<Individual>();
 		oldScs = new ArrayList<SolverConfiguration>();
+		checksums = new HashSet<byte[]>();
 		limit = 0;
 	}
 
@@ -32,80 +39,185 @@ public class GA extends PROARMethods {
 		limit = Math.max(limit, num);
 
 		System.out.println("[GA] GA generate Solver configs: " + num);
+		System.out.println("[GA] Population size: " + population.size());
+		for (int i = population.size()-1; i >= 0; i--) {
+			if (population.get(i).getAge(currentLevel -1) > maxAge || population.get(i).getChildCount() > population.get(i).getMaxChildCount()) {
+				population.remove(i);
+			}
+		}
 		int index = 0;
 
 		while (oldScs.size() > index) {
-			SolverConfiguration cur = oldScs.get(index);
-			if (cur.getLevel() != currentLevel -1) {
+			SolverConfiguration sc = oldScs.get(index);
+			if (sc.getLevel() != currentLevel -1) {
 				index++;
 				continue;
 			}
 			oldScs.remove(index);
-			if (scList.size() < limit) {
-				scList.add(cur);
+
+			if (sc.getNumSuccessfulJobs() < 4) {
+				continue;
+			}
+			int maxChildCount = sc.getNumSuccessfulJobs();
+			Individual cur = new Individual(sc, maxChildCount);
+			System.out.println("[GA] Created individual with max child count " + maxChildCount);
+			if (population.size() < limit) {
+				population.add(cur);
 			} else {
-				for (int i = 0; i < scList.size(); i++) {
-					if (cur.getJobCount() > scList.get(i).getJobCount() && cur.compareTo(scList.get(i)) >= 0) {
-						SolverConfiguration tmp = scList.get(i);
-						scList.set(i, cur);
+				for (int i = 0; i < population.size(); i++) {
+					if (cur.getSolverConfig().getNumSuccessfulJobs() > population.get(i).getSolverConfig().getNumSuccessfulJobs()) {
+						Individual tmp = population.get(i);
+						population.set(i, cur);
 						cur = tmp;
 					}
 				}
 			}
 		}
 		System.out.println("[GA] Sorting solver configurations");
-		Collections.sort(scList);
+		Collections.shuffle(population);
 		
 		float avg = 0.f;
-		for (SolverConfiguration sc : scList) {
-			avg += sc.getCost();
+		for (Individual i : population) {
+			avg += statistics.getCostFunction().calculateCost(i.getSolverConfig().getFinishedJobs());
 		}
 		
-		avg /= scList.size() != 0 ? scList.size() : 1;
+		avg /= population.size() != 0 ? population.size() : 1;
 
-		System.out.println("[GA] Current best list contains " + scList.size() + " solver configurations.");
+		System.out.println("[GA] Current population contains " + population.size() + " individuals.");
 		System.out.println("[GA] Average cost is " + avg + ".");
 
-		List<Integer> best = new LinkedList<Integer>();
-		for (SolverConfiguration sc : scList) {
-			best.add(0, sc.getIdSolverConfiguration());
-		}
+		LinkedList<Individual> best = new LinkedList<Individual>();
+		best.addAll(population);
+		
 		System.out.println("[GA] Generating solver configurations");
 		LinkedList<SolverConfiguration> res = new LinkedList<SolverConfiguration>();
-		while (res.size() < num - Math.ceil(0.1 * num) && best.size() >= 2) {
-			Pair<ParameterConfiguration, ParameterConfiguration> configs = graph.crossover(api.getParameterConfiguration(idExperiment, best.get(0)), api.getParameterConfiguration(idExperiment, best.get(1)), rng);
+		while (res.size() < num - Math.ceil(.4 * num) && best.size() >= 2) {
+			Individual m = best.pollLast();
+			
+			int f_index = best.size() - (rng.nextInt(Math.min(best.size(), 7)) +1);
+			Individual f = best.get(f_index);
+			best.remove(f_index);
 
-			if (rng.nextFloat() < 0.01) {
+			
+			Pair<ParameterConfiguration, ParameterConfiguration> configs = graph.crossover(api.getParameterConfiguration(idExperiment, m.getSolverConfig().getIdSolverConfiguration()), api.getParameterConfiguration(idExperiment, f.getSolverConfig().getIdSolverConfiguration()), rng);
+
+			int firstMutationCount = 0;
+			int secondMutationCount = 0;
+			
+			if (rng.nextFloat() < mutationProb) {
 				graph.mutateParameterConfiguration(rng, configs.getFirst());
+				firstMutationCount++;
 			}
-			if (rng.nextFloat() < 0.01) {
+			if (rng.nextFloat() < mutationProb) {
 				graph.mutateParameterConfiguration(rng, configs.getSecond());
+				secondMutationCount++;
 			}
-			while (api.exists(idExperiment, configs.getFirst()) != 0) {
+			
+			while (true) {
+				if (!checksums.contains(configs.getFirst().getChecksum())) {
+					checksums.add(configs.getFirst().getChecksum());
+					break;
+				}
+				if (firstMutationCount > 100) {
+					break;
+				}
 				graph.mutateParameterConfiguration(rng, configs.getFirst());
+				firstMutationCount++;
 			}
-			while (api.exists(idExperiment, configs.getSecond()) != 0) {
+			
+			while (true) {
+				if (!checksums.contains(configs.getSecond().getChecksum())) {
+					checksums.add(configs.getSecond().getChecksum());
+					break;
+				}
+				if (secondMutationCount > 100) {
+					break;
+				}
 				graph.mutateParameterConfiguration(rng, configs.getSecond());
+				secondMutationCount++;
 			}
+			
+			m.incrementChildCount();
+			f.incrementChildCount();
 
 			int idSolverConfig = api.createSolverConfig(idExperiment, configs.getFirst(), api.getCanonicalName(idExperiment, configs.getFirst()) + " level " + level);
-			res.add(new SolverConfiguration(idSolverConfig, api.getParameterConfiguration(idExperiment, idSolverConfig), statistics, level));
+			SolverConfiguration firstSC = new SolverConfiguration(idSolverConfig, api.getParameterConfiguration(idExperiment, idSolverConfig), statistics, level);
+			firstSC.setName("crossover - child " + m.getChildCount() + "/" + f.getChildCount() + (firstMutationCount != 0 ? " " + firstMutationCount + " mutations" : ""));
+			res.add(firstSC);
 
 			idSolverConfig = api.createSolverConfig(idExperiment, configs.getSecond(), api.getCanonicalName(idExperiment, configs.getSecond()) + " level " + level);
-			res.add(new SolverConfiguration(idSolverConfig, api.getParameterConfiguration(idExperiment, idSolverConfig), statistics, level));
-
-			best.remove(0);
-			best.remove(0);
+			SolverConfiguration secondSC = new SolverConfiguration(idSolverConfig, api.getParameterConfiguration(idExperiment, idSolverConfig), statistics, level);
+			secondSC.setName("crossover - child " + m.getChildCount() + "/" + f.getChildCount() + (secondMutationCount != 0 ? " " + secondMutationCount + " mutations" : ""));
+			res.add(secondSC);
 		}
 
 		while (res.size() != num) {
-			ParameterConfiguration paramconfig = graph.getRandomConfiguration(rng);
+			boolean random = true;
+			ParameterConfiguration paramconfig;
+			if (currentBestSC != null && currentBestSC.getNumSuccessfulJobs() > 0 && rng.nextFloat() < probN) {
+				random = false;
+				paramconfig = graph.getRandomNeighbour(currentBestSC.getParameterConfiguration(), rng);
+			} else {
+				paramconfig = graph.getRandomConfiguration(rng);
+			}
+			int mutationCount = 0;
+			while (true) {
+				if (!checksums.contains(paramconfig.getChecksum())) {
+					checksums.add(paramconfig.getChecksum());
+					break;
+				}
+				if (mutationCount > 100) {
+					break;
+				}
+				graph.mutateParameterConfiguration(rng, paramconfig);
+				mutationCount ++;
+			}
+			
 			int idSolverConfig = api.createSolverConfig(idExperiment, paramconfig, api.getCanonicalName(idExperiment, paramconfig) + " level " + level);
-			res.add(new SolverConfiguration(idSolverConfig, api.getParameterConfiguration(idExperiment, idSolverConfig), statistics, level));
+			SolverConfiguration randomConfig = new SolverConfiguration(idSolverConfig, api.getParameterConfiguration(idExperiment, idSolverConfig), statistics, level);
+			randomConfig.setName((random ? "random" : "neighbour of " + currentBestSC.getIdSolverConfiguration()) + (mutationCount != 0 ? " " + mutationCount + " mutations" : ""));
+			res.add(randomConfig);
 		}
 		oldScs.addAll(res);
 		System.out.println("[GA] done.");
+		System.out.println("[GA] Solver configurations generated (overall): " + checksums.size());
 		return res;
 	}
 
+	private class Individual implements Comparable<Individual> {
+		private SolverConfiguration sc;
+		private int childCount;
+		private int maxChildCount;
+		
+		public Individual(SolverConfiguration sc, int maxChildCount) {
+			this.sc = sc;
+			this.maxChildCount = maxChildCount;
+			childCount = 0;
+		}
+		
+		public int getChildCount() {
+			return childCount;
+		}
+		
+		public void incrementChildCount() {
+			childCount++;
+		}
+		
+		public SolverConfiguration getSolverConfig() {
+			return sc;
+		}
+		
+		public int getAge(int date) {
+			return date - sc.getLevel();
+		}
+		
+		public int getMaxChildCount() {
+			return maxChildCount;
+		}
+
+		@Override
+		public int compareTo(Individual arg0) {
+			return sc.compareTo(arg0.sc);
+		}
+	}
 }

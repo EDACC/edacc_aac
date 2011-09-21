@@ -15,7 +15,7 @@ public class StatisticFunction {
 	 */
 	public StatisticFunction(CostFunction func, boolean minimize) {
 		if (func == null) {
-			throw new IllegalArgumentException("COST_FUNCTION 'null' is invalid!");
+			throw new IllegalArgumentException("CostFunction 'null' is invalid!");
 		}
 		this.func = func;
 		this.minimize = minimize;

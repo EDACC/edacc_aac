@@ -305,7 +305,7 @@ public class PROAR {
 			// continue
 			while (!currentLevelFinished) {
 				currentLevelFinished = true;
-				Thread.sleep(1000);
+				Thread.sleep(2500);
 				
 
 				for (int i = listNewSC.size() - 1; i >= 0; i--) {
@@ -368,11 +368,12 @@ public class PROAR {
 				//----INCREASE PARALLELISM----
 				// determine how many idleing cores we have and generate new
 				// solver configurations for the next level
+				
 				int coreCount = api.getComputationCoreCount(idExperiment);
 				int jobs = api.getComputationJobCount(idExperiment);
-				int sc_to_generate = Math.max(coreCount, 8) - jobs;
-
-				if (sc_to_generate > 0) {
+				int min_sc = Math.max(Math.round(1.2f*coreCount), 8) - jobs;
+				if (min_sc > 0) {
+					int sc_to_generate = Math.max(Math.round(1.5f*coreCount), 8) - jobs;
 					System.out.println("Generating " + sc_to_generate + " solver configurations for the next level.");
 					List<SolverConfiguration> scs = methods.generateNewSC(sc_to_generate,
 							new ArrayList<SolverConfiguration>(), bestSC, level + 1, level);
@@ -388,6 +389,7 @@ public class PROAR {
 				// this might not be very efficient .. if the list sizes are 0 then the check isn't necessary anymore.
 				if (bestSC.getNumNotStartedJobs() + bestSC.getNumRunningJobs() != 0) {
 					bestSC.updateJobsStatus();
+					updateSolverConfigName(bestSC, true);
 					if (bestSC.getNumNotStartedJobs() + bestSC.getNumRunningJobs() == 0) {
 						api.updateSolverConfigurationCost(bestSC.getIdSolverConfiguration(), bestSC.getCost(), statistics.getCostFunction());
 					}
@@ -419,9 +421,9 @@ public class PROAR {
 	public void updateSolverConfigName(SolverConfiguration sc, boolean best) throws Exception {
 		api.updateSolverConfigurationName(
 				sc.getIdSolverConfiguration(),
-				(best ? " BEST " : "") + sc.getIdSolverConfiguration() + " Runs: " + sc.getNumFinishedJobs()
-						+ " Level: " + sc.getLevel() + " "
-						+ api.getCanonicalName(idExperiment, sc.getParameterConfiguration()));
+				(best ? " BEST " : "") + (sc.getName() != null ? " " + sc.getName() + " " : "") + sc.getIdSolverConfiguration() + " Runs: " + sc.getNumFinishedJobs()
+						+ "/" + sc.getJobCount() + " Level: " + sc.getLevel()
+						+ " " + api.getCanonicalName(idExperiment, sc.getParameterConfiguration()));
 	}
 
 	/**

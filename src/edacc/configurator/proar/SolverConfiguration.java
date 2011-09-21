@@ -43,6 +43,9 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	private List<ExperimentResult> jobs;
 
 	private StatisticFunction statFunc;
+	
+	private int numNotStartedJobs, numFinishedJobs, numSuccessfulJobs, numRunningJobs;
+	
 
 	/**
 	 * Common initialization
@@ -169,13 +172,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	 * @return
 	 */
 	public int getNumRunningJobs() {
-		int numRunning = 0;
-		for (ExperimentResult j : jobs) {
-			if (j.getStatus().equals(StatusCode.RUNNING)) {
-				numRunning++;
-			}
-		}
-		return numRunning;
+		return numRunningJobs;
 	}
 	
 	
@@ -205,13 +202,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	 * @return
 	 */
 	public int getNumFinishedJobs() {
-		int numFinished = 0;
-		for (ExperimentResult j : jobs) {
-			if (!j.getStatus().equals(StatusCode.NOT_STARTED) && !j.getStatus().equals(StatusCode.RUNNING)) {
-				numFinished ++;
-			}
-		}
-		return numFinished;
+		return numFinishedJobs;
 	}
 	
 	/**
@@ -239,14 +230,13 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	 * @return
 	 */
 	public int getNumNotStartedJobs() {
-		int numNotStarted = 0;
-		for (ExperimentResult j : jobs) {
-			if (j.getStatus().equals(StatusCode.NOT_STARTED)) {
-				numNotStarted ++;
-			}
-		}
-		return numNotStarted;
+		return numNotStartedJobs;
 	}
+	
+	public int getNumSuccessfulJobs() {
+		return numSuccessfulJobs;
+	}
+	
 	/**
 	 * Returns the number of jobs for this solver configuration at the last
 	 * <code>updateJobs()</code> call.
@@ -268,10 +258,28 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 
 	public void updateJobsStatus() throws Exception {
 		LinkedList<Integer> ids = new LinkedList<Integer>();
+		numRunningJobs = 0;
+		numFinishedJobs = 0;
+		numSuccessfulJobs = 0;
+		numNotStartedJobs = 0;
 		for (ExperimentResult j : jobs) {
 			ids.add(j.getId());
 		}
 		jobs = ExperimentResultDAO.getByIds(ids);
+		for (ExperimentResult j : jobs) {
+			if (j.getStatus().equals(StatusCode.RUNNING)) {
+				numRunningJobs++;
+			}
+			if (!j.getStatus().equals(StatusCode.NOT_STARTED) && !j.getStatus().equals(StatusCode.RUNNING)) {
+				numFinishedJobs ++;
+			}
+			if (String.valueOf(j.getResultCode().getResultCode()).startsWith("1")) {
+				numSuccessfulJobs++;
+			}
+			if (j.getStatus().equals(StatusCode.NOT_STARTED)) {
+				numNotStartedJobs ++;
+			}
+		}
 	}
 
 	/**
