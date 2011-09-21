@@ -1,6 +1,7 @@
 package edacc.configurator.proar.algorithm;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 import edacc.api.API;
@@ -12,12 +13,14 @@ public abstract class PROARMethods {
 	protected int idExperiment;
 	protected Random rng;
 	protected StatisticFunction statistics;
+	protected Map<String, String> params;
 	
-	public PROARMethods(API api, int idExperiment, StatisticFunction statistics, Random rng) {
+	public PROARMethods(API api, int idExperiment, StatisticFunction statistics, Random rng, Map<String, String> params) {
 		this.api = api;
 		this.idExperiment = idExperiment;
 		this.statistics = statistics;
 		this.rng = rng;
+		this.params = params;
 	}
 	
 	/**

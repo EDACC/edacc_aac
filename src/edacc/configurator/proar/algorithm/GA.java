@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 import edacc.api.API;
@@ -21,17 +22,46 @@ public class GA extends PROARMethods {
 	HashSet<byte[]> checksums;
 	private int limit;
 	
-	private static final float probN = 0.6f;
-	private static final int maxAge = 10;
-	private static final float mutationProb = 0.1f;	
-
-	public GA(API api, int idExperiment, StatisticFunction statistics, Random rng) throws Exception {
-		super(api, idExperiment, statistics, rng);
+	private float probN = 0.6f;
+	private int maxAge = 10;
+	private float mutationProb = 0.1f;
+	private float crossoverPercentage = 0.6f;
+	private int childCountLimit = 12;
+	
+	public GA(API api, int idExperiment, StatisticFunction statistics, Random rng, Map<String, String> params) throws Exception {
+		super(api, idExperiment, statistics, rng, params);
 		graph = api.loadParameterGraphFromDB(idExperiment);
 		population = new ArrayList<Individual>();
 		oldScs = new ArrayList<SolverConfiguration>();
 		checksums = new HashSet<byte[]>();
 		limit = 0;
+		
+		String val;
+		
+		if ((val = params.get("GA_probN")) != null) {
+			probN = Float.parseFloat(val);
+		}
+		if ((val = params.get("GA_maxAge")) != null) {
+			maxAge = Integer.parseInt(val);
+		}
+		if ((val = params.get("GA_mutationProb")) != null) {
+			mutationProb = Float.parseFloat(val);
+		}
+		if ((val = params.get("GA_crossoverPercentage")) != null) {
+			crossoverPercentage = Float.parseFloat(val);
+		}
+		if ((val = params.get("GA_childCountLimit")) != null) {
+			childCountLimit = Integer.parseInt(val);
+		}
+		
+		if (probN < 0.f || probN > 1.f || maxAge < 0 || mutationProb < 0.f || mutationProb > 1.f || crossoverPercentage < 0.f || crossoverPercentage > 1.f || childCountLimit < 0)  {
+			throw new IllegalArgumentException();
+		}
+		System.out.println("[GA] probN: " + probN);
+		System.out.println("[GA] maxAge: " + maxAge);
+		System.out.println("[GA] mutationProb: " + mutationProb);
+		System.out.println("[GA] crossoverPercentage: " + crossoverPercentage);
+		System.out.println("[GA] childCountLimit: " + childCountLimit);
 	}
 
 	@Override
@@ -58,7 +88,10 @@ public class GA extends PROARMethods {
 			if (sc.getNumSuccessfulJobs() < 4) {
 				continue;
 			}
-			int maxChildCount = sc.getNumSuccessfulJobs();
+			int maxChildCount = Math.min(sc.getNumSuccessfulJobs() / 2, childCountLimit);
+			if (maxChildCount == 0) {
+				continue;
+			}
 			Individual cur = new Individual(sc, maxChildCount);
 			System.out.println("[GA] Created individual with max child count " + maxChildCount);
 			if (population.size() < limit) {
@@ -91,10 +124,10 @@ public class GA extends PROARMethods {
 		
 		System.out.println("[GA] Generating solver configurations");
 		LinkedList<SolverConfiguration> res = new LinkedList<SolverConfiguration>();
-		while (res.size() < num - Math.ceil(.4 * num) && best.size() >= 2) {
+		while (res.size() < num - Math.ceil((1 - crossoverPercentage) * num) && best.size() >= 2) {
 			Individual m = best.pollLast();
 			
-			int f_index = best.size() - (rng.nextInt(Math.min(best.size(), 7)) +1);
+			int f_index = rng.nextInt(best.size());
 			Individual f = best.get(f_index);
 			best.remove(f_index);
 

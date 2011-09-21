@@ -3,7 +3,9 @@ package edacc.configurator.proar;
 import java.io.File;
 import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Scanner;
 
@@ -98,7 +100,7 @@ public class PROAR {
 
 	public PROAR(String hostname, int port, String database, String user, String password, int idExperiment,
 			int jobCPUTimeLimit, long seed, String algorithm, String statFunc, boolean minimize, int pe, int mpef,
-			int ipd) throws Exception {
+			int ipd, Map<String, String> configuratorMethodParams) throws Exception {
 		// TODO: MaxTuningTime in betracht ziehen!
 		api = new APIImpl();
 		api.connect(hostname, port, database, user, password);
@@ -117,7 +119,7 @@ public class PROAR {
 		// TODO: Die beste config auch noch mittels einer methode bestimmen!
 		methods = (PROARMethods) ClassLoader.getSystemClassLoader()
 				.loadClass("edacc.configurator.proar.algorithm." + algorithm).getDeclaredConstructors()[0].newInstance(
-				api, idExperiment, statistics, rng);
+				api, idExperiment, statistics, rng, configuratorMethodParams);
 	}
 
 	/**
@@ -493,6 +495,8 @@ public class PROAR {
 		int pe = 1;
 		int mpef = 5;
 		int ipd = 10;
+		
+		HashMap<String, String> configuratorMethodParams = new HashMap<String, String>();
 
 		while (scanner.hasNextLine()) {
 			String line = scanner.nextLine();
@@ -529,6 +533,9 @@ public class PROAR {
 				mpef = Integer.valueOf(value);
 			else if ("initialParcoursDefault".equals(key))
 				ipd = Integer.valueOf(value);
+			else if (key.startsWith(algorithm + "_")) 
+				configuratorMethodParams.put(key, value);
+			
 		}
 		scanner.close();
 		System.out.println("Starting the PROAR configurator with following settings: ");
@@ -541,7 +548,7 @@ public class PROAR {
 		System.out.println("CPU time limit: " + jobCPUTimeLimit);
 		System.out.println("---------------------------------");
 		PROAR configurator = new PROAR(hostname, port, database, user, password, idExperiment, jobCPUTimeLimit, seed,
-				algorithm, costFunc, minimize, pe, mpef, ipd);
+				algorithm, costFunc, minimize, pe, mpef, ipd, configuratorMethodParams);
 		configurator.start();
 		configurator.shutdown();
 	}

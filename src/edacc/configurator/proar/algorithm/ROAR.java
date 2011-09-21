@@ -2,6 +2,7 @@ package edacc.configurator.proar.algorithm;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 import edacc.api.API;
@@ -11,8 +12,8 @@ import edacc.parameterspace.ParameterConfiguration;
 
 public class ROAR extends PROARMethods {
 
-	public ROAR(API api, int idExperiment, StatisticFunction statistics, Random rng) {
-		super(api, idExperiment, statistics, rng);
+	public ROAR(API api, int idExperiment, StatisticFunction statistics, Random rng, Map<String, String> params) {
+		super(api, idExperiment, statistics, rng, params);
 	}
 
 	@Override
