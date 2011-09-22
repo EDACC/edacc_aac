@@ -7,6 +7,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 
 import edacc.api.API;
 import edacc.configurator.proar.SolverConfiguration;
@@ -18,7 +19,8 @@ import edacc.util.Pair;
 public class GA extends PROARMethods {
 	private ParameterGraph graph;
 	private List<Individual> population;
-	private List<SolverConfiguration> oldScs;
+	private List<Individual> oldIndividuals;
+	private Individual bestInd;
 	HashSet<byte[]> checksums;
 	private int limit;
 	
@@ -27,12 +29,14 @@ public class GA extends PROARMethods {
 	private float mutationProb = 0.1f;
 	private float crossoverPercentage = 0.6f;
 	private int childCountLimit = 12;
-	
+	private int minSameAncestorAgeDiff = 10;
+	private static int idCounter = 0;
 	public GA(API api, int idExperiment, StatisticFunction statistics, Random rng, Map<String, String> params) throws Exception {
 		super(api, idExperiment, statistics, rng, params);
 		graph = api.loadParameterGraphFromDB(idExperiment);
 		population = new ArrayList<Individual>();
-		oldScs = new ArrayList<SolverConfiguration>();
+		oldIndividuals = new ArrayList<Individual>();
+		bestInd = null;
 		checksums = new HashSet<byte[]>();
 		limit = 0;
 		
@@ -66,6 +70,25 @@ public class GA extends PROARMethods {
 
 	@Override
 	public List<SolverConfiguration> generateNewSC(int num, List<SolverConfiguration> lastBestSCs, SolverConfiguration currentBestSC, int level, int currentLevel) throws Exception {
+		if (bestInd == null) {
+			bestInd = new Individual(currentBestSC);
+		} else {
+			if (bestInd.sc != currentBestSC) {
+				for (Individual ind : oldIndividuals) {
+					if (ind.sc == currentBestSC) {
+						bestInd = ind;
+						break;
+					}
+				}
+			}
+		}
+		
+		// debugging
+		if (bestInd == null || bestInd.sc != currentBestSC) {
+			System.out.println("[GA] BUG?? bestInd.sc != currentBestSC. created one. could be added by user.");
+			bestInd = new Individual(currentBestSC);
+		}
+		
 		limit = Math.max(limit, num);
 
 		System.out.println("[GA] GA generate Solver configs: " + num);
@@ -77,22 +100,22 @@ public class GA extends PROARMethods {
 		}
 		int index = 0;
 
-		while (oldScs.size() > index) {
-			SolverConfiguration sc = oldScs.get(index);
-			if (sc.getLevel() != currentLevel -1) {
+		while (oldIndividuals.size() > index) {
+			Individual cur = oldIndividuals.get(index);
+			if (cur.getSolverConfig().getLevel() != currentLevel -1) {
 				index++;
 				continue;
 			}
-			oldScs.remove(index);
+			oldIndividuals.remove(index);
 
-			if (sc.getNumSuccessfulJobs() < 4) {
+			if (cur.getSolverConfig().getNumSuccessfulJobs() < 2) {
 				continue;
 			}
-			int maxChildCount = Math.min(sc.getNumSuccessfulJobs() / 2, childCountLimit);
+			int maxChildCount = Math.min(cur.getSolverConfig().getNumSuccessfulJobs() / 2, childCountLimit);
 			if (maxChildCount == 0) {
 				continue;
 			}
-			Individual cur = new Individual(sc, maxChildCount);
+			cur.maxChildCount = maxChildCount;
 			System.out.println("[GA] Created individual with max child count " + maxChildCount);
 			if (population.size() < limit) {
 				population.add(cur);
@@ -124,12 +147,51 @@ public class GA extends PROARMethods {
 		
 		System.out.println("[GA] Generating solver configurations");
 		LinkedList<SolverConfiguration> res = new LinkedList<SolverConfiguration>();
+		
+		int noPartner = 0;
 		while (res.size() < num - Math.ceil((1 - crossoverPercentage) * num) && best.size() >= 2) {
 			Individual m = best.pollLast();
-			
-			int f_index = rng.nextInt(best.size());
-			Individual f = best.get(f_index);
-			best.remove(f_index);
+			Individual f = null;
+			for (Individual ind : best) {
+				boolean goodPartner = true;
+				for (Individual anc : ind.ancestors) {
+					if (m.ancestors.contains(anc) && anc.getAge(level) < minSameAncestorAgeDiff) {
+						goodPartner = false;
+						break;
+					}
+					 
+				}
+				if (goodPartner) {
+					f = ind;
+					break;
+				}
+			}
+			if (f == null) {
+				noPartner++;
+				
+				ParameterConfiguration pConfig = new ParameterConfiguration(m.getSolverConfig().getParameterConfiguration()); 
+				graph.mutateParameterConfiguration(rng, pConfig);
+				int mutationCount = 1;
+				while (true) {
+					if (!checksums.contains(pConfig.getChecksum())) {
+						checksums.add(pConfig.getChecksum());
+						break;
+					}
+					if (mutationCount > 100) {
+						break;
+					}
+					graph.mutateParameterConfiguration(rng, pConfig);
+					mutationCount++;
+				}
+				int idSolverConfig = api.createSolverConfig(idExperiment, pConfig, api.getCanonicalName(idExperiment, pConfig) + " level " + level);
+				SolverConfiguration sc = new SolverConfiguration(idSolverConfig, api.getParameterConfiguration(idExperiment, idSolverConfig), statistics, level);
+				sc.setName(mutationCount + " mutations");
+				res.add(sc);
+				Individual newInd = new Individual(sc);
+				oldIndividuals.add(newInd);
+				continue;
+			}
+			best.remove(f);
 
 			
 			Pair<ParameterConfiguration, ParameterConfiguration> configs = graph.crossover(api.getParameterConfiguration(idExperiment, m.getSolverConfig().getIdSolverConfiguration()), api.getParameterConfiguration(idExperiment, f.getSolverConfig().getIdSolverConfiguration()), rng);
@@ -175,19 +237,34 @@ public class GA extends PROARMethods {
 
 			int idSolverConfig = api.createSolverConfig(idExperiment, configs.getFirst(), api.getCanonicalName(idExperiment, configs.getFirst()) + " level " + level);
 			SolverConfiguration firstSC = new SolverConfiguration(idSolverConfig, api.getParameterConfiguration(idExperiment, idSolverConfig), statistics, level);
-			firstSC.setName("crossover - child " + m.getChildCount() + "/" + f.getChildCount() + (firstMutationCount != 0 ? " " + firstMutationCount + " mutations" : ""));
+			
 			res.add(firstSC);
-
+			Individual newInd = new Individual(firstSC);
+			newInd.ancestors.addAll(m.ancestors);
+			newInd.ancestors.addAll(f.ancestors);
+			newInd.ancestors.add(m);
+			newInd.ancestors.add(f);
+			firstSC.setName("crossover - child " + m.getChildCount() + "/" + f.getChildCount() + (firstMutationCount != 0 ? " " + firstMutationCount + " mutations" : "") + " - " + newInd.ancestors.size() + " ancestors");
+			oldIndividuals.add(newInd);
+			
 			idSolverConfig = api.createSolverConfig(idExperiment, configs.getSecond(), api.getCanonicalName(idExperiment, configs.getSecond()) + " level " + level);
 			SolverConfiguration secondSC = new SolverConfiguration(idSolverConfig, api.getParameterConfiguration(idExperiment, idSolverConfig), statistics, level);
-			secondSC.setName("crossover - child " + m.getChildCount() + "/" + f.getChildCount() + (secondMutationCount != 0 ? " " + secondMutationCount + " mutations" : ""));
 			res.add(secondSC);
+			newInd = new Individual(secondSC);
+			newInd.ancestors.addAll(m.ancestors);
+			newInd.ancestors.addAll(f.ancestors);
+			newInd.ancestors.add(m);
+			newInd.ancestors.add(f);
+			secondSC.setName("crossover - child " + m.getChildCount() + "/" + f.getChildCount() + (secondMutationCount != 0 ? " " + secondMutationCount + " mutations" : "") + " - " + newInd.ancestors.size() + " ancestors");
+			oldIndividuals.add(newInd);
 		}
-
+		if (noPartner > 0)
+			System.out.println("[GA] Did not find a partner for " + noPartner + " individuals.");
+		
 		while (res.size() != num) {
 			boolean random = true;
 			ParameterConfiguration paramconfig;
-			if (currentBestSC != null && currentBestSC.getNumSuccessfulJobs() > 0 && rng.nextFloat() < probN) {
+			if (currentBestSC != null && rng.nextFloat() < probN) {
 				random = false;
 				paramconfig = graph.getRandomNeighbour(currentBestSC.getParameterConfiguration(), rng);
 			} else {
@@ -208,24 +285,36 @@ public class GA extends PROARMethods {
 			
 			int idSolverConfig = api.createSolverConfig(idExperiment, paramconfig, api.getCanonicalName(idExperiment, paramconfig) + " level " + level);
 			SolverConfiguration randomConfig = new SolverConfiguration(idSolverConfig, api.getParameterConfiguration(idExperiment, idSolverConfig), statistics, level);
-			randomConfig.setName((random ? "random" : "neighbour of " + currentBestSC.getIdSolverConfiguration()) + (mutationCount != 0 ? " " + mutationCount + " mutations" : ""));
+			
 			res.add(randomConfig);
+			Individual newInd = new Individual(randomConfig);
+			if (!random) {
+				newInd.ancestors.addAll(bestInd.ancestors);
+				newInd.ancestors.add(bestInd);
+			}
+			randomConfig.setName((random ? "random" : "neighbour of " + currentBestSC.getIdSolverConfiguration()) 
+					+ (mutationCount != 0 ? " " + mutationCount + " mutations" : "")
+					+ (newInd.ancestors.size() != 0 ? " - " + newInd.ancestors.size() + " ancestors" : ""));
+			oldIndividuals.add(newInd);
 		}
-		oldScs.addAll(res);
+		
 		System.out.println("[GA] done.");
 		System.out.println("[GA] Solver configurations generated (overall): " + checksums.size());
 		return res;
 	}
 
 	private class Individual implements Comparable<Individual> {
+		private int id;
 		private SolverConfiguration sc;
 		private int childCount;
 		private int maxChildCount;
-		
-		public Individual(SolverConfiguration sc, int maxChildCount) {
+		private Set<Individual> ancestors;
+		public Individual(SolverConfiguration sc) {
 			this.sc = sc;
-			this.maxChildCount = maxChildCount;
+			this.maxChildCount = 0;
 			childCount = 0;
+			this.ancestors = new HashSet<Individual>();
+			id = idCounter++;
 		}
 		
 		public int getChildCount() {
@@ -247,10 +336,39 @@ public class GA extends PROARMethods {
 		public int getMaxChildCount() {
 			return maxChildCount;
 		}
+		
+		@Override
+		public int hashCode() {
+			final int prime = 31;
+			int result = 1;
+			result = prime * result + getOuterType().hashCode();
+			result = prime * result + id;
+			return result;
+		}
+
+		@Override
+		public boolean equals(Object obj) {
+			if (this == obj)
+				return true;
+			if (obj == null)
+				return false;
+			if (getClass() != obj.getClass())
+				return false;
+			Individual other = (Individual) obj;
+			if (!getOuterType().equals(other.getOuterType()))
+				return false;
+			if (id != other.id)
+				return false;
+			return true;
+		}
 
 		@Override
 		public int compareTo(Individual arg0) {
 			return sc.compareTo(arg0.sc);
+		}
+
+		private GA getOuterType() {
+			return GA.this;
 		}
 	}
 }

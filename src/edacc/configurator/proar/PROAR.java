@@ -135,7 +135,7 @@ public class PROAR {
 	// schon mehrere vorhanden sind,
 	// die im konfigurationsszenrio passen!
 	private void initializeBest() throws Exception {
-		List<Integer> solverConfigIds = api.getSolverConfigurations("default");
+		List<Integer> solverConfigIds = api.getSolverConfigurations(idExperiment, "default");
 		if (solverConfigIds.isEmpty()) {
 			solverConfigIds = api.getSolverConfigurations(idExperiment);
 			System.out.println("Found " + solverConfigIds.size() + " solver configuration(s)");
@@ -534,6 +534,7 @@ public class PROAR {
 			System.out.println("Missing configuration file. Use java -jar PROAR.jar <config file path>");
 			return;
 		}
+		
 		Scanner scanner = new Scanner(new File(args[0]));
 		String hostname = "", user = "", password = "", database = "";
 		int idExperiment = 0;
