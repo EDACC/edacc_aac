@@ -488,6 +488,8 @@ public class PROAR {
 				// determine and add race solver configurations
 				for (SolverConfiguration sc : getRaceSolverConfigurations()) {
 					System.out.println("Found RACE solver configuration: " + sc.getIdSolverConfiguration() + " - " + sc.getName());
+					addRandomJob(1, sc, bestSC, Integer.MAX_VALUE - level);
+					updateSolverConfigName(sc, false);
 					listNewSC.add(sc);
 				}
 				
@@ -535,9 +537,13 @@ public class PROAR {
 		// create solver configs and return them
 		for (Integer i : solverConfigIds) {
 			if (api.getRuns(idExperiment, i).isEmpty()) {
+				try {
 				SolverConfiguration sc = new SolverConfiguration(i, api.getParameterConfiguration(idExperiment, i), statistics, level);
 				sc.setName(api.getSolverConfigName(i));
 				res.add(sc);
+				} catch (Exception e) {
+					System.out.println("getRaceSolverConfigurations(): invalid solver config: " + i);
+				}
 			}
 		}
 		return res;

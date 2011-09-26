@@ -28,7 +28,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	 * total runtime in seconds of all the jobs in the jobs list
 	 * 
 	 */
-	private Float totalRuntime;
+	private float totalRuntime;
 
 	/** the name of the configuration */
 	private String name;
@@ -52,6 +52,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	 */
 	private SolverConfiguration() {
 		jobs = new LinkedList<ExperimentResult>();
+		totalRuntime = 0.f;
 	}
 
 	public SolverConfiguration(int idSolverConfiguration, ParameterConfiguration pc, StatisticFunction statFunc,
