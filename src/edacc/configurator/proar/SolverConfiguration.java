@@ -260,11 +260,13 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 		numFinishedJobs = 0;
 		numSuccessfulJobs = 0;
 		numNotStartedJobs = 0;
+		totalRuntime = 0.f;
 		for (ExperimentResult j : jobs) {
 			ids.add(j.getId());
 		}
 		jobs = ExperimentResultDAO.getByIds(ids);
 		for (ExperimentResult j : jobs) {
+			totalRuntime += j.getResultTime();
 			if (j.getStatus().equals(StatusCode.RUNNING)) {
 				numRunningJobs++;
 			}
@@ -329,6 +331,10 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	 */
 	public int getLevel() {
 		return level;
+	}
+
+	public Float getTotalRuntime() {
+		return totalRuntime;
 	}
 
 	@Override

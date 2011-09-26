@@ -23,6 +23,10 @@ import edacc.parameterspace.graph.ParameterGraph;
 
 public class PROAR {
 
+	private static final boolean generateSCForNextLevel = true;
+	private static final boolean useCapping = true;
+	private static final boolean deleteSolverConfigs = true;
+	
 	private API api;
 	private int idExperiment;
 	private int jobCPUTimeLimit;
@@ -131,10 +135,11 @@ public class PROAR {
 	 * 
 	 * @throws Exception
 	 */
-	// TODO: Simon: die default initialisieren; oder die beste finden falls
-	// schon mehrere vorhanden sind,
-	// die im konfigurationsszenrio passen!
 	private void initializeBest() throws Exception {
+		// TODO: the best one might not match the configuration scenario
+		// graph.validateParameterConfiguration(config) should test this,
+		// but is currently not implemented and will return false.
+		
 		List<Integer> solverConfigIds = api.getSolverConfigurations(idExperiment, "default");
 		if (solverConfigIds.isEmpty()) {
 			solverConfigIds = api.getSolverConfigurations(idExperiment);
@@ -410,34 +415,38 @@ public class PROAR {
 							}
 						} else {// lost against best on part of the actual
 								// parcours:
-							api.removeSolverConfig(sc.getIdSolverConfiguration());
+							if (deleteSolverConfigs)
+								api.removeSolverConfig(sc.getIdSolverConfiguration());
 							listNewSC.remove(i);// remove from new
 												// configurations
 							// System.out.println(">>>>>Config lost!!!");
 						}
 					} else {
-						// ---CAPPING RUNS OF BAD CONFIGS---
-						// wenn sc schon eine kummulierte Laufzeit der beendeten
-						// jobs > der aller beendeten jobs von best
-						// kann man sc vorzeitig beedenden! geht nur wenn man
-						// parX hat!
-						if ((this.statistics.getCostFunction() instanceof edacc.api.costfunctions.PARX)
-								|| (this.statistics.getCostFunction() instanceof edacc.api.costfunctions.Average))
-							// TODO: minimieren / maximieren /negative kosten
-							if (sc.getCumulatedCost() > bestSC.getCumulatedCost()) {
-								System.out.println(sc.getCumulatedCost() + " >" + bestSC.getCumulatedCost());
-								System.out.println(sc.getJobCount() + " > " + bestSC.getJobCount());
-								// kill all running jobs of the sc config!
-								List<ExperimentResult> jobsToKill = sc.getJobs();
-								for (ExperimentResult j : jobsToKill) {
-									this.api.killJob(j.getId());
+						if (useCapping) {
+							// ---CAPPING RUNS OF BAD CONFIGS---
+							// wenn sc schon eine kummulierte Laufzeit der
+							// beendeten
+							// jobs > der aller beendeten jobs von best
+							// kann man sc vorzeitig beedenden! geht nur wenn
+							// man parX hat!
+							if ((this.statistics.getCostFunction() instanceof edacc.api.costfunctions.PARX) || (this.statistics.getCostFunction() instanceof edacc.api.costfunctions.Average))
+								// TODO: minimieren / maximieren /negative
+								// kosten
+								if (sc.getCumulatedCost() > bestSC.getCumulatedCost()) {
+									System.out.println(sc.getCumulatedCost() + " >" + bestSC.getCumulatedCost());
+									System.out.println(sc.getJobCount() + " > " + bestSC.getJobCount());
+									// kill all running jobs of the sc config!
+									List<ExperimentResult> jobsToKill = sc.getJobs();
+									for (ExperimentResult j : jobsToKill) {
+										this.api.killJob(j.getId());
+									}
+									api.removeSolverConfig(sc.getIdSolverConfiguration());
+									listNewSC.remove(i);
+									System.out.println("-----Config capped!!!");
 								}
-								api.removeSolverConfig(sc.getIdSolverConfiguration());
-								listNewSC.remove(i);
-								System.out.println("-----Config capped!!!");
-							}
-						// sc.killRunningJobs
-						// api.removeSolverConfig(sc.)
+							// sc.killRunningJobs
+							// api.removeSolverConfig(sc.)
+						}
 					}
 
 				}
@@ -445,25 +454,24 @@ public class PROAR {
 				// determine how many idleing cores we have and generate new
 				// solver configurations for the next level
 				
-				int coreCount = api.getComputationCoreCount(idExperiment);
-				int jobs = api.getComputationJobCount(idExperiment);
-				int min_sc = Math.max(Math.round(1.2f*coreCount), 8) - jobs;
-				if (min_sc > 0) {
-					int sc_to_generate = Math.max(Math.round(1.5f*coreCount), 8) - jobs;
-					//System.out.println("Generating " + sc_to_generate + " solver configurations for the next level.");
-					List<SolverConfiguration> scs = methods.generateNewSC(sc_to_generate,
-							new ArrayList<SolverConfiguration>(), bestSC, level + 1, level);
-					this.statNumSolverConfigs += sc_to_generate;
-					listNewSC.addAll(scs);
+				if (generateSCForNextLevel) {
+					int coreCount = api.getComputationCoreCount(idExperiment);
+					int jobs = api.getComputationJobCount(idExperiment);
+					int min_sc = Math.max(Math.round(1.2f * coreCount), 8) - jobs;
+					if (min_sc > 0) {
+						int sc_to_generate = Math.max(Math.round(1.5f * coreCount), 8) - jobs;
+						// System.out.println("Generating " + sc_to_generate +
+						// " solver configurations for the next level.");
+						List<SolverConfiguration> scs = methods.generateNewSC(sc_to_generate, new ArrayList<SolverConfiguration>(), bestSC, level + 1, level);
+						this.statNumSolverConfigs += sc_to_generate;
+						listNewSC.addAll(scs);
 
-					for (SolverConfiguration sc : scs) {
-						addRandomJob(1, sc, bestSC, Integer.MAX_VALUE - level - 1);
-						updateSolverConfigName(sc, false);
+						for (SolverConfiguration sc : scs) {
+							addRandomJob(1, sc, bestSC, Integer.MAX_VALUE - level - 1);
+							updateSolverConfigName(sc, false);
+						}
 					}
 				}
-
-				// this might not be very efficient .. if the list sizes are 0
-				// then the check isn't necessary anymore.
 				if (bestSC.getNumNotStartedJobs() + bestSC.getNumRunningJobs() != 0) {
 					bestSC.updateJobsStatus();
 					updateSolverConfigName(bestSC, true);
@@ -472,6 +480,12 @@ public class PROAR {
 								statistics.getCostFunction());
 					}
 				}
+				// determine and add race solver configurations
+				for (SolverConfiguration sc : getRaceSolverConfigurations()) {
+					System.out.println("Found RACE solver configuration: " + sc.getIdSolverConfiguration() + " - " + sc.getName());
+					listNewSC.add(sc);
+				}
+				
 			}
 			updateSolverConfigName(bestSC, false);
 			System.out.println("Determining the new best solver config from " + listBestSC.size()
@@ -482,13 +496,13 @@ public class PROAR {
 						// if bestsc is from the same level as sc then remove
 						// bestSC from DB as we want to keep only
 						// 1 best from each level!
-						if ((bestSC.getLevel() == sc.getLevel())
+						if (deleteSolverConfigs && (bestSC.getLevel() == sc.getLevel())
 								&& (this.algorithm.equals("ROAR") || (this.algorithm.equals("MB")))) {
 							api.removeSolverConfig(bestSC.getIdSolverConfiguration());
 						}
 						bestSC = sc;
 					} else {
-						if (this.algorithm.equals("ROAR") || (this.algorithm.equals("MB")))
+						if (deleteSolverConfigs && (this.algorithm.equals("ROAR") || (this.algorithm.equals("MB"))))
 							api.removeSolverConfig(sc.getIdSolverConfiguration());
 					}
 				}
@@ -499,6 +513,31 @@ public class PROAR {
 
 	}
 
+	/**
+	 * Determines the solver configurations for which the user has set the race hint.<br/>
+	 * Does not return solver configurations which have runs.
+	 * @return
+	 * @throws Exception
+	 */
+	public List<SolverConfiguration> getRaceSolverConfigurations() throws Exception {
+		List<SolverConfiguration> res = new LinkedList<SolverConfiguration>();
+		// get solver config ids
+		List<Integer> solverConfigIds = api.getSolverConfigurations(idExperiment, "race");
+		// reset hint field
+		for (Integer i : solverConfigIds) {
+			api.setSolverConfigurationHint(idExperiment, i, "");
+		}
+		// create solver configs and return them
+		for (Integer i : solverConfigIds) {
+			if (api.getRuns(idExperiment, i).isEmpty()) {
+				SolverConfiguration sc = new SolverConfiguration(i, api.getParameterConfiguration(idExperiment, i), statistics, level);
+				sc.setName(api.getSolverConfigName(i));
+				res.add(sc);
+			}
+		}
+		return res;
+	}
+	
 	public void shutdown() {
 		System.out.println("Solver Configurations generated: " + this.statNumSolverConfigs);
 		System.out.println("Jobs generated: " + statNumJobs);

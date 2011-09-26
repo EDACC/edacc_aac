@@ -22,7 +22,6 @@ public class GA extends PROARMethods {
 	private List<Individual> oldIndividuals;
 	private Individual bestInd;
 	HashSet<byte[]> checksums;
-	private int limit;
 	
 	private float probN = 0.6f;
 	private int maxAge = 10;
@@ -38,7 +37,6 @@ public class GA extends PROARMethods {
 		oldIndividuals = new ArrayList<Individual>();
 		bestInd = null;
 		checksums = new HashSet<byte[]>();
-		limit = 0;
 		
 		String val;
 		
@@ -88,8 +86,6 @@ public class GA extends PROARMethods {
 			System.out.println("[GA] BUG?? bestInd.sc != currentBestSC. created one. could be added by user.");
 			bestInd = new Individual(currentBestSC);
 		}
-		
-		limit = Math.max(limit, num);
 
 		System.out.println("[GA] GA generate Solver configs: " + num);
 		System.out.println("[GA] Population size: " + population.size());
@@ -117,20 +113,12 @@ public class GA extends PROARMethods {
 			}
 			cur.maxChildCount = maxChildCount;
 			System.out.println("[GA] Created individual with max child count " + maxChildCount);
-			if (population.size() < limit) {
+			if (cur.sc.getNumSuccessfulJobs() >= cur.sc.getJobCount() / 2) {
 				population.add(cur);
-			} else {
-				for (int i = 0; i < population.size(); i++) {
-					if (cur.getSolverConfig().getNumSuccessfulJobs() > population.get(i).getSolverConfig().getNumSuccessfulJobs()) {
-						Individual tmp = population.get(i);
-						population.set(i, cur);
-						cur = tmp;
-					}
-				}
-			}
+			} 
 		}
 		System.out.println("[GA] Sorting solver configurations");
-		Collections.shuffle(population);
+		Collections.shuffle(population, rng);
 		
 		float avg = 0.f;
 		for (Individual i : population) {
