@@ -41,7 +41,7 @@ public class PROAR {
 	private boolean deterministic;
 
 	/** maximum allowed tuning time = sum over all jobs in seconds */
-	private float maxTuningTime; // TODO: take into consideration
+	private float maxTuningTime;
 
 	/**
 	 * total cumulated time of all jobs the configurator has started so far in
@@ -104,8 +104,7 @@ public class PROAR {
 	private ParameterGraph graph;
 	public PROAR(String hostname, int port, String database, String user, String password, int idExperiment,
 			int jobCPUTimeLimit, long seed, String algorithm, String statFunc, boolean minimize, int pe, int mpef,
-			int ipd, Map<String, String> configuratorMethodParams) throws Exception {
-		// TODO: MaxTuningTime in betracht ziehen!
+			int ipd, float maxTuningTime, Map<String, String> configuratorMethodParams) throws Exception {
 		api = new APIImpl();
 		api.connect(hostname, port, database, user, password);
 		this.graph = api.loadParameterGraphFromDB(idExperiment);
@@ -116,6 +115,7 @@ public class PROAR {
 		this.parcoursExpansion = pe;
 		this.maxParcoursExpansionFactor = mpef;
 		this.initialDefaultParcoursLength = ipd;
+		this.maxTuningTime = maxTuningTime;
 		rng = new edacc.util.MersenneTwister(seed);
 		listBestSC = new ArrayList<SolverConfiguration>();
 		listNewSC = new ArrayList<SolverConfiguration>();
@@ -310,6 +310,7 @@ public class PROAR {
 		// first initialize the best individual if there is a default or if
 		// there are already some solver configurations in the experiment
 		level = 0;
+		cumulatedCPUTime = 0.f;
 		initializeBest();// TODO: mittels dem Classloader überschreiben
 		int expansion;
 		int num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(idExperiment).getCourse()
@@ -325,6 +326,10 @@ public class PROAR {
 			if (bestSC.getJobCount() < maxParcoursExpansionFactor * num_instances) {
 				expansion = Math.min(maxParcoursExpansionFactor * num_instances - bestSC.getJobCount(),
 						parcoursExpansion);
+				if (level == 1) {
+					expansion = Math.min(maxParcoursExpansionFactor * num_instances - bestSC.getJobCount(), initialDefaultParcoursLength);
+				}
+				
 				expandParcoursSC(bestSC, expansion);
 			}
 			System.out.println("Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration() + " by "
@@ -336,14 +341,14 @@ public class PROAR {
 				System.out.println("Waiting for currently best solver config " + bestSC.getIdSolverConfiguration()
 						+ " to finish " + expansion + "job(s)");
 				while (true) {
-					bestSC.updateJobsStatus();
+					cumulatedCPUTime += bestSC.updateJobsStatus();
 					if (bestSC.getNotStartedJobs().isEmpty() && bestSC.getRunningJobs().isEmpty()) {
 						break;
 					}
 					Thread.sleep(1000);
 				}
 			} else {
-				bestSC.updateJobsStatus();
+				cumulatedCPUTime += bestSC.updateJobsStatus();
 			}
 			updateSolverConfigName(bestSC, true);
 			// update the cost of the configuration in the EDACC solver
@@ -389,7 +394,7 @@ public class PROAR {
 					if (sc.getLevel() == level) {
 						currentLevelFinished = false;
 					}
-					sc.updateJobsStatus();
+					cumulatedCPUTime += sc.updateJobsStatus();
 					updateSolverConfigName(sc, false);
 					if (sc.getNumNotStartedJobs() + sc.getNumRunningJobs() == 0) {
 						int comp = sc.compareTo(bestSC);
@@ -473,7 +478,7 @@ public class PROAR {
 					}
 				}
 				if (bestSC.getNumNotStartedJobs() + bestSC.getNumRunningJobs() != 0) {
-					bestSC.updateJobsStatus();
+					cumulatedCPUTime += bestSC.updateJobsStatus();
 					updateSolverConfigName(bestSC, true);
 					if (bestSC.getNumNotStartedJobs() + bestSC.getNumRunningJobs() == 0) {
 						api.updateSolverConfigurationCost(bestSC.getIdSolverConfiguration(), bestSC.getCost(),
@@ -586,6 +591,7 @@ public class PROAR {
 		int pe = 1;
 		int mpef = 5;
 		int ipd = 10;
+		float maxTuningTime = -1;
 		
 		HashMap<String, String> configuratorMethodParams = new HashMap<String, String>();
 
@@ -626,6 +632,8 @@ public class PROAR {
 				ipd = Integer.valueOf(value);
 			else if (key.startsWith(algorithm + "_")) 
 				configuratorMethodParams.put(key, value);
+			else if (key.equals("maxTuningTime")) 
+				maxTuningTime = Integer.valueOf(value);
 			
 		}
 		scanner.close();
@@ -639,7 +647,7 @@ public class PROAR {
 		System.out.println("CPU time limit: " + jobCPUTimeLimit);
 		System.out.println("---------------------------------");
 		PROAR configurator = new PROAR(hostname, port, database, user, password, idExperiment, jobCPUTimeLimit, seed,
-				algorithm, costFunc, minimize, pe, mpef, ipd, configuratorMethodParams);
+				algorithm, costFunc, minimize, pe, mpef, ipd, maxTuningTime, configuratorMethodParams);
 		configurator.start();
 		configurator.shutdown();
 	}

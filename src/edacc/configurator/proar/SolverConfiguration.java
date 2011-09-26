@@ -250,16 +250,17 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	 * Updates the locally cached jobs for this solver configuration. It
 	 * collects the id's of its own jobs and passes them to the api as a list of
 	 * id's getting back the ExperimentResults list for this id's
-	 * 
+	 * @return the cpu time needed since the last updateJobsStatus()-call
 	 * @throws Exception
 	 */
 
-	public void updateJobsStatus() throws Exception {
+	protected float updateJobsStatus() throws Exception {
 		LinkedList<Integer> ids = new LinkedList<Integer>();
 		numRunningJobs = 0;
 		numFinishedJobs = 0;
 		numSuccessfulJobs = 0;
 		numNotStartedJobs = 0;
+		float tmpTotalRuntime = totalRuntime;
 		totalRuntime = 0.f;
 		for (ExperimentResult j : jobs) {
 			ids.add(j.getId());
@@ -280,6 +281,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 				numNotStartedJobs ++;
 			}
 		}
+		return totalRuntime - tmpTotalRuntime;
 	}
 
 	/**
