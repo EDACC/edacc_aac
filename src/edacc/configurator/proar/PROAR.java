@@ -323,13 +323,12 @@ public class PROAR {
 			// bestSC.updateJobsSatus() ausgeführt!
 			// expand the parcours of the bestSC
 			expansion = 0;
-			if (bestSC.getJobCount() < maxParcoursExpansionFactor * num_instances) {
-				expansion = Math.min(maxParcoursExpansionFactor * num_instances - bestSC.getJobCount(),
-						parcoursExpansion);
-				if (level == 1) {
-					expansion = Math.min(maxParcoursExpansionFactor * num_instances - bestSC.getJobCount(), initialDefaultParcoursLength);
-				}
-				
+			if (bestSC.getJobCount() < maxParcoursExpansionFactor * num_instances && level == 1) {
+				//expansion = Math.min(maxParcoursExpansionFactor * num_instances - bestSC.getJobCount(),
+				//		parcoursExpansion);
+				//if (level == 1) {
+				expansion = Math.min(maxParcoursExpansionFactor * num_instances - bestSC.getJobCount(), initialDefaultParcoursLength);
+				//}
 				expandParcoursSC(bestSC, expansion);
 			}
 			System.out.println("Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration() + " by "
@@ -425,6 +424,8 @@ public class PROAR {
 							listNewSC.remove(i);// remove from new
 												// configurations
 							// System.out.println(">>>>>Config lost!!!");
+							if (bestSC.getJobCount() < maxParcoursExpansionFactor * num_instances)
+								expandParcoursSC(bestSC, 1);
 						}
 					} else {
 						if (useCapping) {
@@ -512,6 +513,13 @@ public class PROAR {
 						if (deleteSolverConfigs && (this.algorithm.equals("ROAR") || (this.algorithm.equals("MB"))))
 							api.removeSolverConfig(sc.getIdSolverConfiguration());
 					}
+				}
+			}
+			
+			if (!listBestSC.isEmpty()) {
+				if (bestSC.getJobCount() < maxParcoursExpansionFactor * num_instances) {
+					int exp = Math.min(maxParcoursExpansionFactor * num_instances - bestSC.getJobCount(), listBestSC.size());
+					expandParcoursSC(bestSC, exp);
 				}
 			}
 			// updateSolverConfigName(bestSC, true); not neccessary because we
