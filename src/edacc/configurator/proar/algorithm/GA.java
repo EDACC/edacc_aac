@@ -21,7 +21,7 @@ public class GA extends PROARMethods {
 	private List<Individual> population;
 	private List<Individual> oldIndividuals;
 	private Individual bestInd;
-	HashSet<byte[]> checksums;
+	HashSet<ParameterConfiguration> createdParamConfigs;
 	
 	private float probN = 0.6f;
 	private int maxAge = 10;
@@ -36,7 +36,7 @@ public class GA extends PROARMethods {
 		population = new ArrayList<Individual>();
 		oldIndividuals = new ArrayList<Individual>();
 		bestInd = null;
-		checksums = new HashSet<byte[]>();
+		createdParamConfigs = new HashSet<ParameterConfiguration>();
 		
 		String val;
 		
@@ -161,8 +161,8 @@ public class GA extends PROARMethods {
 				graph.mutateParameterConfiguration(rng, pConfig);
 				int mutationCount = 1;
 				while (true) {
-					if (!checksums.contains(pConfig.getChecksum())) {
-						checksums.add(pConfig.getChecksum());
+					if (!createdParamConfigs.contains(pConfig)) {
+						createdParamConfigs.add(pConfig);
 						break;
 					}
 					if (mutationCount > 100) {
@@ -197,8 +197,8 @@ public class GA extends PROARMethods {
 			}
 			
 			while (true) {
-				if (!checksums.contains(configs.getFirst().getChecksum())) {
-					checksums.add(configs.getFirst().getChecksum());
+				if (!createdParamConfigs.contains(configs.getFirst())) {
+					createdParamConfigs.add(configs.getFirst());
 					break;
 				}
 				if (firstMutationCount > 100) {
@@ -209,8 +209,8 @@ public class GA extends PROARMethods {
 			}
 			
 			while (true) {
-				if (!checksums.contains(configs.getSecond().getChecksum())) {
-					checksums.add(configs.getSecond().getChecksum());
+				if (!createdParamConfigs.contains(configs.getSecond())) {
+					createdParamConfigs.add(configs.getSecond());
 					break;
 				}
 				if (secondMutationCount > 100) {
@@ -260,8 +260,8 @@ public class GA extends PROARMethods {
 			}
 			int mutationCount = 0;
 			while (true) {
-				if (!checksums.contains(paramconfig.getChecksum())) {
-					checksums.add(paramconfig.getChecksum());
+				if (!createdParamConfigs.contains(paramconfig)) {
+					createdParamConfigs.add(paramconfig);
 					break;
 				}
 				if (mutationCount > 100) {
@@ -287,7 +287,7 @@ public class GA extends PROARMethods {
 		}
 		
 		System.out.println("[GA] done.");
-		System.out.println("[GA] Solver configurations generated (overall): " + checksums.size());
+		System.out.println("[GA] Solver configurations generated (overall): " + createdParamConfigs.size());
 		return res;
 	}
 
