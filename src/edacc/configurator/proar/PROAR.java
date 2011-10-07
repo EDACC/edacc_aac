@@ -17,6 +17,7 @@ import edacc.api.APIImpl;
 import edacc.configurator.proar.algorithm.PROARMethods;
 import edacc.model.ConfigurationScenarioDAO;
 import edacc.model.Course;
+import edacc.model.ExperimentDAO;
 import edacc.model.ExperimentResult;
 import edacc.parameterspace.ParameterConfiguration;
 import edacc.parameterspace.graph.ParameterGraph;
@@ -26,6 +27,9 @@ public class PROAR {
 	private static final boolean generateSCForNextLevel = true;
 	private static final boolean useCapping = true;
 	private static final boolean deleteSolverConfigs = true;
+	
+	private int incumbentNumber = 0;
+	private String experimentName;
 	
 	private API api;
 	private int idExperiment;
@@ -143,9 +147,9 @@ public class PROAR {
 		List<Integer> solverConfigIds = api.getSolverConfigurations(idExperiment, "default");
 		if (solverConfigIds.isEmpty()) {
 			solverConfigIds = api.getSolverConfigurations(idExperiment);
-			System.out.println("Found " + solverConfigIds.size() + " solver configuration(s)");
+			System.out.println("c Found " + solverConfigIds.size() + " solver configuration(s)");
 		} else {
-			System.out.println("Found " + solverConfigIds.size() + " default configuration(s)");
+			System.out.println("c Found " + solverConfigIds.size() + " default configuration(s)");
 		}
 		List<SolverConfiguration> solverConfigs = new LinkedList<SolverConfiguration>();
 		int maxRun = -1;
@@ -160,7 +164,7 @@ public class PROAR {
 				solverConfigs.add(new SolverConfiguration(id, pConfig, statistics, level));
 			}
 		}
-		System.out.println("" + solverConfigs.size() + " solver configs with max run");
+		System.out.println("c " + solverConfigs.size() + " solver configs with max run");
 		
 		
 		Course c = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(idExperiment).getCourse();
@@ -178,21 +182,21 @@ public class PROAR {
 				courseValid = !(courseEnded && iis.contains(tmp));
 				courseEnded = courseEnded || !iis.contains(tmp);
 				if (!courseValid) {
-					System.out.println("Course invalid at instance number " + i + " instance: " + c.get(i).instance.getName());
+					System.out.println("c Course invalid at instance number " + i + " instance: " + c.get(i).instance.getName());
 					break;
 				}
 			}
 			if (!courseValid) {
-				System.out.println("Removing solver configuration " + api.getSolverConfigName(sc.getIdSolverConfiguration()) + " caused by invalid course.");
+				System.out.println("c Removing solver configuration " + api.getSolverConfigName(sc.getIdSolverConfiguration()) + " caused by invalid course.");
 				solverConfigs.remove(sc_index);
 			}
 		}
 		
-		System.out.println("Determining best solver configuration from " + solverConfigs.size() + " solver configurations");
+		System.out.println("c Determining best solver configuration from " + solverConfigs.size() + " solver configurations");
 		
 		if (solverConfigs.isEmpty()) {
 			// no good solver configs in db
-			System.out.println("Generating a random solver configuration");
+			System.out.println("c Generating a random solver configuration");
 
 			ParameterConfiguration config = graph.getRandomConfiguration(rng);
 			int idSolverConfiguration = api.createSolverConfig(idExperiment, config,
@@ -202,7 +206,7 @@ public class PROAR {
 		} else {
 			Collections.sort(solverConfigs);
 			bestSC = solverConfigs.get(solverConfigs.size()-1);
-			System.out.println("Best solver configuration: " + api.getSolverConfigName(bestSC.getIdSolverConfiguration()));
+			System.out.println("c Best solver configuration: " + api.getSolverConfigName(bestSC.getIdSolverConfiguration()));
 			
 		}
 	}
@@ -231,7 +235,7 @@ public class PROAR {
 		// at the moment only the time budget is taken into consideration
 		float exceed = this.cumulatedCPUTime - this.maxTuningTime;
 		if (exceed > 0) {
-			System.out.println("Maximum allowed CPU time exceeded with: " + exceed + " seconds!!!");
+			System.out.println("c Maximum allowed CPU time exceeded with: " + exceed + " seconds!!!");
 			return true;
 		} else
 			return false;
@@ -306,12 +310,19 @@ public class PROAR {
 	}
 
 	public void start() throws Exception {
+		experimentName = ExperimentDAO.getById(idExperiment).getName();
 		int numNewSC;
 		// first initialize the best individual if there is a default or if
 		// there are already some solver configurations in the experiment
 		level = 0;
 		cumulatedCPUTime = 0.f;
 		initializeBest();// TODO: mittels dem Classloader überschreiben
+		if (bestSC == null) {
+			throw new RuntimeException("best not initialized");
+		}
+		bestSC.setIncumbentNumber(incumbentNumber++);
+		bestSC.setTimeFound(0.f);
+		
 		int expansion;
 		int num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(idExperiment).getCourse()
 				.getInitialLength();
@@ -331,13 +342,13 @@ public class PROAR {
 				//}
 				expandParcoursSC(bestSC, expansion);
 			}
-			System.out.println("Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration() + " by "
+			System.out.println("c Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration() + " by "
 					+ expansion);
 
 			// update the status of the jobs of bestSC and if first level wait
 			// also for jobs to finish
 			if (level == 1) {
-				System.out.println("Waiting for currently best solver config " + bestSC.getIdSolverConfiguration()
+				System.out.println("c Waiting for currently best solver config " + bestSC.getIdSolverConfiguration()
 						+ " to finish " + expansion + "job(s)");
 				while (true) {
 					cumulatedCPUTime += bestSC.updateJobsStatus();
@@ -354,8 +365,8 @@ public class PROAR {
 			// configuration tables
 			api.updateSolverConfigurationCost(bestSC.getIdSolverConfiguration(), bestSC.getCost(),
 					statistics.getCostFunction());
-			System.out.println("Generating new Solver Configurations.");
-			System.out.println("There are currently " + listNewSC.size()
+			System.out.println("c Generating new Solver Configurations.");
+			System.out.println("c There are currently " + listNewSC.size()
 					+ " solver configurations for the current level (" + level + ") generated in the last level.");
 
 			// compute the number of new solver configs that should be generated
@@ -365,13 +376,14 @@ public class PROAR {
 			this.statNumSolverConfigs += numNewSC;
 			this.listNewSC.addAll(tmpList);
 			listBestSC.clear();
-			System.out.println(statNumSolverConfigs + "SC -> Generated " + numNewSC + " new solver configurations");
+			System.out.println("c " + statNumSolverConfigs + "SC -> Generated " + numNewSC + " new solver configurations");
 
 			for (SolverConfiguration sc : tmpList) {
 				// add 1 random job from the best configuration with the
 				// priority corresponding to the level
 				// lower levels -> higher priorities
 				addRandomJob(1, sc, bestSC, Integer.MAX_VALUE - level);
+				sc.setTimeFound(cumulatedCPUTime);
 				updateSolverConfigName(sc, false);
 			}
 
@@ -415,7 +427,7 @@ public class PROAR {
 							} else {
 								int generated = addRandomJob(sc.getJobCount(), sc, bestSC,
 										Integer.MAX_VALUE - sc.getLevel());
-								System.out.println("Generated " + generated + " jobs for level " + sc.getLevel());
+								System.out.println("c Generated " + generated + " jobs for level " + sc.getLevel());
 							}
 						} else {// lost against best on part of the actual
 								// parcours:
@@ -439,8 +451,8 @@ public class PROAR {
 								// TODO: minimieren / maximieren /negative
 								// kosten
 								if (sc.getCumulatedCost() > bestSC.getCumulatedCost()) {
-									System.out.println(sc.getCumulatedCost() + " >" + bestSC.getCumulatedCost());
-									System.out.println(sc.getJobCount() + " > " + bestSC.getJobCount());
+									System.out.println("c " + sc.getCumulatedCost() + " >" + bestSC.getCumulatedCost());
+									System.out.println("c " + sc.getJobCount() + " > " + bestSC.getJobCount());
 									// kill all running jobs of the sc config!
 									List<ExperimentResult> jobsToKill = sc.getJobs();
 									for (ExperimentResult j : jobsToKill) {
@@ -448,7 +460,7 @@ public class PROAR {
 									}
 									api.removeSolverConfig(sc.getIdSolverConfiguration());
 									listNewSC.remove(i);
-									System.out.println("-----Config capped!!!");
+									System.out.println("c -----Config capped!!!");
 								}
 							// sc.killRunningJobs
 							// api.removeSolverConfig(sc.)
@@ -488,7 +500,7 @@ public class PROAR {
 				}
 				// determine and add race solver configurations
 				for (SolverConfiguration sc : getRaceSolverConfigurations()) {
-					System.out.println("Found RACE solver configuration: " + sc.getIdSolverConfiguration() + " - " + sc.getName());
+					System.out.println("c Found RACE solver configuration: " + sc.getIdSolverConfiguration() + " - " + sc.getName());
 					addRandomJob(1, sc, bestSC, Integer.MAX_VALUE - level);
 					updateSolverConfigName(sc, false);
 					listNewSC.add(sc);
@@ -496,25 +508,33 @@ public class PROAR {
 				
 			}
 			updateSolverConfigName(bestSC, false);
-			System.out.println("Determining the new best solver config from " + listBestSC.size()
+			System.out.println("c Determining the new best solver config from " + listBestSC.size()
 					+ " solver configurations.");
 			if (listBestSC.size() > 0) {
 				for (SolverConfiguration sc : listBestSC) {
+
 					if (sc.compareTo(bestSC) > 0) {
 						// if bestsc is from the same level as sc then remove
 						// bestSC from DB as we want to keep only
 						// 1 best from each level!
-						if (deleteSolverConfigs && (bestSC.getLevel() == sc.getLevel())
-								&& (this.algorithm.equals("ROAR") || (this.algorithm.equals("MB")))) {
-							api.removeSolverConfig(bestSC.getIdSolverConfiguration());
-						}
+						
+						//if (deleteSolverConfigs && (bestSC.getLevel() == sc.getLevel())
+						//		&& (this.algorithm.equals("ROAR") || (this.algorithm.equals("MB")))) {
+						//	api.removeSolverConfig(bestSC.getIdSolverConfiguration());
+						//}
 						bestSC = sc;
 					} else {
-						if (deleteSolverConfigs && (this.algorithm.equals("ROAR") || (this.algorithm.equals("MB"))))
-							api.removeSolverConfig(sc.getIdSolverConfiguration());
+						//if (deleteSolverConfigs && (this.algorithm.equals("ROAR") || (this.algorithm.equals("MB"))))
+						//	api.removeSolverConfig(sc.getIdSolverConfiguration());
+						sc.setIncumbentNumber(incumbentNumber++);
+						updateSolverConfigName(sc, false);
+						System.out.println("i " + cumulatedCPUTime + "," + sc.getCost() + "," + sc.getIncumbentNumber() + "," + sc.getIdSolverConfiguration() + "," + sc.getTimeFound() + "," + sc.getName());
 					}
 				}
 			}
+			bestSC.setIncumbentNumber(incumbentNumber++);
+			updateSolverConfigName(bestSC, true);
+			System.out.println("i " + cumulatedCPUTime + "," + bestSC.getCost() + "," + bestSC.getIncumbentNumber() + "," + bestSC.getIdSolverConfiguration() + "," + bestSC.getTimeFound() + "," + bestSC.getName());
 			
 			if (!listBestSC.isEmpty()) {
 				if (bestSC.getJobCount() < maxParcoursExpansionFactor * num_instances) {
@@ -550,7 +570,7 @@ public class PROAR {
 				sc.setName(api.getSolverConfigName(i));
 				res.add(sc);
 				} catch (Exception e) {
-					System.out.println("getRaceSolverConfigurations(): invalid solver config: " + i);
+					System.out.println("c getRaceSolverConfigurations(): invalid solver config: " + i);
 				}
 			}
 		}
@@ -558,27 +578,30 @@ public class PROAR {
 	}
 	
 	public void shutdown() {
-		System.out.println("Solver Configurations generated: " + this.statNumSolverConfigs);
-		System.out.println("Jobs generated: " + statNumJobs);
-		System.out.println("Total runtime of the execution system (CPU time): " + cumulatedCPUTime);
-		System.out.println("Best Configuration found: ");
-		System.out.println("ID :" + bestSC.getIdSolverConfiguration());
+		System.out.println("c Solver Configurations generated: " + this.statNumSolverConfigs);
+		System.out.println("c Jobs generated: " + statNumJobs);
+		System.out.println("c Total runtime of the execution system (CPU time): " + cumulatedCPUTime);
+		System.out.println("c Best Configuration found: ");
+		System.out.println("c ID :" + bestSC.getIdSolverConfiguration());
 		try {
-			System.out.println("Canonical name: "
+			System.out.println("c Canonical name: "
 					+ api.getCanonicalName(this.idExperiment, bestSC.getParameterConfiguration()));
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
-		System.out.println("halt.");
+		System.out.println("c halt.");
 		api.disconnect();
 	}
 
-	public void updateSolverConfigName(SolverConfiguration sc, boolean best) throws Exception {
+	/*public void updateSolverConfigName(SolverConfiguration sc, boolean best) throws Exception {
 		api.updateSolverConfigurationName(
 				sc.getIdSolverConfiguration(),
 				(best ? " BEST " : "") + (sc.getName() != null ? " " + sc.getName() + " " : "") + sc.getIdSolverConfiguration() + " Runs: " + sc.getNumFinishedJobs()
 						+ "/" + sc.getJobCount() + " Level: " + sc.getLevel()
 						+ " " + api.getCanonicalName(idExperiment, sc.getParameterConfiguration()));
+	}*/
+	public void updateSolverConfigName(SolverConfiguration sc, boolean best) throws Exception {
+		api.updateSolverConfigurationName(sc.getIdSolverConfiguration(), experimentName + " " + sc.getIncumbentNumber() + " " + sc.getCost() + " " + sc.getTimeFound());
 	}
 
 	/**
@@ -651,15 +674,15 @@ public class PROAR {
 			
 		}
 		scanner.close();
-		System.out.println("Starting the PROAR configurator with following settings: ");
-		System.out.println("Algorithm: " + algorithm);
-		System.out.println("Optimizing statistic: " + costFunc);
-		System.out.println("towards: " + (minimize ? "mimisation" : "maximisation"));
-		System.out.println("Parcours expansion pro level: " + pe);
-		System.out.println("Maximum parcours expansion factor: " + mpef);
+		System.out.println("c Starting the PROAR configurator with following settings: ");
+		System.out.println("c Algorithm: " + algorithm);
+		System.out.println("c Optimizing statistic: " + costFunc);
+		System.out.println("c towards: " + (minimize ? "mimisation" : "maximisation"));
+		System.out.println("c Parcours expansion pro level: " + pe);
+		System.out.println("c Maximum parcours expansion factor: " + mpef);
 
-		System.out.println("CPU time limit: " + jobCPUTimeLimit);
-		System.out.println("---------------------------------");
+		System.out.println("c CPU time limit: " + jobCPUTimeLimit);
+		System.out.println("c ---------------------------------");
 		PROAR configurator = new PROAR(hostname, port, database, user, password, idExperiment, jobCPUTimeLimit, seed,
 				algorithm, costFunc, minimize, pe, mpef, ipd, maxTuningTime, configuratorMethodParams);
 		configurator.start();
