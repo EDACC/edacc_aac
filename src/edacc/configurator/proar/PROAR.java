@@ -37,6 +37,8 @@ public class PROAR {
 	private String algorithm;
 	private Random rng;
 	private PROARMethods methods;
+	private int maxCPUCount;
+	private int minCPUCount;
 
 	/** The statistics function to be used */
 	private StatisticFunction statistics;
@@ -46,6 +48,8 @@ public class PROAR {
 
 	/** maximum allowed tuning time = sum over all jobs in seconds */
 	private float maxTuningTime;
+	
+	private long startTime;
 
 	/**
 	 * total cumulated time of all jobs the configurator has started so far in
@@ -106,29 +110,29 @@ public class PROAR {
 	private int statNumJobs;
 
 	private ParameterGraph graph;
-	public PROAR(String hostname, int port, String database, String user, String password, int idExperiment,
-			int jobCPUTimeLimit, long seed, String algorithm, String statFunc, boolean minimize, int pe, int mpef,
-			int ipd, float maxTuningTime, Map<String, String> configuratorMethodParams) throws Exception {
+	public PROAR(PROARParameters params) throws Exception {
 		api = new APIImpl();
-		api.connect(hostname, port, database, user, password);
-		this.graph = api.loadParameterGraphFromDB(idExperiment);
-		this.idExperiment = idExperiment;
-		this.jobCPUTimeLimit = jobCPUTimeLimit;
-		this.algorithm = algorithm;
-		this.statistics = new StatisticFunction(api.costFunctionByName(statFunc), minimize);
-		this.parcoursExpansion = pe;
-		this.maxParcoursExpansionFactor = mpef;
-		this.initialDefaultParcoursLength = ipd;
-		this.maxTuningTime = maxTuningTime;
-		rng = new edacc.util.MersenneTwister(seed);
+		api.connect(params.hostname, params.port, params.database, params.user, params.password);
+		this.graph = api.loadParameterGraphFromDB(params.idExperiment);
+		this.idExperiment = params.idExperiment;
+		this.jobCPUTimeLimit = params.jobCPUTimeLimit;
+		this.algorithm = params.algorithm;
+		this.statistics = new StatisticFunction(api.costFunctionByName(params.costFunc), params.minimize);
+		this.parcoursExpansion = params.pe;
+		this.maxParcoursExpansionFactor = params.mpef;
+		this.initialDefaultParcoursLength = params.ipd;
+		this.maxTuningTime = params.maxTuningTime;
+		rng = new edacc.util.MersenneTwister(params.seed);
 		listBestSC = new ArrayList<SolverConfiguration>();
 		listNewSC = new ArrayList<SolverConfiguration>();
 		this.statNumSolverConfigs = 0;
 		this.statNumJobs = 0;
+		this.maxCPUCount = params.maxCPUCount;
+		this.minCPUCount = params.minCPUCount;
 		// TODO: Die beste config auch noch mittels einer methode bestimmen!
 		methods = (PROARMethods) ClassLoader.getSystemClassLoader()
 				.loadClass("edacc.configurator.proar.algorithm." + algorithm).getDeclaredConstructors()[0].newInstance(
-				api, idExperiment, statistics, rng, configuratorMethodParams);
+				api, idExperiment, statistics, rng, params.configuratorMethodParams);
 	}
 
 	/**
@@ -310,6 +314,19 @@ public class PROAR {
 	}
 
 	public void start() throws Exception {
+		if (maxCPUCount != 0 && minCPUCount != 0 && maxCPUCount >= minCPUCount) {
+			while (true) {
+				int coreCount = api.getComputationCoreCount(idExperiment);
+				if (coreCount >= minCPUCount && coreCount <= maxCPUCount) {
+					break;
+				}
+				System.out.println("c Current core count: " + coreCount);
+				System.out.println("c Waiting for #cores to satisfy: " + minCPUCount + " <= #cores <=" + maxCPUCount);
+				Thread.sleep(10000);
+			}
+		}
+		System.out.println("c Starting PROAR.");
+		startTime = System.currentTimeMillis();
 		experimentName = ExperimentDAO.getById(idExperiment).getName();
 		int numNewSC;
 		// first initialize the best individual if there is a default or if
@@ -321,7 +338,7 @@ public class PROAR {
 			throw new RuntimeException("best not initialized");
 		}
 		bestSC.setIncumbentNumber(incumbentNumber++);
-		bestSC.setTimeFound(0.f);
+		System.out.println("i " + getWallTime() + " ," + bestSC.getCost() + ", n.A.," + bestSC.getIdSolverConfiguration() + ", n.A.," + bestSC.getParameterConfiguration().toString());
 		
 		int expansion;
 		int num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(idExperiment).getCourse()
@@ -383,11 +400,12 @@ public class PROAR {
 				// priority corresponding to the level
 				// lower levels -> higher priorities
 				addRandomJob(1, sc, bestSC, Integer.MAX_VALUE - level);
-				sc.setTimeFound(cumulatedCPUTime);
 				updateSolverConfigName(sc, false);
 			}
 
 			boolean currentLevelFinished = false;
+			
+			int numLostSC = 0;
 			// only when all jobs of the current level are finished we can
 			// continue
 			while (!currentLevelFinished) {
@@ -420,6 +438,12 @@ public class PROAR {
 								// best:
 								if (comp > 0) {
 									listBestSC.add(sc);
+									updateSolverConfigName(bestSC, false);
+									bestSC = sc;
+									sc.setIncumbentNumber(incumbentNumber++);
+									updateSolverConfigName(bestSC, true);
+									System.out.println("i " + getWallTime() + "," + sc.getCost() + ",n.A. ," + sc.getIdSolverConfiguration() + ",n.A. ," + sc.getParameterConfiguration().toString());
+								
 								}
 								api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(), sc.getCost(),
 										statistics.getCostFunction());
@@ -436,8 +460,7 @@ public class PROAR {
 							listNewSC.remove(i);// remove from new
 												// configurations
 							// System.out.println(">>>>>Config lost!!!");
-							if (bestSC.getJobCount() < maxParcoursExpansionFactor * num_instances)
-								expandParcoursSC(bestSC, 1);
+							numLostSC++;
 						}
 					} else {
 						if (useCapping) {
@@ -507,7 +530,7 @@ public class PROAR {
 				}
 				
 			}
-			updateSolverConfigName(bestSC, false);
+			/*updateSolverConfigName(bestSC, false);
 			System.out.println("c Determining the new best solver config from " + listBestSC.size()
 					+ " solver configurations.");
 			if (listBestSC.size() > 0) {
@@ -523,22 +546,16 @@ public class PROAR {
 						//	api.removeSolverConfig(bestSC.getIdSolverConfiguration());
 						//}
 						bestSC = sc;
+						
 					} else {
 						//if (deleteSolverConfigs && (this.algorithm.equals("ROAR") || (this.algorithm.equals("MB"))))
 						//	api.removeSolverConfig(sc.getIdSolverConfiguration());
-						sc.setIncumbentNumber(incumbentNumber++);
-						updateSolverConfigName(sc, false);
-						System.out.println("i " + cumulatedCPUTime + "," + sc.getCost() + "," + sc.getIncumbentNumber() + "," + sc.getIdSolverConfiguration() + "," + sc.getTimeFound() + "," + sc.getName());
 					}
 				}
-			}
-			bestSC.setIncumbentNumber(incumbentNumber++);
-			updateSolverConfigName(bestSC, true);
-			System.out.println("i " + cumulatedCPUTime + "," + bestSC.getCost() + "," + bestSC.getIncumbentNumber() + "," + bestSC.getIdSolverConfiguration() + "," + bestSC.getTimeFound() + "," + bestSC.getName());
-			
-			if (!listBestSC.isEmpty()) {
+			}		*/
+			if (!listBestSC.isEmpty() || numLostSC > 0) {
 				if (bestSC.getJobCount() < maxParcoursExpansionFactor * num_instances) {
-					int exp = Math.min(maxParcoursExpansionFactor * num_instances - bestSC.getJobCount(), listBestSC.size());
+					int exp = Math.min(maxParcoursExpansionFactor * num_instances - bestSC.getJobCount(), listBestSC.size() + numLostSC);
 					expandParcoursSC(bestSC, exp);
 				}
 			}
@@ -546,6 +563,10 @@ public class PROAR {
 			// update this in the beginning of the loop!
 		}
 
+	}
+	
+	public float getWallTime() {
+		return (System.currentTimeMillis() - startTime) / 1000.f;
 	}
 
 	/**
@@ -601,7 +622,7 @@ public class PROAR {
 						+ " " + api.getCanonicalName(idExperiment, sc.getParameterConfiguration()));
 	}*/
 	public void updateSolverConfigName(SolverConfiguration sc, boolean best) throws Exception {
-		api.updateSolverConfigurationName(sc.getIdSolverConfiguration(), experimentName + " " + sc.getIncumbentNumber() + " " + sc.getCost() + " " + sc.getTimeFound());
+		api.updateSolverConfigurationName(sc.getIdSolverConfiguration(), experimentName + " " + sc.getIncumbentNumber() + " " + sc.getCost());
 	}
 
 	/**
@@ -615,22 +636,8 @@ public class PROAR {
 			System.out.println("Missing configuration file. Use java -jar PROAR.jar <config file path>");
 			return;
 		}
-		
+		PROARParameters params = new PROARParameters();
 		Scanner scanner = new Scanner(new File(args[0]));
-		String hostname = "", user = "", password = "", database = "";
-		int idExperiment = 0;
-		int port = 3306;
-		int jobCPUTimeLimit = 13;
-		long seed = System.currentTimeMillis();
-		String algorithm = "ROAR";
-		String costFunc = "par10";
-		boolean minimize = true;
-		int pe = 1;
-		int mpef = 5;
-		int ipd = 10;
-		float maxTuningTime = -1;
-		
-		HashMap<String, String> configuratorMethodParams = new HashMap<String, String>();
 
 		while (scanner.hasNextLine()) {
 			String line = scanner.nextLine();
@@ -640,52 +647,86 @@ public class PROAR {
 			String key = keyval[0].trim();
 			String value = keyval[1].trim();
 			if ("host".equals(key))
-				hostname = value;
+				params.hostname = value;
 			else if ("user".equals(key))
-				user = value;
+				params.user = value;
 			else if ("password".equals(key))
-				password = value;
+				params.password = value;
 			else if ("port".equals(key))
-				port = Integer.valueOf(value);
+				params.port = Integer.valueOf(value);
 			else if ("database".equals(key))
-				database = value;
+				params.database = value;
 			else if ("idExperiment".equals(key))
-				idExperiment = Integer.valueOf(value);
+				params.idExperiment = Integer.valueOf(value);
 			else if ("seed".equals(key))
-				seed = Long.valueOf(value);
+				params.seed = Long.valueOf(value);
 			else if ("jobCPUTimeLimit".equals(key))
-				jobCPUTimeLimit = Integer.valueOf(value);
+				params.jobCPUTimeLimit = Integer.valueOf(value);
 			else if ("algorithm".equals(key))
-				algorithm = value;
+				params.algorithm = value;
 			else if ("costFunction".equals(key))
-				costFunc = value;
+				params.costFunc = value;
 			else if ("minimize".equals(key))
-				minimize = Boolean.parseBoolean(value);
+				params.minimize = Boolean.parseBoolean(value);
 			else if ("parcoursExpansion".equals(key))
-				pe = Integer.valueOf(value);
+				params.pe = Integer.valueOf(value);
 			else if ("maxParcoursExpansionFactor".equals(key))
-				mpef = Integer.valueOf(value);
+				params.mpef = Integer.valueOf(value);
 			else if ("initialParcoursDefault".equals(key))
-				ipd = Integer.valueOf(value);
-			else if (key.startsWith(algorithm + "_")) 
-				configuratorMethodParams.put(key, value);
+				params.ipd = Integer.valueOf(value);
+			else if (key.startsWith(params.algorithm + "_")) 
+				params.configuratorMethodParams.put(key, value);
 			else if (key.equals("maxTuningTime")) 
-				maxTuningTime = Integer.valueOf(value);
+				params.maxTuningTime = Integer.valueOf(value);
+			else if (key.equals("minCPUCount")) 
+				params.minCPUCount = Integer.valueOf(value);
+			else if (key.equals("maxCPUCount"))
+				params.maxCPUCount = Integer.valueOf(value);
+			
 			
 		}
 		scanner.close();
 		System.out.println("c Starting the PROAR configurator with following settings: ");
-		System.out.println("c Algorithm: " + algorithm);
-		System.out.println("c Optimizing statistic: " + costFunc);
-		System.out.println("c towards: " + (minimize ? "mimisation" : "maximisation"));
-		System.out.println("c Parcours expansion pro level: " + pe);
-		System.out.println("c Maximum parcours expansion factor: " + mpef);
-
-		System.out.println("c CPU time limit: " + jobCPUTimeLimit);
+		System.out.println(params);
 		System.out.println("c ---------------------------------");
-		PROAR configurator = new PROAR(hostname, port, database, user, password, idExperiment, jobCPUTimeLimit, seed,
-				algorithm, costFunc, minimize, pe, mpef, ipd, maxTuningTime, configuratorMethodParams);
+		PROAR configurator = new PROAR(params);
 		configurator.start();
 		configurator.shutdown();
+	}
+}
+class PROARParameters {
+	String hostname = "", user = "", password = "", database = "";
+	int idExperiment = 0;
+	int port = 3306;
+	int jobCPUTimeLimit = 13;
+	long seed = System.currentTimeMillis();
+	String algorithm = "ROAR";
+	String costFunc = "par10";
+	boolean minimize = true;
+	int pe = 1;
+	int mpef = 5;
+	int ipd = 10;
+	int minCPUCount = 0;
+	int maxCPUCount = 0;
+	float maxTuningTime = -1;
+	StatisticFunction statFunc;
+	HashMap<String, String> configuratorMethodParams = new HashMap<String, String>();
+	
+	public String toString() {
+		String paramsForAlgo = "";
+		for (String key : configuratorMethodParams.keySet()) {
+			paramsForAlgo += "(" + key + "," + configuratorMethodParams.get(key) + ") ";
+		}
+		return  "c Host: " + user + ":xxxxx" + "@" + hostname + ":" + port + "/" + database + "\n" +
+				"c Experiment Id: " + idExperiment + "\n" +
+				"c Algorithm: " + algorithm + "\n" +
+				"c Optimizing statistic: " + costFunc + "\n" +
+				"c towards: " + (minimize ? "mimisation" : "maximisation") + "\n" +
+				"c Parcours expansion pro level: " + pe + "\n" +
+				"c Maximum parcours expansion factor: " + mpef + "\n" +
+				"c Initial Parcours for first config: " + ipd + "\n" +
+				"c CPU time limit: " + jobCPUTimeLimit + "\n" +
+				"c Maximum tuning time: " + (maxTuningTime == -1 ? "unlimited" : maxTuningTime) + "\n" +
+				"c Parameters for algorithm: " + paramsForAlgo + "\n";
 	}
 }

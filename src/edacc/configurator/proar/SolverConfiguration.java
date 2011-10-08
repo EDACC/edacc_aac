@@ -19,7 +19,6 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	private int idSolverConfiguration;
 
 	private int incumbentNumber;
-	private float timeFound;
 	/**
 	 * the cost of the configuration with regards to a statistic function and a
 	 * metric (cost or runtime);
@@ -68,7 +67,6 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 		this.statFunc = statFunc;
 		this.level = level;
 		this.incumbentNumber = -1;
-		this.timeFound = -1;
 	}
 
 	public SolverConfiguration(SolverConfiguration sc) {
@@ -81,15 +79,6 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 		this.statFunc = sc.statFunc;
 		this.level = sc.level;
 		this.incumbentNumber = sc.incumbentNumber;
-		this.timeFound = sc.timeFound;
-	}
-	
-	public float getTimeFound() {
-		return timeFound;
-	}
-	
-	public void setTimeFound(float timeFound) {
-		this.timeFound = timeFound;
 	}
 
 	public int getIncumbentNumber() {
