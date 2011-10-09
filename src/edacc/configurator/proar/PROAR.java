@@ -314,16 +314,17 @@ public class PROAR {
 	}
 
 	public void start() throws Exception {
-		if (maxCPUCount != 0 && minCPUCount != 0 && maxCPUCount >= minCPUCount) {
-			while (true) {
-				int coreCount = api.getComputationCoreCount(idExperiment);
-				if (coreCount >= minCPUCount && coreCount <= maxCPUCount) {
-					break;
-				}
-				System.out.println("c Current core count: " + coreCount);
-				System.out.println("c Waiting for #cores to satisfy: " + minCPUCount + " <= #cores <=" + maxCPUCount);
-				Thread.sleep(10000);
+		if (maxCPUCount == 0) {
+			maxCPUCount = Integer.MAX_VALUE;
+		}
+		while (true) {
+			int coreCount = api.getComputationCoreCount(idExperiment);
+			if (coreCount >= minCPUCount && coreCount <= maxCPUCount) {
+				break;
 			}
+			System.out.println("c Current core count: " + coreCount);
+			System.out.println("c Waiting for #cores to satisfy: " + minCPUCount + " <= #cores <=" + maxCPUCount);
+			Thread.sleep(10000);
 		}
 		System.out.println("c Starting PROAR.");
 		startTime = System.currentTimeMillis();
@@ -344,6 +345,10 @@ public class PROAR {
 		int num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(idExperiment).getCourse()
 				.getInitialLength();
 
+		if (num_instances == 0) {
+			System.out.println("e Error: no instances in course.");
+			return;
+		}
 		while (!terminate()) {
 			level++;
 			// bestSC.updateJobsStatus(); das ist glaube ich doppelt gemoppelt
@@ -497,6 +502,9 @@ public class PROAR {
 				
 				if (generateSCForNextLevel) {
 					int coreCount = api.getComputationCoreCount(idExperiment);
+					if (coreCount < minCPUCount || coreCount > maxCPUCount) {
+						System.out.println("w Warning: Current core count is " + coreCount);
+					}
 					int jobs = api.getComputationJobCount(idExperiment);
 					int min_sc = Math.max(Math.round(1.2f * coreCount), 8) - jobs;
 					if (min_sc > 0) {
@@ -727,6 +735,7 @@ class PROARParameters {
 				"c Initial Parcours for first config: " + ipd + "\n" +
 				"c CPU time limit: " + jobCPUTimeLimit + "\n" +
 				"c Maximum tuning time: " + (maxTuningTime == -1 ? "unlimited" : maxTuningTime) + "\n" +
+				"c Seed: " + seed + "\n" +
 				"c Parameters for algorithm: " + paramsForAlgo + "\n";
 	}
 }
