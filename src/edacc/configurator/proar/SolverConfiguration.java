@@ -1,5 +1,6 @@
 package edacc.configurator.proar;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -44,9 +45,8 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	private List<ExperimentResult> jobs;
 
 	private StatisticFunction statFunc;
-	
+
 	private int numNotStartedJobs, numFinishedJobs, numSuccessfulJobs, numRunningJobs;
-	
 
 	/**
 	 * Common initialization
@@ -56,8 +56,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 		totalRuntime = 0.f;
 	}
 
-	public SolverConfiguration(int idSolverConfiguration, ParameterConfiguration pc, StatisticFunction statFunc,
-			int level) {
+	public SolverConfiguration(int idSolverConfiguration, ParameterConfiguration pc, StatisticFunction statFunc, int level) {
 		this();
 
 		this.pConfig = pc;
@@ -84,11 +83,11 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	public int getIncumbentNumber() {
 		return incumbentNumber;
 	}
-	
+
 	public void setIncumbentNumber(int incumbentNumber) {
 		this.incumbentNumber = incumbentNumber;
 	}
-	
+
 	public final ParameterConfiguration getParameterConfiguration() {
 		return this.pConfig;
 	}
@@ -136,7 +135,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	public final String getName() {
 		return this.name;
 	}
-	
+
 	public final void setName(String name) {
 		this.name = name;
 	}
@@ -243,11 +242,11 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	public int getNumNotStartedJobs() {
 		return numNotStartedJobs;
 	}
-	
+
 	public int getNumSuccessfulJobs() {
 		return numSuccessfulJobs;
 	}
-	
+
 	/**
 	 * Returns the number of jobs for this solver configuration at the last
 	 * <code>updateJobs()</code> call.
@@ -262,38 +261,53 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	 * Updates the locally cached jobs for this solver configuration. It
 	 * collects the id's of its own jobs and passes them to the api as a list of
 	 * id's getting back the ExperimentResults list for this id's
+	 * 
 	 * @return the cpu time needed since the last updateJobsStatus()-call
 	 * @throws Exception
 	 */
 
 	protected float updateJobsStatus() throws Exception {
 		LinkedList<Integer> ids = new LinkedList<Integer>();
-		numRunningJobs = 0;
-		numFinishedJobs = 0;
-		numSuccessfulJobs = 0;
-		numNotStartedJobs = 0;
-		float tmpTotalRuntime = totalRuntime;
-		totalRuntime = 0.f;
+		ArrayList<ExperimentResult> tmp = new ArrayList<ExperimentResult>();
 		for (ExperimentResult j : jobs) {
-			ids.add(j.getId());
-		}
-		jobs = ExperimentResultDAO.getByIds(ids);
-		for (ExperimentResult j : jobs) {
-			totalRuntime += j.getResultTime();
-			if (j.getStatus().equals(StatusCode.RUNNING)) {
-				numRunningJobs++;
-			}
-			if (!j.getStatus().equals(StatusCode.NOT_STARTED) && !j.getStatus().equals(StatusCode.RUNNING)) {
-				numFinishedJobs ++;
-			}
-			if (String.valueOf(j.getResultCode().getResultCode()).startsWith("1")) {
-				numSuccessfulJobs++;
-			}
-			if (j.getStatus().equals(StatusCode.NOT_STARTED)) {
-				numNotStartedJobs ++;
+			if (j.getStatus().equals(StatusCode.SUCCESSFUL)) {
+				tmp.add(j);
+			} else {
+				ids.add(j.getId());
 			}
 		}
-		return totalRuntime - tmpTotalRuntime;
+
+		if (!ids.isEmpty()) {
+			jobs = ExperimentResultDAO.getByIds(ids);
+
+			tmp.addAll(jobs);
+			jobs = tmp;
+			numRunningJobs = 0;
+			numFinishedJobs = 0;
+			numSuccessfulJobs = 0;
+			numNotStartedJobs = 0;
+			float tmpTotalRuntime = totalRuntime;
+			totalRuntime = 0.f;
+			for (ExperimentResult j : jobs) {
+				totalRuntime += j.getResultTime();
+				if (j.getStatus().equals(StatusCode.RUNNING)) {
+					numRunningJobs++;
+				}
+				if (!j.getStatus().equals(StatusCode.NOT_STARTED) && !j.getStatus().equals(StatusCode.RUNNING)) {
+					numFinishedJobs++;
+				}
+				if (String.valueOf(j.getResultCode().getResultCode()).startsWith("1")) {
+					numSuccessfulJobs++;
+				}
+				if (j.getStatus().equals(StatusCode.NOT_STARTED)) {
+					numNotStartedJobs++;
+				}
+			}
+			return totalRuntime - tmpTotalRuntime;
+		} else {
+			return 0.f;
+		}
+
 	}
 
 	/**
