@@ -316,8 +316,7 @@ public class PROAR {
 			for (InstanceIdSeed is : instanceIdSeedList) {
 				statNumJobs++;
 				int idJob = api.launchJob(idExperiment, toAdd.getIdSolverConfiguration(), is.instanceId,
-					BigInteger.valueOf(is.seed), jobCPUTimeLimit);
-				api.setJobPriority(idJob, priority);
+					BigInteger.valueOf(is.seed), jobCPUTimeLimit, priority);
 				toAdd.putJob(api.getJob(idJob));
 				generated++;
 			}
@@ -425,19 +424,18 @@ public class PROAR {
 					int generateForLevel;
 					if (generateNumSCForCurrentLevel > 0) {
 						generateForLevel = level;
-						if (generateNumSCForCurrentLevel >= 70) {
-
-							generateNumSCForCurrentLevel -= 70;
-							numNewSC = 70;
+						if (generateNumSCForCurrentLevel >= 210) {
+							generateNumSCForCurrentLevel -= 210;
+							numNewSC = 210;
 						} else {
 							numNewSC = generateNumSCForCurrentLevel;
 							generateNumSCForCurrentLevel = 0;
 						}
 					} else {
 						generateForLevel = level + 1;
-						if (generateNumSCForNextLevel >= 70) {
-							generateNumSCForNextLevel -= 70;
-							numNewSC = 70;
+						if (generateNumSCForNextLevel >= 210) {
+							generateNumSCForNextLevel -= 210;
+							numNewSC = 210;
 						} else {
 							numNewSC = generateNumSCForNextLevel;
 							generateNumSCForNextLevel = 0;
@@ -460,7 +458,7 @@ public class PROAR {
 						// add 1 random job from the best configuration with the
 						// priority corresponding to the level
 						// lower levels -> higher priorities
-						addRandomJob(1, sc, bestSC, Integer.MAX_VALUE - level);
+						addRandomJob(1, sc, bestSC, Integer.MAX_VALUE - generateForLevel);
 						updateSolverConfigName(sc, false);
 					}
 				} else {
