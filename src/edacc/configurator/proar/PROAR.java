@@ -555,7 +555,7 @@ public class PROAR {
 				// determine how many idleing cores we have and generate new
 				// solver configurations for the next level
 				
-				if (generateSCForNextLevel) {
+				if (!terminate() && generateSCForNextLevel) {
 					int coreCount = api.getComputationCoreCount(idExperiment);
 					if (coreCount < minCPUCount || coreCount > maxCPUCount) {
 						log("w Warning: Current core count is " + coreCount);

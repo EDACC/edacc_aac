@@ -112,7 +112,7 @@ public class GA extends PROARMethods {
 				continue;
 			}
 			cur.maxChildCount = maxChildCount;
-			System.out.println("[GA] Created individual with max child count " + maxChildCount);
+			//System.out.println("[GA] Created individual with max child count " + maxChildCount);
 			if (cur.sc.getNumSuccessfulJobs() >= cur.sc.getJobCount() / 2) {
 				population.add(cur);
 			} 
@@ -172,7 +172,7 @@ public class GA extends PROARMethods {
 					mutationCount++;
 				}
 				int idSolverConfig = api.createSolverConfig(idExperiment, pConfig, api.getCanonicalName(idExperiment, pConfig) + " level " + level);
-				SolverConfiguration sc = new SolverConfiguration(idSolverConfig, api.getParameterConfiguration(idExperiment, idSolverConfig), statistics, level);
+				SolverConfiguration sc = new SolverConfiguration(idSolverConfig, pConfig, statistics, level);
 				sc.setName(mutationCount + " mutations");
 				res.add(sc);
 				Individual newInd = new Individual(sc);
@@ -182,7 +182,7 @@ public class GA extends PROARMethods {
 			best.remove(f);
 
 			
-			Pair<ParameterConfiguration, ParameterConfiguration> configs = graph.crossover(api.getParameterConfiguration(idExperiment, m.getSolverConfig().getIdSolverConfiguration()), api.getParameterConfiguration(idExperiment, f.getSolverConfig().getIdSolverConfiguration()), rng);
+			Pair<ParameterConfiguration, ParameterConfiguration> configs = graph.crossover(m.getSolverConfig().getParameterConfiguration(), f.getSolverConfig().getParameterConfiguration(), rng);
 
 			int firstMutationCount = 0;
 			int secondMutationCount = 0;
@@ -224,7 +224,7 @@ public class GA extends PROARMethods {
 			f.incrementChildCount();
 
 			int idSolverConfig = api.createSolverConfig(idExperiment, configs.getFirst(), api.getCanonicalName(idExperiment, configs.getFirst()) + " level " + level);
-			SolverConfiguration firstSC = new SolverConfiguration(idSolverConfig, api.getParameterConfiguration(idExperiment, idSolverConfig), statistics, level);
+			SolverConfiguration firstSC = new SolverConfiguration(idSolverConfig, configs.getFirst(), statistics, level);
 			
 			res.add(firstSC);
 			Individual newInd = new Individual(firstSC);
@@ -236,7 +236,7 @@ public class GA extends PROARMethods {
 			oldIndividuals.add(newInd);
 			
 			idSolverConfig = api.createSolverConfig(idExperiment, configs.getSecond(), api.getCanonicalName(idExperiment, configs.getSecond()) + " level " + level);
-			SolverConfiguration secondSC = new SolverConfiguration(idSolverConfig, api.getParameterConfiguration(idExperiment, idSolverConfig), statistics, level);
+			SolverConfiguration secondSC = new SolverConfiguration(idSolverConfig, configs.getSecond(), statistics, level);
 			res.add(secondSC);
 			newInd = new Individual(secondSC);
 			newInd.ancestors.addAll(m.ancestors);
@@ -272,7 +272,7 @@ public class GA extends PROARMethods {
 			}
 			
 			int idSolverConfig = api.createSolverConfig(idExperiment, paramconfig, api.getCanonicalName(idExperiment, paramconfig) + " level " + level);
-			SolverConfiguration randomConfig = new SolverConfiguration(idSolverConfig, api.getParameterConfiguration(idExperiment, idSolverConfig), statistics, level);
+			SolverConfiguration randomConfig = new SolverConfiguration(idSolverConfig, paramconfig, statistics, level);
 			
 			res.add(randomConfig);
 			Individual newInd = new Individual(randomConfig);
