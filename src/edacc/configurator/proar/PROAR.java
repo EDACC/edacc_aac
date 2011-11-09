@@ -581,6 +581,7 @@ public class PROAR {
 					addRandomJob(1, sc, bestSC, Integer.MAX_VALUE - level);
 					updateSolverConfigName(sc, false);
 					listNewSC.add(sc);
+					currentLevelFinished = false;
 				}
 				
 			}
@@ -642,11 +643,14 @@ public class PROAR {
 		for (Integer i : solverConfigIds) {
 			if (api.getRuns(idExperiment, i).isEmpty()) {
 				try {
-				SolverConfiguration sc = new SolverConfiguration(i, api.getParameterConfiguration(idExperiment, i), statistics, level);
-				sc.setName(api.getSolverConfigName(i));
-				res.add(sc);
+					SolverConfiguration sc = new SolverConfiguration(i, api.getParameterConfiguration(idExperiment, i), statistics, level);
+					sc.setName(api.getSolverConfigName(i));
+					res.add(sc);
 				} catch (Exception e) {
-					log("c getRaceSolverConfigurations(): invalid solver config: " + i);
+					log("c getRaceSolverConfigurations(): invalid solver config: " + i + " Exception:");
+					for (StackTraceElement element : e.getStackTrace()) {
+						log("c " + element.toString());
+					}
 				}
 			}
 		}
