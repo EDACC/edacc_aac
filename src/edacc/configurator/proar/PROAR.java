@@ -226,40 +226,6 @@ public class PROAR {
 	}
 
 	/**
-	 * Determines how many new solver configuration can be taken into
-	 * consideration.
-	 * 
-	 * @throws Exception
-	 */
-	private int computeOptimalExpansion() throws Exception {
-		int res = 0;
-		int coreCount = api.getComputationCoreCount(parameters.getIdExperiment());
-		if (coreCount < parameters.getMinCPUCount() || coreCount > parameters.getMaxCPUCount()) {
-			log("w Warning: Current core count is " + coreCount);
-		}
-		int jobs = api.getComputationJobCount(parameters.getIdExperiment());
-		int min_sc = (Math.max(Math.round(4.f * coreCount), 8) - jobs) / parameters.getMinRuns();
-		if (min_sc > 0) {
-			res = (Math.max(Math.round(6.f * coreCount), 8) - jobs) / parameters.getMinRuns();
-		}
-		if (listNewSC.size() == 0 && res == 0) {
-			res = 1;
-		}
-		return res;
-		/*
-		 * TODO: was geschickteres implementieren, denn von diesem Wert haengt
-		 * sehr stark der Grad der parallelisierung statt. denkbar ware noch
-		 * api.getNumComputingUnits(); wenn man die Methode haette. eine andere
-		 * geschicktere Moeglichkeit ist es: Anzahl cores = numCores Größe der
-		 * besseren solver configs in letzter runde = numBests Anzahl der jobs
-		 * die in der letzten Iteration berechnet wurden = numJobs Anzahl der
-		 * neuen solver configs beim letzten Aufruf zurückgeliefert wurden =
-		 * lastExpansion CPUTimeLimit = time Dann kann man die Anzahl an neuen
-		 * konfigs berechnen durch newNumConfigs = TODO
-		 */
-	}
-
-	/**
 	 * adds random num new runs/jobs from the solver configuration "from" to the
 	 * solver configuration "toAdd"
 	 * 
@@ -336,7 +302,7 @@ public class PROAR {
 			// ----INCREASE PARALLELISM----
 			// compute the number of new solver configs that should be generated
 			if (!terminate()) {
-				generateNumSC = computeOptimalExpansion();
+				generateNumSC = racing.computeOptimalExpansion(api.getComputationCoreCount(parameters.getIdExperiment()), api.getComputationJobCount(parameters.getIdExperiment()), listNewSC.size());
 			}
 			
 			// determine and add race solver configurations

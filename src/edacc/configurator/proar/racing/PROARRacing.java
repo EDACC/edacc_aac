@@ -21,4 +21,11 @@ public abstract class PROARRacing {
 	public abstract SolverConfiguration getBestSC();
 	public abstract void solverConfigurationsFinished(List<SolverConfiguration> scs) throws Exception;
 	public abstract void solverConfigurationsCreated(List<SolverConfiguration> scs) throws Exception;
+	/**
+	 * Determines how many new solver configuration can be taken into
+	 * consideration.
+	 * 
+	 * @throws Exception
+	 */
+	public abstract int computeOptimalExpansion(int computationCoreCount, int computationJobCount, int listNewSCSize);
 }

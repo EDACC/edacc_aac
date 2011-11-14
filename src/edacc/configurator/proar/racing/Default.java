@@ -116,4 +116,31 @@ public class Default extends PROARRacing {
 		}
 	}
 
+	@Override
+	public int computeOptimalExpansion(int coreCount, int jobs, int listNewSCSize) {
+		int res = 0;
+		if (coreCount < parameters.getMinCPUCount() || coreCount > parameters.getMaxCPUCount()) {
+			proar.log("w Warning: Current core count is " + coreCount);
+		}
+		int min_sc = (Math.max(Math.round(4.f * coreCount), 8) - jobs) / parameters.getMinRuns();
+		if (min_sc > 0) {
+			res = (Math.max(Math.round(6.f * coreCount), 8) - jobs) / parameters.getMinRuns();
+		}
+		if (listNewSCSize == 0 && res == 0) {
+			res = 1;
+		}
+		return res;
+		/*
+		 * TODO: was geschickteres implementieren, denn von diesem Wert haengt
+		 * sehr stark der Grad der parallelisierung statt. denkbar ware noch
+		 * api.getNumComputingUnits(); wenn man die Methode haette. eine andere
+		 * geschicktere Moeglichkeit ist es: Anzahl cores = numCores Größe der
+		 * besseren solver configs in letzter runde = numBests Anzahl der jobs
+		 * die in der letzten Iteration berechnet wurden = numJobs Anzahl der
+		 * neuen solver configs beim letzten Aufruf zurückgeliefert wurden =
+		 * lastExpansion CPUTimeLimit = time Dann kann man die Anzahl an neuen
+		 * konfigs berechnen durch newNumConfigs = TODO
+		 */
+	}
+
 }
