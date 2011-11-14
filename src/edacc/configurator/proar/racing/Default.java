@@ -69,6 +69,7 @@ public class Default extends PROARRacing {
 				if (bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
 					proar.log("c Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration() + " by 1");
 					proar.expandParcoursSC(bestSC, 1);
+					proar.addSolverConfigurationToListNewSC(sc);
 				}
 			}
 		}
@@ -106,14 +107,12 @@ public class Default extends PROARRacing {
 
 	@Override
 	public void solverConfigurationsCreated(List<SolverConfiguration> scs) throws Exception {
-		
 		for (SolverConfiguration sc : scs) {
 			// add 1 random job from the best configuration with the
 			// priority corresponding to the level
 			// lower levels -> higher priorities
-			
 			proar.addRandomJob(parameters.getMinRuns(), sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
-
+			proar.addSolverConfigurationToListNewSC(sc);
 		}
 	}
 
