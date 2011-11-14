@@ -84,8 +84,8 @@ public class PROAR {
 		listNewSC = new ArrayList<SolverConfiguration>();
 		this.statNumSolverConfigs = 0;
 		this.statNumJobs = 0;
-		// TODO: Die beste config auch noch mittels einer methode bestimmen!
-		methods = (PROARMethods) ClassLoader.getSystemClassLoader().loadClass("edacc.configurator.proar.algorithm." + params.algorithm).getDeclaredConstructors()[0].newInstance(api, params.getIdExperiment(), params.getStatistics(), rng, params.configuratorMethodParams);
+		this.parameters = params;
+		methods = (PROARMethods) ClassLoader.getSystemClassLoader().loadClass("edacc.configurator.proar.algorithm." + params.algorithm).getDeclaredConstructors()[0].newInstance(api, rng, parameters);
 		racing = (PROARRacing) ClassLoader.getSystemClassLoader().loadClass("edacc.configurator.proar.racing." + params.racing).getDeclaredConstructors()[0].newInstance(this, api, parameters);
 	}
 

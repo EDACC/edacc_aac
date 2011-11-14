@@ -18,7 +18,7 @@ public class Parameters {
 	int initialDefaultParcoursLength = 10;
 	int minCPUCount = 0;
 	int maxCPUCount = 0;
-	int minRuns = 0;
+	int minRuns = 1;
 	float maxTuningTime = -1;
 	String racing = "Default";
 	StatisticFunction statistics;
