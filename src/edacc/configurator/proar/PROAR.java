@@ -338,13 +338,7 @@ public class PROAR {
 			if (!terminate()) {
 				generateNumSC = computeOptimalExpansion();
 			}
-			if (racing.getBestSC().getNumNotStartedJobs() + racing.getBestSC().getNumRunningJobs() != 0) {
-				cumulatedCPUTime += racing.getBestSC().updateJobsStatus();
-				updateSolverConfigName(racing.getBestSC(), true);
-				if (racing.getBestSC().getNumNotStartedJobs() + racing.getBestSC().getNumRunningJobs() == 0) {
-					
-				}
-			}
+			
 			// determine and add race solver configurations
 			for (SolverConfiguration sc : getRaceSolverConfigurations()) {
 				log("c Found RACE solver configuration: " + sc.getIdSolverConfiguration() + " - " + sc.getName());
@@ -437,7 +431,7 @@ public class PROAR {
 				}
 
 			}
-
+			racing.solverConfigurationsFinished(finishedSCs);
 			/*
 			 * updateSolverConfigName(bestSC, false);
 			 * System.out.println("c Determining the new best solver config from "
