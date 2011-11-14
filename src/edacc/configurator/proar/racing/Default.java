@@ -37,19 +37,16 @@ public class Default extends PROARRacing {
 		for (SolverConfiguration sc : scs) {
 			if (sc == bestSC) 
 				continue;
-			int comp = compareTo(bestSC, sc);
+			int comp = compareTo(sc, bestSC);
 			if (comp >= 0) {
 				if (sc.getJobCount() == bestSC.getJobCount()) {
 					sc.setFinished(true);
 					// all jobs from bestSC computed and won against
 					// best:
 					if (comp > 0) {
-						proar.updateSolverConfigName(bestSC, false);
 						bestSC = sc;
 						sc.setIncumbentNumber(incumbentNumber++);
-						proar.updateSolverConfigName(bestSC, true);
 						proar.log("i " + proar.getWallTime() + "," + sc.getCost() + ",n.A. ," + sc.getIdSolverConfiguration() + ",n.A. ," + sc.getParameterConfiguration().toString());
-
 					}
 					// api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(),
 					// sc.getCost(),

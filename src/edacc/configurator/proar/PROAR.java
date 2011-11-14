@@ -287,13 +287,18 @@ public class PROAR {
 			log("e Error: no instances in course.");
 			return;
 		}
+		SolverConfiguration lastBest = null;
 		while (!terminate()) {
 			// bestSC.updateJobsStatus(); das ist glaube ich doppelt gemoppelt
 			// denn im übernächsten if wird auf jeden Fall
 			// bestSC.updateJobsSatus() ausgeführt!
 			// expand the parcours of the bestSC
-
-			updateSolverConfigName(racing.getBestSC(), true);
+			if (racing.getBestSC() != lastBest) {
+				updateSolverConfigName(racing.getBestSC(), true);
+				if (lastBest != null)
+					updateSolverConfigName(lastBest, false);
+				lastBest = racing.getBestSC();
+			}
 			// update the cost of the configuration in the EDACC solver
 			// configuration tables
 			api.updateSolverConfigurationCost(racing.getBestSC().getIdSolverConfiguration(), racing.getBestSC().getCost(), parameters.getStatistics().getCostFunction());
@@ -363,7 +368,11 @@ public class PROAR {
 				cumulatedCPUTime += sc.updateJobsStatus();
 				if (sc.getNumNotStartedJobs() + sc.getNumRunningJobs() == 0) {
 					api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(), sc.getCost(), parameters.getStatistics().getCostFunction());
-					updateSolverConfigName(sc, false);
+					if (sc == racing.getBestSC()) {
+						updateSolverConfigName(sc, true);
+					} else {
+						updateSolverConfigName(sc, false);
+					}
 					finishedSCs.add(sc);
 				} else {
 					/*if (useCapping) {
