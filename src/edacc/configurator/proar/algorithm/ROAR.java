@@ -14,6 +14,7 @@ import edacc.parameterspace.graph.ParameterGraph;
 public class ROAR extends PROARMethods {
 
 	private ParameterGraph graph;
+
 	public ROAR(API api, int idExperiment, StatisticFunction statistics, Random rng, Map<String, String> params) throws Exception {
 		super(api, idExperiment, statistics, rng, params);
 		graph = api.loadParameterGraphFromDB(idExperiment);
