@@ -2,8 +2,6 @@ package edacc.configurator.proar;
 
 import java.util.HashMap;
 
-import edacc.api.API;
-import edacc.api.APIImpl;
 import edacc.api.costfunctions.CostFunction;
 
 public class Parameters {
@@ -36,6 +34,10 @@ public class Parameters {
 	 */
 	public StatisticFunction getStatistics() {
 		return statistics;
+	}
+	
+	public HashMap<String, String> getConfiguratorMethodParameters() {
+		return configuratorMethodParams;
 	}
 	
 	/**
