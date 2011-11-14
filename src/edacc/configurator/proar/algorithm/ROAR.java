@@ -20,12 +20,12 @@ public class ROAR extends PROARMethods {
 	}
 
 	@Override
-	public List<SolverConfiguration> generateNewSC(int num, List<SolverConfiguration> lastBestSCs, SolverConfiguration currentBestSC, int level, int currentLevel) throws Exception {
+	public List<SolverConfiguration> generateNewSC(int num, SolverConfiguration currentBestSC) throws Exception {
 		List<SolverConfiguration> res = new ArrayList<SolverConfiguration>();
 		for (int i = 0; i < num; i++) {
 			ParameterConfiguration paramconfig = graph.getRandomConfiguration(rng);
-			int idSolverConfig = api.createSolverConfig(idExperiment, paramconfig, api.getCanonicalName(idExperiment, paramconfig) + " level " + level);
-			res.add(new SolverConfiguration(idSolverConfig, paramconfig, statistics, level));
+			int idSolverConfig = api.createSolverConfig(idExperiment, paramconfig, api.getCanonicalName(idExperiment, paramconfig));
+			res.add(new SolverConfiguration(idSolverConfig, paramconfig, statistics));
 		}
 		return res;
 	}

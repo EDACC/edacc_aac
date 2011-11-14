@@ -29,5 +29,5 @@ public abstract class PROARMethods {
 	 * @return a List of the new solver configurations
 	 * @throws Exception
 	 */
-	public abstract List<SolverConfiguration> generateNewSC(int num, List<SolverConfiguration> lastBestSCs, SolverConfiguration currentBestSC, int level, int currentLevel) throws Exception;
+	public abstract List<SolverConfiguration> generateNewSC(int num, SolverConfiguration currentBestSC) throws Exception;
 }

@@ -35,12 +35,6 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	/** the name of the configuration */
 	private String name;
 
-	/**
-	 * iteration of the configurator where this configuration was created;
-	 * useful for debugging
-	 */
-	private int level;
-
 	/** List of all jobs that a solver configuration has been executed so far */
 	private List<ExperimentResult> jobs;
 
@@ -48,6 +42,10 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 
 	private int numNotStartedJobs, numFinishedJobs, numSuccessfulJobs, numRunningJobs;
 
+	private boolean finished;
+	
+	private int number;
+	
 	/**
 	 * Common initialization
 	 */
@@ -56,7 +54,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 		totalRuntime = 0.f;
 	}
 
-	public SolverConfiguration(int idSolverConfiguration, ParameterConfiguration pc, StatisticFunction statFunc, int level) {
+	public SolverConfiguration(int idSolverConfiguration, ParameterConfiguration pc, StatisticFunction statFunc) {
 		this();
 
 		this.pConfig = pc;
@@ -64,8 +62,9 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 		this.cost = null;
 		this.name = null;
 		this.statFunc = statFunc;
-		this.level = level;
 		this.incumbentNumber = -1;
+		this.finished = false;
+		this.number = -1;
 	}
 
 	public SolverConfiguration(SolverConfiguration sc) {
@@ -76,8 +75,9 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 		this.cost = sc.cost;
 		this.name = sc.name;
 		this.statFunc = sc.statFunc;
-		this.level = sc.level;
 		this.incumbentNumber = sc.incumbentNumber;
+		this.finished = sc.finished;
+		this.number = sc.number;
 	}
 
 	public int getIncumbentNumber() {
@@ -352,18 +352,26 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 
 	}
 
-	/**
-	 * Returns the <code>level</code> of this solver configuration.
-	 * 
-	 * @return
-	 */
-	public int getLevel() {
-		return level;
-	}
-
 	public Float getTotalRuntime() {
 		return totalRuntime;
 	}
+
+	public boolean isFinished() {
+		return finished;
+	}
+
+	public void setFinished(boolean finished) {
+		this.finished = finished;
+	}
+
+	public int getNumber() {
+		return number;
+	}
+
+	public void setNumber(int number) {
+		this.number = number;
+	}
+	
 
 	@Override
 	public int compareTo(SolverConfiguration other) {
