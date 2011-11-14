@@ -23,6 +23,7 @@ public class Parameters {
 	String racing = "Default";
 	StatisticFunction statistics;
 	HashMap<String, String> configuratorMethodParams = new HashMap<String, String>();
+	HashMap<String, String> racingMethodParams = new HashMap<String, String>();
 	
 	public void setStatistics(CostFunction costFunc, boolean minimize) {
 		this.statistics = new StatisticFunction(costFunc, minimize);
@@ -38,6 +39,10 @@ public class Parameters {
 	
 	public HashMap<String, String> getConfiguratorMethodParameters() {
 		return configuratorMethodParams;
+	}
+	
+	public HashMap<String, String> getRacingMethodParameters() {
+		return racingMethodParams;
 	}
 	
 	/**

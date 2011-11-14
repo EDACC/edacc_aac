@@ -558,6 +558,8 @@ public class PROAR {
 				params.initialDefaultParcoursLength = Integer.valueOf(value);
 			else if (key.startsWith(params.algorithm + "_"))
 				params.configuratorMethodParams.put(key, value);
+			else if (key.startsWith(params.racing + "_"))
+				params.racingMethodParams.put(key, value);
 			else if (key.equals("maxTuningTime"))
 				params.maxTuningTime = Integer.valueOf(value);
 			else if (key.equals("minCPUCount"))
