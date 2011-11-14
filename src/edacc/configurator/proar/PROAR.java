@@ -53,7 +53,7 @@ public class PROAR {
 	 * List of all NEW solver configuration that are going to be raced against
 	 * the best
 	 */
-	private List<SolverConfiguration> listNewSC;
+	private HashMap<Integer, SolverConfiguration> listNewSC;
 
 	/**
 	 * If within the Experiment there is an other Solver that the configurator
@@ -81,7 +81,7 @@ public class PROAR {
 		this.graph = api.loadParameterGraphFromDB(params.idExperiment);
 		params.setStatistics(api.costFunctionByName(params.costFunc), params.minimize);
 		rng = new edacc.util.MersenneTwister(params.seed);
-		listNewSC = new ArrayList<SolverConfiguration>();
+		listNewSC = new HashMap<Integer, SolverConfiguration>();
 		this.statNumSolverConfigs = 0;
 		this.statNumJobs = 0;
 		this.parameters = params;
@@ -311,7 +311,7 @@ public class PROAR {
 				sc.setNumber(++statNumSolverConfigs);
 				addRandomJob(parameters.getMinRuns(), sc, racing.getBestSC(), Integer.MAX_VALUE - sc.getNumber());
 				updateSolverConfigName(sc, false);
-				listNewSC.add(sc);
+				listNewSC.put(sc.getIdSolverConfiguration(), sc);
 			}
 
 			if (generateNumSC > 0) {
@@ -355,8 +355,7 @@ public class PROAR {
 			}
 
 			List<SolverConfiguration> finishedSCs = new LinkedList<SolverConfiguration>();
-			for (int i = listNewSC.size() - 1; i >= 0; i--) {
-				SolverConfiguration sc = listNewSC.get(i);
+			for (SolverConfiguration sc : listNewSC.values()) {
 				// take only solver configs of the current level into
 				// consideration
 				// there might be some configs for the next level already
@@ -365,11 +364,9 @@ public class PROAR {
 				if (sc.getNumNotStartedJobs() + sc.getNumRunningJobs() == 0) {
 					api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(), sc.getCost(), parameters.getStatistics().getCostFunction());
 					updateSolverConfigName(sc, false);
-					
 					finishedSCs.add(sc);
-					listNewSC.remove(i);
 				} else {
-					if (useCapping) {
+					/*if (useCapping) {
 						// ---CAPPING RUNS OF BAD CONFIGS---
 						// wenn sc schon eine kummulierte Laufzeit der
 						// beendeten
@@ -393,9 +390,12 @@ public class PROAR {
 							}
 						// sc.killRunningJobs
 						// api.removeSolverConfig(sc.)
-					}
+					}*/
 				}
 
+			}
+			for (SolverConfiguration sc : finishedSCs) {
+				listNewSC.remove(sc.getIdSolverConfiguration());
 			}
 			racing.solverConfigurationsFinished(finishedSCs);
 			/*
@@ -433,7 +433,7 @@ public class PROAR {
 	}
 	
 	public void addSolverConfigurationToListNewSC(SolverConfiguration sc) {
-		this.listNewSC.add(sc);
+		this.listNewSC.put(sc.getIdSolverConfiguration(), sc);
 	}
 	
 	public void updateJobsStatus(SolverConfiguration sc) throws Exception {

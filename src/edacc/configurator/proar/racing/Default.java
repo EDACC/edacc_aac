@@ -69,7 +69,7 @@ public class Default extends PROARRacing {
 				if (bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
 					proar.log("c Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration() + " by 1");
 					proar.expandParcoursSC(bestSC, 1);
-					proar.addSolverConfigurationToListNewSC(sc);
+					proar.addSolverConfigurationToListNewSC(bestSC);
 				}
 			}
 		}
