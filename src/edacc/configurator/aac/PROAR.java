@@ -101,7 +101,16 @@ public class PROAR {
 		// TODO: the best one might not match the configuration scenario
 		// graph.validateParameterConfiguration(config) should test this,
 		// but is currently not implemented and will return false.
-
+		if (methods instanceof edacc.configurator.aac.search.Matrix) {
+			edacc.configurator.aac.search.Matrix m = (edacc.configurator.aac.search.Matrix) methods;
+			List<SolverConfiguration> scs = m.generateNewSC(1, null);
+			if (!scs.isEmpty()) {
+				return scs.get(0);
+			}
+			return null;
+		}
+		
+		
 		List<Integer> solverConfigIds = api.getSolverConfigurations(parameters.getIdExperiment(), "default");
 		if (solverConfigIds.isEmpty()) {
 			solverConfigIds = api.getSolverConfigurations(parameters.getIdExperiment());
@@ -210,15 +219,21 @@ public class PROAR {
 		// werden, jedoch
 		// waere ein Obergrenze sinvoll die als funktion der anzahl der
 		// instanzen definiert werden sollte
-		// z.B: 10*#instanzen
+		// z.B: 10*#instanzen		
+		
 		DatabaseConnector.getInstance().getConn().setAutoCommit(false);
 		try {
 			for (int i = 0; i < num; i++) {
 				statNumJobs++;
-				int idJob = api.launchJob(parameters.getIdExperiment(), sc.getIdSolverConfiguration(), parameters.getJobCPUTimeLimit(), rng);
-				api.setJobPriority(idJob, Integer.MAX_VALUE);
-				sc.putJob(api.getJob(idJob)); // add the job to the solver
-												// configuration own job store
+				if (methods instanceof edacc.configurator.aac.search.Matrix) {
+					edacc.configurator.aac.search.Matrix m = (edacc.configurator.aac.search.Matrix) methods;
+					// TODO
+				} else {
+					int idJob = api.launchJob(parameters.getIdExperiment(), sc.getIdSolverConfiguration(), parameters.getJobCPUTimeLimit(), rng);
+					api.setJobPriority(idJob, Integer.MAX_VALUE);
+					sc.putJob(api.getJob(idJob)); // add the job to the solver
+					// configuration own job store
+				}
 			}
 		} finally {
 			DatabaseConnector.getInstance().getConn().setAutoCommit(true);
@@ -242,8 +257,13 @@ public class PROAR {
 		try {
 			for (InstanceIdSeed is : instanceIdSeedList) {
 				statNumJobs++;
-				int idJob = api.launchJob(parameters.getIdExperiment(), toAdd.getIdSolverConfiguration(), is.instanceId, BigInteger.valueOf(is.seed), parameters.getJobCPUTimeLimit(), priority);
-				toAdd.putJob(api.getJob(idJob));
+				if (methods instanceof edacc.configurator.aac.search.Matrix) {
+					edacc.configurator.aac.search.Matrix m = (edacc.configurator.aac.search.Matrix) methods;
+					// TODO
+				} else {
+					int idJob = api.launchJob(parameters.getIdExperiment(), toAdd.getIdSolverConfiguration(), is.instanceId, BigInteger.valueOf(is.seed), parameters.getJobCPUTimeLimit(), priority);
+					toAdd.putJob(api.getJob(idJob));
+				}
 				generated++;
 			}
 		} finally {
@@ -273,14 +293,14 @@ public class PROAR {
 		cumulatedCPUTime = 0.f;
 		SolverConfiguration firstSC = initializeBest();// TODO: mittels dem
 														// Classloader
-														// überschreiben
+														// ï¿½berschreiben
 		if (firstSC == null) {
 			throw new RuntimeException("best not initialized");
 		}
 		firstSC.updateJobsStatus(); // don't add best scs time to cumulatedCPUTime
 		
 		racing.initFirstSC(firstSC);
-
+		
 		/** error checking for parcours. Needed? What if we don't use the parcours? */
 		int num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse().getInitialLength();
 		if (num_instances == 0) {
@@ -290,8 +310,8 @@ public class PROAR {
 		SolverConfiguration lastBest = null;
 		while (!terminate()) {
 			// bestSC.updateJobsStatus(); das ist glaube ich doppelt gemoppelt
-			// denn im übernächsten if wird auf jeden Fall
-			// bestSC.updateJobsSatus() ausgeführt!
+			// denn im ï¿½bernï¿½chsten if wird auf jeden Fall
+			// bestSC.updateJobsSatus() ausgefï¿½hrt!
 			// expand the parcours of the bestSC
 			if (racing.getBestSC() != lastBest) {
 				updateSolverConfigName(racing.getBestSC(), true);
