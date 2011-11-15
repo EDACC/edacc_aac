@@ -1,4 +1,4 @@
-package edacc.configurator.proar;
+package edacc.configurator.aac;
 
 import java.util.ArrayList;
 import java.util.HashMap;

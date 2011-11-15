@@ -1,15 +1,15 @@
-package edacc.configurator.proar.algorithm;
+package edacc.configurator.aac.search;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
 
 import edacc.api.API;
-import edacc.configurator.proar.Parameters;
-import edacc.configurator.proar.SolverConfiguration;
+import edacc.configurator.aac.Parameters;
+import edacc.configurator.aac.SolverConfiguration;
 import edacc.parameterspace.ParameterConfiguration;
 
-public class MB extends PROARMethods {
+public class MB extends SearchMethods {
 
 	public MB(API api, Random rng, Parameters parameters) {
 		super(api, rng, parameters);
