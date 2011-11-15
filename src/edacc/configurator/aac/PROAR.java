@@ -22,6 +22,7 @@ import edacc.model.Course;
 import edacc.model.DatabaseConnector;
 import edacc.model.ExperimentDAO;
 import edacc.model.ExperimentResult;
+import edacc.model.InstanceSeed;
 import edacc.parameterspace.ParameterConfiguration;
 import edacc.parameterspace.graph.ParameterGraph;
 
@@ -103,11 +104,7 @@ public class PROAR {
 		// but is currently not implemented and will return false.
 		if (methods instanceof edacc.configurator.aac.search.Matrix) {
 			edacc.configurator.aac.search.Matrix m = (edacc.configurator.aac.search.Matrix) methods;
-			List<SolverConfiguration> scs = m.generateNewSC(1, null);
-			if (!scs.isEmpty()) {
-				return scs.get(0);
-			}
-			return null;
+			return m.getFirstSC();
 		}
 		
 		
@@ -227,7 +224,12 @@ public class PROAR {
 				statNumJobs++;
 				if (methods instanceof edacc.configurator.aac.search.Matrix) {
 					edacc.configurator.aac.search.Matrix m = (edacc.configurator.aac.search.Matrix) methods;
-					// TODO
+					InstanceSeed is = m.course.get(sc.getJobCount());
+					ExperimentResult res = m.getJob(sc.getIdSolverConfiguration(), is.instance.getId(), is.seed);
+					if (res == null) {
+						throw new IllegalArgumentException("No job.");
+					}
+					sc.putJob(res);
 				} else {
 					int idJob = api.launchJob(parameters.getIdExperiment(), sc.getIdSolverConfiguration(), parameters.getJobCPUTimeLimit(), rng);
 					api.setJobPriority(idJob, Integer.MAX_VALUE);
@@ -259,7 +261,11 @@ public class PROAR {
 				statNumJobs++;
 				if (methods instanceof edacc.configurator.aac.search.Matrix) {
 					edacc.configurator.aac.search.Matrix m = (edacc.configurator.aac.search.Matrix) methods;
-					// TODO
+					ExperimentResult res = m.getJob(toAdd.getIdSolverConfiguration(), is.instanceId, is.seed);
+					if (res == null) {
+						throw new IllegalArgumentException("No job.");
+					}
+					toAdd.putJob(res);
 				} else {
 					int idJob = api.launchJob(parameters.getIdExperiment(), toAdd.getIdSolverConfiguration(), is.instanceId, BigInteger.valueOf(is.seed), parameters.getJobCPUTimeLimit(), priority);
 					toAdd.putJob(api.getJob(idJob));
