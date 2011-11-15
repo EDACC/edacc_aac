@@ -3,15 +3,15 @@ package edacc.configurator.aac.racing;
 import java.util.List;
 
 import edacc.api.API;
-import edacc.configurator.aac.PROAR;
+import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 
 public abstract class RacingMethods {	
 	API api;
-	PROAR proar;
+	AAC proar;
 	Parameters parameters;
-	public RacingMethods(PROAR proar, API api, Parameters parameters) {
+	public RacingMethods(AAC proar, API api, Parameters parameters) {
 		this.proar = proar;
 		this.api = api;
 		this.parameters = parameters;

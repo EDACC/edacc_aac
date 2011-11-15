@@ -4,7 +4,7 @@ import java.sql.SQLException;
 import java.util.List;
 
 import edacc.api.API;
-import edacc.configurator.aac.PROAR;
+import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.model.ConfigurationScenarioDAO;
@@ -16,7 +16,7 @@ public class Default extends RacingMethods {
 	int incumbentNumber;
 	int num_instances;
 
-	public Default(PROAR proar, API api, Parameters parameters) throws SQLException {
+	public Default(AAC proar, API api, Parameters parameters) throws SQLException {
 		super(proar, api, parameters);
 		incumbentNumber = 0;
 		num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse().getInitialLength();
