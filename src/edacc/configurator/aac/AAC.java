@@ -86,8 +86,8 @@ public class AAC {
 		this.statNumSolverConfigs = 0;
 		this.statNumJobs = 0;
 		this.parameters = params;
-		methods = (SearchMethods) ClassLoader.getSystemClassLoader().loadClass("edacc.configurator.proar.algorithm." + params.algorithm).getDeclaredConstructors()[0].newInstance(api, rng, parameters);
-		racing = (RacingMethods) ClassLoader.getSystemClassLoader().loadClass("edacc.configurator.proar.racing." + params.racing).getDeclaredConstructors()[0].newInstance(this, api, parameters);
+		methods = (SearchMethods) ClassLoader.getSystemClassLoader().loadClass("edacc.configurator.aac.search." + params.algorithm).getDeclaredConstructors()[0].newInstance(api, rng, parameters);
+		racing = (RacingMethods) ClassLoader.getSystemClassLoader().loadClass("edacc.configurator.aac.racing." + params.racing).getDeclaredConstructors()[0].newInstance(this, api, parameters);
 	}
 
 	/**

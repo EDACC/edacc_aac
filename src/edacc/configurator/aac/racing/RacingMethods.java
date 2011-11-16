@@ -9,10 +9,10 @@ import edacc.configurator.aac.SolverConfiguration;
 
 public abstract class RacingMethods {	
 	API api;
-	AAC proar;
+	AAC pacc;
 	Parameters parameters;
-	public RacingMethods(AAC proar, API api, Parameters parameters) {
-		this.proar = proar;
+	public RacingMethods(AAC pacc, API api, Parameters parameters) {
+		this.pacc = pacc;
 		this.api = api;
 		this.parameters = parameters;
 	}
