@@ -41,7 +41,7 @@ public class STTRace extends RacingMethods {
 	 */
 	public STTRace(AAC pacc, API api, Parameters parameters) throws SQLException {
 		super(pacc, api, parameters);
-		this.a = 2;
+		this.a = 1;
 		this.minE = parameters.getInitialDefaultParcoursLength();
 		incumbentNumber = 0;
 		num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment())
