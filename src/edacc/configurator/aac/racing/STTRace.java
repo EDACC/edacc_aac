@@ -41,7 +41,7 @@ public class STTRace extends RacingMethods {
 	 */
 	public STTRace(AAC pacc, API api, Parameters parameters) throws SQLException {
 		super(pacc, api, parameters);
-		this.a = 1;
+		this.a = 0.5;
 		this.minE = parameters.getInitialDefaultParcoursLength();
 		incumbentNumber = 0;
 		num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment())
@@ -91,21 +91,21 @@ public class STTRace extends RacingMethods {
 		mean = mean / (double) n;
 		meanz = meanz /(double) n;
 		meany = meany / (double) n;
-		System.out.println("SSTRACE: " + sc1.getNumber() + " vs " + sc2.getNumber());
-		System.out.println("SSTRACE: " + sc1.getJobCount()+"(e)" + " vs " + sc2.getJobCount()+"(e)");
-		System.out.println("SSTRACE: " + meany + " vs " + meanz);
-		System.out.println("SSTRACE: n = "+n);
-		System.out.println("SSTRACE: mean = "+mean);
+		System.out.println("STTRACE: " + sc1.getNumber() + " vs " + sc2.getNumber());
+		System.out.println("STTRACE: " + sc1.getJobCount()+"(e)" + " vs " + sc2.getJobCount()+"(e)");
+		System.out.println("STTRACE: " + meany + " vs " + meanz);
+		System.out.println("STTRACE: n = "+n);
+		System.out.println("STTRACE: mean = "+mean);
 		// compute std2
 		for (int j = 0; j < n; j++) {
 			std2 += (x[j] - mean) * (x[j] - mean);
 		}
 		std2 = std2 / (float) n;
-		System.out.println("SSTRACE: std2 = "+std2);
+		System.out.println("STTRACE: std2 = "+std2);
 		// the sequential t-test
 		testValue = Math.log(1.0 + mean * mean / std2);
-		System.out.println("SSTRACE: testValue = "+testValue);
-		System.out.println("SSTRACE: threshold = "+threshold);
+		System.out.println("STTRACE: testValue = "+testValue);
+		System.out.println("STTRACE: threshold = "+threshold);
 		if ((testValue > threshold) || (n == this.maxE)) {
 			// test can stop
 			if (mean > 0){ // sc2 better
@@ -172,17 +172,31 @@ public class STTRace extends RacingMethods {
 				continue;
 			int comp = compareTo(sc, bestSC);
 			if (comp >= 0) {// sc won against bestSC
-				sc.setFinished(true);
-				bestSC = sc;
-				sc.setIncumbentNumber(incumbentNumber++);
-				pacc.log("i " + pacc.getWallTime() + "," + sc.getCost() + ",n.A. ," + sc.getIdSolverConfiguration()
-						+ ",n.A. ," + sc.getParameterConfiguration().toString());
+				System.out.println("STTRACE : best would have lost on " +sc.getJobCount());
+				if (sc.getJobCount() > bestSC.getJobCount()/2) {
+					sc.setFinished(true);
+					// all jobs from bestSC computed and won against
+					// best:
+					if (comp > 0) {
+						bestSC = sc;
+						sc.setIncumbentNumber(incumbentNumber++);
+						pacc.log("i " + pacc.getWallTime() + "," + sc.getCost() + ",n.A. ," + sc.getIdSolverConfiguration() + ",n.A. ," + sc.getParameterConfiguration().toString());
+					}
+					// api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(),
+					// sc.getCost(),
+					// statistics.getCostFunction());
+					// listNewSC.remove(i);
+				} else {
+					int generated = pacc.addRandomJob(1, sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
+					pacc.log("c Generated " + generated + " jobs for solver config id " + sc.getNumber());
+					pacc.addSolverConfigurationToListNewSC(sc);
+				}
 			} else if (comp == -1) {// lost against best on part of the actual
 				// parcours:
 				sc.setFinished(true);
-				if (deleteSolverConfigs)
+				if ((deleteSolverConfigs) && (sc.getIncumbentNumber()==-1))
 					api.removeSolverConfig(sc.getIdSolverConfiguration());
-				pacc.log("d Solver config " + sc.getIdSolverConfiguration() + " with cost " + sc.getCost()
+				pacc.log("d Solver config " + sc.getNumber() + " with cost " + sc.getCost()
 						+ " lost against best solver config on " + sc.getJobCount() + " runs.");
 				/*if (bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
 					pacc.log("c Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration()
@@ -192,18 +206,22 @@ public class STTRace extends RacingMethods {
 				}*/
 			} else { // comp == -2 further jobs are needed to asses performance
 				if (sc.getJobCount() > bestSC.getJobCount()) {
-					int generated = pacc.addRandomJob(1, bestSC, sc, Integer.MAX_VALUE - sc.getNumber());
-					pacc.log("c Generated " + generated + " jobs for solver config id " + sc.getIdSolverConfiguration());
+					pacc.log("c Expanding parcours of best solver config (strange case)" + bestSC.getNumber()+ " by 1");
+					pacc.expandParcoursSC(bestSC, 1);
+					//int generated = pacc.addRandomJob(1, bestSC, sc, Integer.MAX_VALUE - sc.getNumber());
+					//pacc.log("c Generated " + generated + " jobs for solver config id " + sc.getIdSolverConfiguration());
 					pacc.addSolverConfigurationToListNewSC(bestSC);
 				}else if (sc.getJobCount() < bestSC.getJobCount()){
-					int generated = pacc.addRandomJob(1, sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
-					pacc.log("c Generated " + generated + " jobs for solver config id " + sc.getIdSolverConfiguration());
+					pacc.log("c Expanding parcours of solver config " + sc.getNumber()+ " by 1");
+					pacc.expandParcoursSC(sc, 1);
+					//int generated = pacc.addRandomJob(1, sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
+					//pacc.log("c Generated " + generated + " jobs for solver config id " + sc.getIdSolverConfiguration());
 					pacc.addSolverConfigurationToListNewSC(sc);
 				}else{
-					pacc.log("c Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration()+ " by 1");
+					pacc.log("c Expanding parcours of best and competitor solver config " + bestSC.getNumber()+ " by 1");
 					pacc.expandParcoursSC(bestSC, 1);
 					pacc.addSolverConfigurationToListNewSC(bestSC);
-					pacc.log("c Expanding parcours of solver config " + sc.getIdSolverConfiguration()+ " by 1");
+					//pacc.log("c Expanding parcours of solver config " + sc.getIdSolverConfiguration()+ " by 1");
 					pacc.expandParcoursSC(sc, 1);
 					pacc.addSolverConfigurationToListNewSC(sc);
 				}

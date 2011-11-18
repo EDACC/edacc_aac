@@ -528,7 +528,7 @@ public class AAC {
 	}
 
 	public void updateSolverConfigName(SolverConfiguration sc, boolean best) throws Exception {
-		api.updateSolverConfigurationName(sc.getIdSolverConfiguration(), (best ? " BEST " : "") + (sc.getName() != null ? " " + sc.getName() + " " : "") + sc.getIdSolverConfiguration() + " Runs: " + sc.getNumFinishedJobs() + "/" + sc.getJobCount() + " SCNum: " + sc.getNumber());// +
+		api.updateSolverConfigurationName(sc.getIdSolverConfiguration(), (best ? "_ BEST " : "") +(sc.getIncumbentNumber()==-1 ? "" : -sc.getIncumbentNumber())+ " " +sc.getNumber() +  " "+ (sc.getName() != null ? " " + sc.getName() + " " : "") + sc.getIdSolverConfiguration() + " Runs: " + sc.getNumFinishedJobs() + "/" + sc.getJobCount());// +
 																																																																						// " "
 																																																																						// +
 																																																																						// api.getCanonicalName(idExperiment,
