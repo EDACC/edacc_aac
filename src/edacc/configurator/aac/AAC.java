@@ -308,7 +308,7 @@ public class AAC {
 
 		/** error checking for parcours. Needed? What if we don't use the parcours? */
 		int num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse().getInitialLength();
-		if (num_instances == 0) {
+		if (!(methods instanceof edacc.configurator.aac.search.Matrix) && num_instances == 0) {
 			log("e Error: no instances in course.");
 			return;
 		}
@@ -332,7 +332,12 @@ public class AAC {
 			// ----INCREASE PARALLELISM----
 			// compute the number of new solver configs that should be generated
 			if (!terminate()) {
-				generateNumSC = racing.computeOptimalExpansion(api.getComputationCoreCount(parameters.getIdExperiment()), api.getComputationJobCount(parameters.getIdExperiment()), listNewSC.size());
+				if (methods instanceof edacc.configurator.aac.search.Matrix) {
+					// 8 cores, 0 jobs currently computing
+					generateNumSC = racing.computeOptimalExpansion(8, 0, listNewSC.size());
+				} else {
+					generateNumSC = racing.computeOptimalExpansion(api.getComputationCoreCount(parameters.getIdExperiment()), api.getComputationJobCount(parameters.getIdExperiment()), listNewSC.size());
+				}
 			}
 			
 			// determine and add race solver configurations
