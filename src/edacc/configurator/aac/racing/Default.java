@@ -10,7 +10,7 @@ import edacc.configurator.aac.SolverConfiguration;
 import edacc.model.ConfigurationScenarioDAO;
 
 public class Default extends RacingMethods {
-	private static final boolean deleteSolverConfigs = true;
+	private static final boolean deleteSolverConfigs = false;
 
 	SolverConfiguration bestSC;
 	int incumbentNumber;
