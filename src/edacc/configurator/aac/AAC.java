@@ -437,6 +437,9 @@ public class AAC {
 				listNewSC.remove(sc.getIdSolverConfiguration());
 			}
 			racing.solverConfigurationsFinished(finishedSCs);
+			for (SolverConfiguration sc : finishedSCs) {
+				this.updateSolverConfigName(sc, false);
+			}
 			/*
 			 * updateSolverConfigName(bestSC, false);
 			 * System.out.println("c Determining the new best solver config from "
@@ -533,12 +536,11 @@ public class AAC {
 	}
 
 	public void updateSolverConfigName(SolverConfiguration sc, boolean best) throws Exception {
-		api.updateSolverConfigurationName(sc.getIdSolverConfiguration(), (best ? "_ BEST " : "") +(sc.getIncumbentNumber()==-1 ? "" : -sc.getIncumbentNumber())+ " " +sc.getNumber() +  " "+ (sc.getName() != null ? " " + sc.getName() + " " : "") //+ sc.getIdSolverConfiguration() 
-				+ " Runs: " + sc.getNumFinishedJobs() + "/" + sc.getJobCount());// +
-																																																																						// " "
-																																																																						// +
-																																																																						// api.getCanonicalName(idExperiment,
-																																																																						// sc.getParameterConfiguration()));
+		api.updateSolverConfigurationName(sc.getIdSolverConfiguration(), (best ? "_ BEST " : "") +(sc.getIncumbentNumber()==-1 ? "" : -sc.getIncumbentNumber())+ " " +sc.getNumber() +  " "+ (sc.getName() != null ? " " + sc.getName() + " " : "") 
+				+ " Runs: " + sc.getNumFinishedJobs() + "/" + sc.getJobCount() + " ID: " + sc.getIdSolverConfiguration());
+				// " "
+				// +
+				// api.getCanonicalName(idExperiment,																																																																	// sc.getParameterConfiguration()));
 	}
 
 	// public void updateSolverConfigName(SolverConfiguration sc, boolean best)

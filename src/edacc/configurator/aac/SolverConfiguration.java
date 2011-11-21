@@ -269,8 +269,14 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	protected float updateJobsStatus() throws Exception {
 		LinkedList<Integer> ids = new LinkedList<Integer>();
 		ArrayList<ExperimentResult> tmp = new ArrayList<ExperimentResult>();
+		numRunningJobs = 0;
+		numFinishedJobs = 0;
+		numSuccessfulJobs = 0;
+		numNotStartedJobs = 0;
+		
 		for (ExperimentResult j : jobs) {
 			if (j.getStatus().equals(StatusCode.SUCCESSFUL)) {
+				numFinishedJobs++;
 				tmp.add(j);
 			} else {
 				ids.add(j.getId());
@@ -279,13 +285,8 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 
 		if (!ids.isEmpty()) {
 			jobs = ExperimentResultDAO.getByIds(ids);
-
 			tmp.addAll(jobs);
 			jobs = tmp;
-			numRunningJobs = 0;
-			numFinishedJobs = 0;
-			numSuccessfulJobs = 0;
-			numNotStartedJobs = 0;
 			float tmpTotalRuntime = totalRuntime;
 			totalRuntime = 0.f;
 			for (ExperimentResult j : jobs) {

@@ -137,13 +137,13 @@ public class GA extends SearchMethods {
 		LinkedList<SolverConfiguration> res = new LinkedList<SolverConfiguration>();
 		
 		int noPartner = 0;
-		while (res.size() < num - Math.ceil((1 - crossoverPercentage) * num) && best.size() >= 2) {
+		while (res.size() < Math.ceil(crossoverPercentage * num) && best.size() >= 2) {
 			Individual m = best.pollLast();
 			Individual f = null;
 			for (Individual ind : best) {
 				boolean goodPartner = true;
 				for (Individual anc : ind.ancestors) {
-					if (m.ancestors.contains(anc) && anc.getAge(time) < minSameAncestorAgeDiff) {
+					if (anc.getAge(time) < minSameAncestorAgeDiff && m.ancestors.contains(anc)) {
 						goodPartner = false;
 						break;
 					}
