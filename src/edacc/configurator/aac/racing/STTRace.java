@@ -22,7 +22,7 @@ import edacc.model.ExperimentResultDAO;
  *         cronological order.
  */
 public class STTRace extends RacingMethods {
-	private static final boolean deleteSolverConfigs = true;
+	private static final boolean deleteSolverConfigs = false;
 
 	SolverConfiguration bestSC;
 	int incumbentNumber;
@@ -60,8 +60,12 @@ public class STTRace extends RacingMethods {
 	public int compareTo(SolverConfiguration sc1, SolverConfiguration sc2) {
 		// number of jobs that sc1 and sc2 have in common.
 		int n = Math.min(sc1.getNumFinishedJobs(), sc2.getNumFinishedJobs());
+		System.out.println("STTRACE: " + sc1.getNumber() + " vs " + sc2.getNumber());
+		System.out.println("STTRACE: " + sc1.getNumFinishedJobs()+"(e)" + " vs " + sc2.getNumFinishedJobs()+"(e)");
+		System.out.println("STTRACE: n = "+n);
 		float[] y = new float[n]; // times of sc1
 		float[] z = new float[n]; // times of sc2
+		
 		float[] x = new float[n]; // time difference y-z
 		int i = 0;
 		double testValue, threshold = 2.D * a /(double) n;
@@ -91,10 +95,7 @@ public class STTRace extends RacingMethods {
 		mean = mean / (double) n;
 		meanz = meanz /(double) n;
 		meany = meany / (double) n;
-		System.out.println("STTRACE: " + sc1.getNumber() + " vs " + sc2.getNumber());
-		System.out.println("STTRACE: " + sc1.getJobCount()+"(e)" + " vs " + sc2.getJobCount()+"(e)");
 		System.out.println("STTRACE: " + meany + " vs " + meanz);
-		System.out.println("STTRACE: n = "+n);
 		System.out.println("STTRACE: mean = "+mean);
 		// compute std2
 		for (int j = 0; j < n; j++) {
@@ -194,10 +195,12 @@ public class STTRace extends RacingMethods {
 			} else if (comp == -1) {// lost against best on part of the actual
 				// parcours:
 				sc.setFinished(true);
-				if ((deleteSolverConfigs) && (sc.getIncumbentNumber()==-1))
+				if ((deleteSolverConfigs) && (sc.getIncumbentNumber()==-1)){
 					api.removeSolverConfig(sc.getIdSolverConfiguration());
+				
 				pacc.log("d Solver config " + sc.getNumber() + " with cost " + sc.getCost()
 						+ " lost against best solver config on " + sc.getJobCount() + " runs.");
+			}
 				/*if (bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
 					pacc.log("c Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration()
 							+ " by 1");
@@ -238,11 +241,14 @@ public class STTRace extends RacingMethods {
 	 */
 	@Override
 	public void solverConfigurationsCreated(List<SolverConfiguration> scs) throws Exception {
+		int gen;
 		for (SolverConfiguration sc : scs) {
 			// add 1 random job from the best configuration with the
 			// priority corresponding to the level
 			// lower levels -> higher priorities
-			pacc.addRandomJob(minE, sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
+			System.out.print("Adding "+minE+" jobs from bestSC "+bestSC.getNumber() + " to SC "+ sc.getNumber());
+			gen=pacc.addRandomJob(minE, sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
+			System.out.println("added ->"+gen);
 			pacc.addSolverConfigurationToListNewSC(sc);
 		}
 
