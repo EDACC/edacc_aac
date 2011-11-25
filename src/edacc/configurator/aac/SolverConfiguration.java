@@ -277,6 +277,9 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 		for (ExperimentResult j : jobs) {
 			if (j.getStatus().equals(StatusCode.SUCCESSFUL)) {
 				numFinishedJobs++;
+				if (String.valueOf(j.getResultCode().getResultCode()).startsWith("1")) {
+					numSuccessfulJobs++;
+				}
 				tmp.add(j);
 			} else {
 				ids.add(j.getId());

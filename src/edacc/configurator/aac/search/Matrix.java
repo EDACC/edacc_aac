@@ -46,7 +46,6 @@ public class Matrix extends SearchMethods {
 			if (results == null || results.isEmpty()) {
 				throw new IllegalArgumentException("Found solver configuration with 0 runs!");
 			}
-			mapResults.put(scId, results);
 			if (course == null) {
 				System.out.println("[Matrix] Creating parcours");
 				// create a new parcours
