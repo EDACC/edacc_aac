@@ -1,6 +1,7 @@
 package edacc.configurator.aac.racing;
 
 import java.util.List;
+import java.util.Random;
 
 import edacc.api.API;
 import edacc.configurator.aac.AAC;
@@ -11,10 +12,13 @@ public abstract class RacingMethods {
 	API api;
 	AAC pacc;
 	Parameters parameters;
-	public RacingMethods(AAC pacc, API api, Parameters parameters) {
+	protected Random rng;
+	public RacingMethods(AAC pacc, Random rng, API api, Parameters parameters) {
 		this.pacc = pacc;
 		this.api = api;
 		this.parameters = parameters;
+		this.rng = rng;
+		
 	}
 	public abstract int compareTo(SolverConfiguration sc1, SolverConfiguration sc2);
 	public abstract void initFirstSC(SolverConfiguration firstSC) throws Exception;

@@ -2,6 +2,7 @@ package edacc.configurator.aac.racing;
 
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Random;
 
 import edacc.api.API;
 import edacc.configurator.aac.AAC;
@@ -16,8 +17,8 @@ public class Default extends RacingMethods {
 	int incumbentNumber;
 	int num_instances;
 
-	public Default(AAC proar, API api, Parameters parameters) throws SQLException {
-		super(proar, api, parameters);
+	public Default(AAC proar, Random rng, API api, Parameters parameters) throws SQLException {
+		super(proar, rng, api, parameters);
 		incumbentNumber = 0;
 		num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse().getInitialLength();
 	}

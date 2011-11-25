@@ -40,19 +40,19 @@ public class GA extends SearchMethods {
 		createdParamConfigs = new HashSet<ParameterConfiguration>();
 		
 		String val;
-		if ((val = parameters.getConfiguratorMethodParameters().get("GA_probN")) != null) {
+		if ((val = parameters.getSearchMethodParameters().get("GA_probN")) != null) {
 			probN = Float.parseFloat(val);
 		}
-		if ((val = parameters.getConfiguratorMethodParameters().get("GA_maxAge")) != null) {
+		if ((val = parameters.getSearchMethodParameters().get("GA_maxAge")) != null) {
 			maxAge = Integer.parseInt(val);
 		}
-		if ((val = parameters.getConfiguratorMethodParameters().get("GA_mutationProb")) != null) {
+		if ((val = parameters.getSearchMethodParameters().get("GA_mutationProb")) != null) {
 			mutationProb = Float.parseFloat(val);
 		}
-		if ((val = parameters.getConfiguratorMethodParameters().get("GA_crossoverPercentage")) != null) {
+		if ((val = parameters.getSearchMethodParameters().get("GA_crossoverPercentage")) != null) {
 			crossoverPercentage = Float.parseFloat(val);
 		}
-		if ((val = parameters.getConfiguratorMethodParameters().get("GA_childCountLimit")) != null) {
+		if ((val = parameters.getSearchMethodParameters().get("GA_childCountLimit")) != null) {
 			childCountLimit = Integer.parseInt(val);
 		}
 		

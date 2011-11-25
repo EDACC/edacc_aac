@@ -2,14 +2,14 @@ package edacc.configurator.aac;
 
 import java.io.File;
 import java.math.BigInteger;
-import java.util.ArrayList;
+
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
+
 import java.util.Random;
 import java.util.Scanner;
 
@@ -20,28 +20,39 @@ import edacc.configurator.aac.search.SearchMethods;
 import edacc.model.ConfigurationScenarioDAO;
 import edacc.model.Course;
 import edacc.model.DatabaseConnector;
-import edacc.model.ExperimentDAO;
+//import edacc.model.ExperimentDAO;
 import edacc.model.ExperimentResult;
 import edacc.model.InstanceSeed;
 import edacc.parameterspace.ParameterConfiguration;
 import edacc.parameterspace.graph.ParameterGraph;
 
 public class AAC {
-	private static final boolean useCapping = false;
+	// private static final boolean useCapping = false;
 
-	private String experimentName;
+	// private String experimentName;
 
-	/** All parameters for proar */
+	/** All parameters for racing and searching methods */
 	private Parameters parameters;
-	
+
 	private API api;
-	private Random rng;
-	private SearchMethods methods;
+	/**
+	 * the random number generator for the search method - controls which solver
+	 * configuration to analyze next
+	 */
+	private Random rngSearch;
+	/**
+	 * the random number generator for the racing method - controls which jobs
+	 * to evaluate next
+	 */
+	private Random rngRacing;
+	/** Method used for searching within the parameter search space */
+	private SearchMethods search;
+	/** Method to race SC against each other */
 	private RacingMethods racing;
 
-	/** inidcates if the results of the solver of deterministic nature or not */
-	private boolean deterministic;
-
+	/**
+	 * indicates the start time of the configurator (used to determine walltime)
+	 */
 	private long startTime;
 
 	/**
@@ -51,27 +62,13 @@ public class AAC {
 	private float cumulatedCPUTime;
 
 	/**
-	 * List of all NEW solver configuration that are going to be raced against
-	 * the best
+	 * List of all NEW generated solver configuration that are going to be raced
+	 * against the best
 	 */
 	private HashMap<Integer, SolverConfiguration> listNewSC;
 
-	/**
-	 * If within the Experiment there is an other Solver that the configurator
-	 * has to beat then raceCondition should be true. The configurator will then
-	 * try to use the information about the results of this solver to try to
-	 * beat him according to the statistic and metric function.
-	 * */
-	private boolean raceCondition;
-
-	/**
-	 * If raceCondigition == true then there has to be a competitior which the
-	 * configurator will try to beat!
-	 */
-	private SolverConfiguration competitor;
-
-
 	private int statNumSolverConfigs;
+
 	private int statNumJobs;
 
 	private ParameterGraph graph;
@@ -81,13 +78,18 @@ public class AAC {
 		api.connect(params.hostname, params.port, params.database, params.user, params.password);
 		this.graph = api.loadParameterGraphFromDB(params.idExperiment);
 		params.setStatistics(api.costFunctionByName(params.costFunc), params.minimize);
-		rng = new edacc.util.MersenneTwister(params.seed);
+		rngSearch = new edacc.util.MersenneTwister(params.seedSearch);
+		rngRacing = new edacc.util.MersenneTwister(params.seedRacing);
 		listNewSC = new HashMap<Integer, SolverConfiguration>();
 		this.statNumSolverConfigs = 0;
 		this.statNumJobs = 0;
 		this.parameters = params;
-		methods = (SearchMethods) ClassLoader.getSystemClassLoader().loadClass("edacc.configurator.aac.search." + params.algorithm).getDeclaredConstructors()[0].newInstance(api, rng, parameters);
-		racing = (RacingMethods) ClassLoader.getSystemClassLoader().loadClass("edacc.configurator.aac.racing." + params.racing).getDeclaredConstructors()[0].newInstance(this, api, parameters);
+		search = (SearchMethods) ClassLoader.getSystemClassLoader()
+				.loadClass("edacc.configurator.aac.search." + params.searchMethod).getDeclaredConstructors()[0]
+				.newInstance(api, rngSearch, parameters);
+		racing = (RacingMethods) ClassLoader.getSystemClassLoader()
+				.loadClass("edacc.configurator.aac.racing." + params.racingMethod).getDeclaredConstructors()[0]
+				.newInstance(this, rngRacing, api, parameters);
 	}
 
 	/**
@@ -102,12 +104,11 @@ public class AAC {
 		// TODO: the best one might not match the configuration scenario
 		// graph.validateParameterConfiguration(config) should test this,
 		// but is currently not implemented and will return false.
-		if (methods instanceof edacc.configurator.aac.search.Matrix) {
-			edacc.configurator.aac.search.Matrix m = (edacc.configurator.aac.search.Matrix) methods;
+		if (search instanceof edacc.configurator.aac.search.Matrix) {
+			edacc.configurator.aac.search.Matrix m = (edacc.configurator.aac.search.Matrix) search;
 			return m.getFirstSC();
 		}
-		
-		
+
 		List<Integer> solverConfigIds = api.getSolverConfigurations(parameters.getIdExperiment(), "default");
 		if (solverConfigIds.isEmpty()) {
 			solverConfigIds = api.getSolverConfigurations(parameters.getIdExperiment());
@@ -130,7 +131,8 @@ public class AAC {
 		}
 		log("c " + solverConfigs.size() + " solver configs with max run");
 
-		Course c = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse();
+		Course c = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment())
+				.getCourse();
 		for (int sc_index = solverConfigs.size() - 1; sc_index >= 0; sc_index--) {
 			SolverConfiguration sc = solverConfigs.get(sc_index);
 			HashSet<InstanceIdSeed> iis = new HashSet<InstanceIdSeed>();
@@ -150,7 +152,8 @@ public class AAC {
 				}
 			}
 			if (!courseValid) {
-				log("c Removing solver configuration " + api.getSolverConfigName(sc.getIdSolverConfiguration()) + " caused by invalid course.");
+				log("c Removing solver configuration " + api.getSolverConfigName(sc.getIdSolverConfiguration())
+						+ " caused by invalid course.");
 				solverConfigs.remove(sc_index);
 			}
 		}
@@ -161,9 +164,11 @@ public class AAC {
 			// no good solver configs in db
 			log("c Generating a random solver configuration");
 
-			ParameterConfiguration config = graph.getRandomConfiguration(rng);
-			int idSolverConfiguration = api.createSolverConfig(parameters.getIdExperiment(), config, "First Random Configuration " + api.getCanonicalName(parameters.getIdExperiment(), config));
-			return new SolverConfiguration(idSolverConfiguration, api.getParameterConfiguration(parameters.getIdExperiment(), idSolverConfiguration), parameters.getStatistics());
+			ParameterConfiguration config = graph.getRandomConfiguration(rngSearch);
+			int idSolverConfiguration = api.createSolverConfig(parameters.getIdExperiment(), config,
+					"First Random Configuration " + api.getCanonicalName(parameters.getIdExperiment(), config));
+			return new SolverConfiguration(idSolverConfiguration, api.getParameterConfiguration(
+					parameters.getIdExperiment(), idSolverConfiguration), parameters.getStatistics());
 		} else {
 			Collections.sort(solverConfigs);
 			SolverConfiguration bestSC = solverConfigs.get(solverConfigs.size() - 1);
@@ -221,8 +226,8 @@ public class AAC {
 		try {
 			for (int i = 0; i < num; i++) {
 				statNumJobs++;
-				if (methods instanceof edacc.configurator.aac.search.Matrix) {
-					edacc.configurator.aac.search.Matrix m = (edacc.configurator.aac.search.Matrix) methods;
+				if (search instanceof edacc.configurator.aac.search.Matrix) {
+					edacc.configurator.aac.search.Matrix m = (edacc.configurator.aac.search.Matrix) search;
 					InstanceSeed is = m.course.get(sc.getJobCount());
 					ExperimentResult res = m.getJob(sc.getIdSolverConfiguration(), is.instance.getId(), is.seed);
 					if (res == null) {
@@ -230,7 +235,8 @@ public class AAC {
 					}
 					sc.putJob(res);
 				} else {
-					int idJob = api.launchJob(parameters.getIdExperiment(), sc.getIdSolverConfiguration(), parameters.getJobCPUTimeLimit(), rng);
+					int idJob = api.launchJob(parameters.getIdExperiment(), sc.getIdSolverConfiguration(),
+							parameters.getJobCPUTimeLimit(), rngSearch);
 					api.setJobPriority(idJob, Integer.MAX_VALUE);
 					sc.putJob(api.getJob(idJob)); // add the job to the solver
 					// configuration own job store
@@ -247,26 +253,28 @@ public class AAC {
 	 * 
 	 * @throws Exception
 	 */
-	public int addRandomJob(int num, SolverConfiguration toAdd, SolverConfiguration from, int priority) throws Exception {
+	public int addRandomJob(int num, SolverConfiguration toAdd, SolverConfiguration from, int priority)
+			throws Exception {
 		toAdd.updateJobsStatus();
 		from.updateJobsStatus();
 		// compute a list with num jobs that "from" has computed and "toadd" has
 		// not in its job list
-		List<InstanceIdSeed> instanceIdSeedList = toAdd.getInstanceIdSeed(from, num, rng);
+		List<InstanceIdSeed> instanceIdSeedList = toAdd.getInstanceIdSeed(from, num, rngRacing);
 		int generated = 0;
 		DatabaseConnector.getInstance().getConn().setAutoCommit(false);
 		try {
 			for (InstanceIdSeed is : instanceIdSeedList) {
 				statNumJobs++;
-				if (methods instanceof edacc.configurator.aac.search.Matrix) {
-					edacc.configurator.aac.search.Matrix m = (edacc.configurator.aac.search.Matrix) methods;
+				if (search instanceof edacc.configurator.aac.search.Matrix) {
+					edacc.configurator.aac.search.Matrix m = (edacc.configurator.aac.search.Matrix) search;
 					ExperimentResult res = m.getJob(toAdd.getIdSolverConfiguration(), is.instanceId, is.seed);
 					if (res == null) {
 						throw new IllegalArgumentException("No job.");
 					}
 					toAdd.putJob(res);
 				} else {
-					int idJob = api.launchJob(parameters.getIdExperiment(), toAdd.getIdSolverConfiguration(), is.instanceId, BigInteger.valueOf(is.seed), parameters.getJobCPUTimeLimit(), priority);
+					int idJob = api.launchJob(parameters.getIdExperiment(), toAdd.getIdSolverConfiguration(),
+							is.instanceId, BigInteger.valueOf(is.seed), parameters.getJobCPUTimeLimit(), priority);
 					toAdd.putJob(api.getJob(idJob));
 				}
 				generated++;
@@ -287,12 +295,14 @@ public class AAC {
 				break;
 			}
 			log("c Current core count: " + coreCount);
-			log("c Waiting for #cores to satisfy: " + parameters.getMinCPUCount() + " <= #cores <= " + parameters.getMaxCPUCount());
+			log("c Waiting for #cores to satisfy: " + parameters.getMinCPUCount() + " <= #cores <= "
+					+ parameters.getMaxCPUCount());
 			Thread.sleep(10000);
 		}
 		log("c Starting PROAR.");
 		startTime = System.currentTimeMillis();
-		experimentName = ExperimentDAO.getById(parameters.getIdExperiment()).getName();
+		// this.experimentName =
+		// ExperimentDAO.getById(parameters.getIdExperiment()).getName();
 		// first initialize the best individual if there is a default or if
 		// there are already some solver configurations in the experiment
 		cumulatedCPUTime = 0.f;
@@ -302,13 +312,18 @@ public class AAC {
 		if (firstSC == null) {
 			throw new RuntimeException("best not initialized");
 		}
-		firstSC.updateJobsStatus(); // don't add best scs time to cumulatedCPUTime
-		
+		firstSC.updateJobsStatus(); // don't add best scs time to
+									// cumulatedCPUTime
+
 		racing.initFirstSC(firstSC);
 
-		/** error checking for parcours. Needed? What if we don't use the parcours? */
-		int num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse().getInitialLength();
-		if (!(methods instanceof edacc.configurator.aac.search.Matrix) && num_instances == 0) {
+		/**
+		 * error checking for parcours. Needed? What if we don't use the
+		 * parcours?
+		 */
+		int num_instances = ConfigurationScenarioDAO
+				.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse().getInitialLength();
+		if (!(search instanceof edacc.configurator.aac.search.Matrix) && num_instances == 0) {
 			log("e Error: no instances in course.");
 			return;
 		}
@@ -326,20 +341,24 @@ public class AAC {
 			}
 			// update the cost of the configuration in the EDACC solver
 			// configuration tables
-			api.updateSolverConfigurationCost(racing.getBestSC().getIdSolverConfiguration(), racing.getBestSC().getCost(), parameters.getStatistics().getCostFunction());
+			// api.updateSolverConfigurationCost(racing.getBestSC().getIdSolverConfiguration(),
+			// racing.getBestSC().getCost(),
+			// parameters.getStatistics().getCostFunction());
 
 			int generateNumSC = 0;
 			// ----INCREASE PARALLELISM----
 			// compute the number of new solver configs that should be generated
 			if (!terminate()) {
-				if (methods instanceof edacc.configurator.aac.search.Matrix) {
+				if (search instanceof edacc.configurator.aac.search.Matrix) {
 					// 8 cores, 0 jobs currently computing
 					generateNumSC = racing.computeOptimalExpansion(8, 0, listNewSC.size());
 				} else {
-					generateNumSC = racing.computeOptimalExpansion(api.getComputationCoreCount(parameters.getIdExperiment()), api.getComputationJobCount(parameters.getIdExperiment()), listNewSC.size());
+					generateNumSC = racing.computeOptimalExpansion(
+							api.getComputationCoreCount(parameters.getIdExperiment()),
+							api.getComputationJobCount(parameters.getIdExperiment()), listNewSC.size());
 				}
 			}
-			
+
 			// determine and add race solver configurations
 			for (SolverConfiguration sc : getRaceSolverConfigurations()) {
 				log("c Found RACE solver configuration: " + sc.getIdSolverConfiguration() + " - " + sc.getName());
@@ -362,7 +381,7 @@ public class AAC {
 				List<SolverConfiguration> tmpList;
 				DatabaseConnector.getInstance().getConn().setAutoCommit(false);
 				try {
-					tmpList = methods.generateNewSC(numNewSC, racing.getBestSC());
+					tmpList = search.generateNewSC(numNewSC, racing.getBestSC());
 				} finally {
 					DatabaseConnector.getInstance().getConn().setAutoCommit(true);
 				}
@@ -397,7 +416,9 @@ public class AAC {
 				// generated and evaluated
 				cumulatedCPUTime += sc.updateJobsStatus();
 				if (sc.getNumNotStartedJobs() + sc.getNumRunningJobs() == 0) {
-					api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(), sc.getCost(), parameters.getStatistics().getCostFunction());
+					// api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(),
+					// sc.getCost(),
+					// parameters.getStatistics().getCostFunction());
 					if (sc == racing.getBestSC()) {
 						updateSolverConfigName(sc, true);
 					} else {
@@ -405,31 +426,28 @@ public class AAC {
 					}
 					finishedSCs.add(sc);
 				} else {
-					/*if (useCapping) {
-						// ---CAPPING RUNS OF BAD CONFIGS---
-						// wenn sc schon eine kummulierte Laufzeit der
-						// beendeten
-						// jobs > der aller beendeten jobs von best
-						// kann man sc vorzeitig beedenden! geht nur wenn
-						// man parX hat!
-						if ((parameters.getStatistics().getCostFunction() instanceof edacc.api.costfunctions.PARX) || (parameters.getStatistics().getCostFunction() instanceof edacc.api.costfunctions.Average))
-							// TODO: minimieren / maximieren /negative
-							// kosten
-							if (sc.getCumulatedCost() > racing.getBestSC().getCumulatedCost()) {
-								log("c " + sc.getCumulatedCost() + " >" + racing.getBestSC().getCumulatedCost());
-								log("c " + sc.getJobCount() + " > " + racing.getBestSC().getJobCount());
-								// kill all running jobs of the sc config!
-								List<ExperimentResult> jobsToKill = sc.getJobs();
-								for (ExperimentResult j : jobsToKill) {
-									this.api.killJob(j.getId());
-								}
-								api.removeSolverConfig(sc.getIdSolverConfiguration());
-								listNewSC.remove(i);
-								log("c -----Config capped!!!");
-							}
-						// sc.killRunningJobs
-						// api.removeSolverConfig(sc.)
-					}*/
+					/*
+					 * if (useCapping) { // ---CAPPING RUNS OF BAD CONFIGS--- //
+					 * wenn sc schon eine kummulierte Laufzeit der // beendeten
+					 * // jobs > der aller beendeten jobs von best // kann man
+					 * sc vorzeitig beedenden! geht nur wenn // man parX hat! if
+					 * ((parameters.getStatistics().getCostFunction() instanceof
+					 * edacc.api.costfunctions.PARX) ||
+					 * (parameters.getStatistics().getCostFunction() instanceof
+					 * edacc.api.costfunctions.Average)) // TODO: minimieren /
+					 * maximieren /negative // kosten if (sc.getCumulatedCost()
+					 * > racing.getBestSC().getCumulatedCost()) { log("c " +
+					 * sc.getCumulatedCost() + " >" +
+					 * racing.getBestSC().getCumulatedCost()); log("c " +
+					 * sc.getJobCount() + " > " +
+					 * racing.getBestSC().getJobCount()); // kill all running
+					 * jobs of the sc config! List<ExperimentResult> jobsToKill
+					 * = sc.getJobs(); for (ExperimentResult j : jobsToKill) {
+					 * this.api.killJob(j.getId()); }
+					 * api.removeSolverConfig(sc.getIdSolverConfiguration());
+					 * listNewSC.remove(i); log("c -----Config capped!!!"); } //
+					 * sc.killRunningJobs // api.removeSolverConfig(sc.) }
+					 */
 				}
 
 			}
@@ -473,11 +491,11 @@ public class AAC {
 		}
 
 	}
-	
+
 	public void addSolverConfigurationToListNewSC(SolverConfiguration sc) {
 		this.listNewSC.put(sc.getIdSolverConfiguration(), sc);
 	}
-	
+
 	public void updateJobsStatus(SolverConfiguration sc) throws Exception {
 		cumulatedCPUTime += sc.updateJobsStatus();
 	}
@@ -506,7 +524,8 @@ public class AAC {
 		for (Integer i : solverConfigIds) {
 			if (api.getRuns(parameters.getIdExperiment(), i).isEmpty()) {
 				try {
-					SolverConfiguration sc = new SolverConfiguration(i, api.getParameterConfiguration(parameters.getIdExperiment(), i), parameters.getStatistics());
+					SolverConfiguration sc = new SolverConfiguration(i, api.getParameterConfiguration(
+							parameters.getIdExperiment(), i), parameters.getStatistics());
 					sc.setName(api.getSolverConfigName(i));
 					res.add(sc);
 				} catch (Exception e) {
@@ -527,7 +546,8 @@ public class AAC {
 		log("c Best Configuration found: ");
 		log("c ID :" + racing.getBestSC().getIdSolverConfiguration());
 		try {
-			log("c Canonical name: " + api.getCanonicalName(parameters.getIdExperiment(), racing.getBestSC().getParameterConfiguration()));
+			log("c Canonical name: "
+					+ api.getCanonicalName(parameters.getIdExperiment(), racing.getBestSC().getParameterConfiguration()));
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -536,18 +556,12 @@ public class AAC {
 	}
 
 	public void updateSolverConfigName(SolverConfiguration sc, boolean best) throws Exception {
-		api.updateSolverConfigurationName(sc.getIdSolverConfiguration(), (best ? "_ BEST " : "") +(sc.getIncumbentNumber()==-1 ? "" : -sc.getIncumbentNumber())+ " " +sc.getNumber() +  " "+ (sc.getName() != null ? " " + sc.getName() + " " : "") 
-				+ " Runs: " + sc.getNumFinishedJobs() + "/" + sc.getJobCount() + " ID: " + sc.getIdSolverConfiguration());
-				// " "
-				// +
-				// api.getCanonicalName(idExperiment,																																																																	// sc.getParameterConfiguration()));
+		api.updateSolverConfigurationName(
+				sc.getIdSolverConfiguration(),
+				(best ? "_ BEST " : "") + (sc.getIncumbentNumber() == -1 ? "" : -sc.getIncumbentNumber()) + " "
+						+ sc.getNumber() + " " + (sc.getName() != null ? " " + sc.getName() + " " : "") + " Runs: "
+						+ sc.getNumFinishedJobs() + "/" + sc.getJobCount() + " ID: " + sc.getIdSolverConfiguration());
 	}
-
-	// public void updateSolverConfigName(SolverConfiguration sc, boolean best)
-	// throws Exception {
-	// api.updateSolverConfigurationName(sc.getIdSolverConfiguration(),
-	// experimentName + " " + sc.getIncumbentNumber() + " " + sc.getCost());
-	// }
 
 	/**
 	 * Parses the configuration file and starts the configurator.
@@ -556,11 +570,12 @@ public class AAC {
 	 * @throws Exception
 	 */
 	public static void main(String[] args) throws Exception {
+		Parameters params = new Parameters();
 		if (args.length < 1) {
 			System.out.println("Missing configuration file. Use java -jar PROAR.jar <config file path>");
+			params.showHelp();
 			return;
 		}
-		Parameters params = new Parameters();
 		Scanner scanner = new Scanner(new File(args[0]));
 
 		while (scanner.hasNextLine()) {
@@ -570,48 +585,67 @@ public class AAC {
 			String[] keyval = line.split("=");
 			String key = keyval[0].trim();
 			String value = keyval[1].trim();
-			if ("host".equals(key))
+			//database parameters
+			if ("host".equalsIgnoreCase(key))
 				params.hostname = value;
-			else if ("user".equals(key))
+			else if ("user".equalsIgnoreCase(key))
 				params.user = value;
-			else if ("password".equals(key))
+			else if ("password".equalsIgnoreCase(key))
 				params.password = value;
-			else if ("port".equals(key))
+			else if ("port".equalsIgnoreCase(key))
 				params.port = Integer.valueOf(value);
-			else if ("database".equals(key))
+			else if ("database".equalsIgnoreCase(key))
 				params.database = value;
-			else if ("idExperiment".equals(key))
+			//experiment parameters
+			else if ("idExperiment".equalsIgnoreCase(key))
 				params.idExperiment = Integer.valueOf(value);
-			else if ("seed".equals(key))
-				params.seed = Long.valueOf(value);
-			else if ("jobCPUTimeLimit".equals(key))
+			else if ("jobCPUTimeLimit".equalsIgnoreCase(key))
 				params.jobCPUTimeLimit = Integer.valueOf(value);
-			else if ("algorithm".equals(key))
-				params.algorithm = value;
-			else if ("costFunction".equals(key))
-				params.costFunc = value;
-			else if ("minimize".equals(key))
-				params.minimize = Boolean.parseBoolean(value);
-			else if ("parcoursExpansion".equals(key))
-				params.parcoursExpansion = Integer.valueOf(value);
-			else if ("maxParcoursExpansionFactor".equals(key))
+			else if ("deterministicSolver".equalsIgnoreCase(key))
+				params.deterministicSolver = Boolean.parseBoolean(value);
+			//parcours parameters
+			else if ("maxParcoursExpansionFactor".equalsIgnoreCase(key))
 				params.maxParcoursExpansionFactor = Integer.valueOf(value);
-			else if ("initialParcoursDefault".equals(key))
+			else if ("parcoursExpansionPerStep".equalsIgnoreCase(key))
+				params.parcoursExpansionPerStep = Integer.valueOf(value);
+			else if ("initialParcoursLength".equalsIgnoreCase(key))
 				params.initialDefaultParcoursLength = Integer.valueOf(value);
-			else if (key.startsWith(params.algorithm + "_"))
-				params.configuratorMethodParams.put(key, value);
-			else if (key.startsWith(params.racing + "_"))
+			//configurator parameters
+			else if ("seedSearch".equalsIgnoreCase(key))
+				params.seedSearch = Long.valueOf(value);
+			else if ("seedRacing".equalsIgnoreCase(key))
+				params.seedRacing = Long.valueOf(value);
+									
+			else if ("searchMethod".equalsIgnoreCase(key))
+				params.searchMethod = value;
+			else if (key.equalsIgnoreCase("racingMethod"))
+				params.racingMethod = value;
+			
+			else if (key.startsWith(params.searchMethod + "_"))
+				params.searchMethodParams.put(key, value);
+			else if (key.startsWith(params.racingMethod + "_"))
 				params.racingMethodParams.put(key, value);
-			else if (key.equals("maxTuningTime"))
+			
+			else if ("minEvalsNewSC".equalsIgnoreCase(key))
+				params.minE = Integer.parseInt(value);
+					
+			else if ("costFunction".equalsIgnoreCase(key))
+				params.costFunc = value;
+			else if ("minimize".equalsIgnoreCase(key))
+				params.minimize = Boolean.parseBoolean(value);
+			
+			else if (key.equalsIgnoreCase("maxTuningTime"))
 				params.maxTuningTime = Integer.valueOf(value);
-			else if (key.equals("minCPUCount"))
+			else if (key.equalsIgnoreCase("minCPUCount"))
 				params.minCPUCount = Integer.valueOf(value);
-			else if (key.equals("maxCPUCount"))
+			else if (key.equalsIgnoreCase("maxCPUCount"))
 				params.maxCPUCount = Integer.valueOf(value);
-			else if (key.equals("minRuns"))
-				params.minRuns = Integer.valueOf(value);
-			else if (key.equals("racing"))
-				params.racing = value;
+			
+			else {
+				System.err.println("unrecognized parameter! terminating! \n Valid Parameters for AACE:");
+				params.showHelp();
+				return; 
+			}
 		}
 		scanner.close();
 		System.out.println("c Starting the PROAR configurator with following settings: \n" + params);
@@ -622,7 +656,8 @@ public class AAC {
 	}
 
 	public void log(String message) {
-		System.out.println("[Date: " + new Date() + ",Walltime: " + getWallTime() + ",CPUTime: " + cumulatedCPUTime + ",NumSC: " + statNumSolverConfigs + ",NumJobs: " + statNumJobs + "] " + message);
+		System.out.println("[Date: " + new Date() + ",Walltime: " + getWallTime() + ",CPUTime: " + cumulatedCPUTime
+				+ ",NumSC: " + statNumSolverConfigs + ",NumJobs: " + statNumJobs + "] " + message);
 	}
 
 }

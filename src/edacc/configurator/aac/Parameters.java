@@ -6,27 +6,82 @@ import edacc.api.costfunctions.CostFunction;
 
 public class Parameters {
 	String hostname = "", user = "", password = "", database = "";
-	int idExperiment = 0;
 	int port = 3306;
-	int jobCPUTimeLimit = 13;
-	long seed = System.currentTimeMillis();
-	String algorithm = "ROAR";
+	
+	int idExperiment = 0;
+	int jobCPUTimeLimit = 10;
+	boolean deterministicSolver = false;
+	
+	int parcoursExpansionPerStep = 1;
+	int maxParcoursExpansionFactor = 4;
+	int initialDefaultParcoursLength = 5;
+	
 	String costFunc = "par10";
+	
+	long seedSearch = System.currentTimeMillis();
+	long seedRacing = seedSearch;
+	String searchMethod = "ROAR";
+	String racingMethod = "Default";
+	
+	int minE = 1;
+	
+	
+
 	boolean minimize = true;
-	int parcoursExpansion = 1;
-	int maxParcoursExpansionFactor = 5;
-	int initialDefaultParcoursLength = 10;
+	
+	
 	int minCPUCount = 0;
 	int maxCPUCount = 0;
-	int minRuns = 1;
 	float maxTuningTime = -1;
-	String racing = "Default";
+	
 	StatisticFunction statistics;
-	HashMap<String, String> configuratorMethodParams = new HashMap<String, String>();
+	HashMap<String, String> searchMethodParams = new HashMap<String, String>();
 	HashMap<String, String> racingMethodParams = new HashMap<String, String>();
 	
+	public void showHelp(){
+		System.out.println("Parameters that should/can be specified in the configuration file!");
+		System.out.println("---Database parameters---");
+		System.out.println("host = <name or IP of database host>");
+		System.out.println("user = <database user>");
+		System.out.println("password = <database user password>");
+		System.out.println("port = <database server port> (default = 3306)");
+		System.out.println("database = <name of database to use>");
+		System.out.println("-----------------------\n");
+		System.out.println("---Experiment parameters---");
+		System.out.println("idExperiment = <id of experiment to run the configurator on>");
+		System.out.println("jobCPUTimeLimit = <maximum number of CPU seconds a job is allowed to run> (default = 10");
+		System.out.println("deterministicSolver = <0 for stochastic / 1 for determinisitc > (default = 0)");
+		System.out.println("-----------------------\n");
+		System.out.println("---Parcours parameters---");
+		System.out.println("maxParcoursExpansionFactor = <maxParcoursLength = maxParcoursExpansionFactor x numInstances > (default = 4)");
+		System.out.println("parcoursExpansionPerStep = <number of jobs the parcours is expanded in each step> (default = 1");
+		System.out.println("initialParcoursLength = <initial length of the parcours> (default = 5)");
+		System.out.println("-----------------------\n");
+		System.out.println("---Configurator parameters---");
+		System.out.println("seedSearch = <seed for search method> (default = currentTime())");
+		System.out.println("seedRacing = <seed for racing method> (default = currentTime())");
+		System.out.println("searchMethod = <method used to generate new SC> (default = ROAR)");
+		System.out.println("racingMethod = <method used to race SC> (default = ROAR)");
+		System.out.println("<searchMethod>_<name> = <additionel parameters for search method>");
+		System.out.println("<racingMethod>_<name> = <additionel parameters for racing method>");
+		System.out.println("costFunction = <cost function to be optimized> (default = par10)");
+		System.out.println("minEvalsNewSC = <number of evaluations for new SCs> (default = 1)");
+		System.out.println("minimize = <1 for mimizing cost function / 0 for maximizing> (default = 1)");
+		System.out.println("maxTuningTime = <maximum sum of CPU seconds for all generated jobs (-1 no limitation)> (default = -1)");
+		System.out.println("minCPUCount = <minimum number of CPU that should be available before starting the configuration proccess (0 no limitation)> (default = 0)");
+		System.out.println("maxCPUCount = <maximum number of CPU that should be available before starting the configuration proccess (0 no limitation)> (default = 0)");
+		System.out.println("-----------------------\n");
+	}
+
+	public boolean isDeterministicSolver() {
+		return deterministicSolver;
+	}
 	public void setStatistics(CostFunction costFunc, boolean minimize) {
 		this.statistics = new StatisticFunction(costFunc, minimize);
+	}
+	
+	public int getMinRuns() {
+		return minE;
 	}
 	
 	/**
@@ -37,8 +92,8 @@ public class Parameters {
 		return statistics;
 	}
 	
-	public HashMap<String, String> getConfiguratorMethodParameters() {
-		return configuratorMethodParams;
+	public HashMap<String, String> getSearchMethodParameters() {
+		return searchMethodParams;
 	}
 	
 	public HashMap<String, String> getRacingMethodParameters() {
@@ -51,7 +106,7 @@ public class Parameters {
 	 * @return
 	 */
 	public int getParcoursExpansion() {
-		return parcoursExpansion;
+		return parcoursExpansionPerStep;
 	}
 	
 	/**
@@ -86,13 +141,7 @@ public class Parameters {
 		return maxCPUCount;
 	}
 	
-	/**
-	 * minimum number of runs for a new solver configuration
-	 * @return
-	 */
-	public int getMinRuns() {
-		return minRuns;
-	}
+	
 	
 	public int getIdExperiment() {
 		return idExperiment;
@@ -104,21 +153,21 @@ public class Parameters {
 	
 	public String toString() {
 		String paramsForAlgo = "";
-		for (String key : configuratorMethodParams.keySet()) {
-			paramsForAlgo += "(" + key + "," + configuratorMethodParams.get(key) + ") ";
+		for (String key : searchMethodParams.keySet()) {
+			paramsForAlgo += "(" + key + "," + searchMethodParams.get(key) + ") ";
 		}
 		return "c Host: " + user + ":xxxxx" + "@" + hostname + ":" + port + "/" + database + "\n" 
 		+ "c Experiment Id: " + idExperiment + "\n" 
-		+ "c Algorithm: " + algorithm + "\n" 
-		+ "c Racing Schema: " + racing + "\n" 
+		+ "c Algorithm: " + searchMethod + "\n" 
+		+ "c Racing Schema: " + racingMethod + "\n" 
 		+ "c Optimizing statistic: " + costFunc + "\n" 
 		+ "c towards: " + (minimize ? "mimisation" : "maximisation") + "\n" 
-		+ "c Parcours expansion pro level: " + parcoursExpansion + "\n" 
+		+ "c Parcours expansion pro level: " + parcoursExpansionPerStep + "\n" 
 		+ "c Maximum parcours expansion factor: " + maxParcoursExpansionFactor + "\n" 
 		+ "c Initial Parcours for first config: " + initialDefaultParcoursLength + "\n" 
-		+ "c Minimum number of runs for a new solver config: " + minRuns + "\n"
+		+ "c Minimum number of runs for a new solver config: " + minE + "\n"
 		+ "c CPU time limit: " + jobCPUTimeLimit + "\n" 
 		+ "c Maximum tuning time: " + (maxTuningTime == -1 ? "unlimited" : maxTuningTime) + "\n" 
-		+ "c Seed: " + seed + "\n" + "c Parameters for algorithm: " + paramsForAlgo + "\n";
+		+ "c Seed: " + seedSearch + "\n" + "c Parameters for algorithm: " + paramsForAlgo + "\n";
 	}
 }
