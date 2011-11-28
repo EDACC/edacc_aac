@@ -25,8 +25,6 @@ public class Parameters {
 	
 	int minE = 1;
 	
-	
-
 	boolean minimize = true;
 	
 	
@@ -55,7 +53,7 @@ public class Parameters {
 		System.out.println("---Parcours parameters---");
 		System.out.println("maxParcoursExpansionFactor = <maxParcoursLength = maxParcoursExpansionFactor x numInstances > (default = 4)");
 		System.out.println("parcoursExpansionPerStep = <number of jobs the parcours is expanded in each step> (default = 1");
-		System.out.println("initialParcoursLength = <initial length of the parcours> (default = 5)");
+		System.out.println("initialDefaultParcoursLength = <initial length of the parcours> (default = 5)");
 		System.out.println("-----------------------\n");
 		System.out.println("---Configurator parameters---");
 		System.out.println("seedSearch = <seed for search method> (default = currentTime())");
@@ -151,7 +149,7 @@ public class Parameters {
 		return jobCPUTimeLimit;
 	}
 	
-	public String toString() {
+	public String toString() {//TODO : rewrite!!!
 		String paramsForAlgo = "";
 		for (String key : searchMethodParams.keySet()) {
 			paramsForAlgo += "(" + key + "," + searchMethodParams.get(key) + ") ";
@@ -162,9 +160,9 @@ public class Parameters {
 		+ "c Racing Schema: " + racingMethod + "\n" 
 		+ "c Optimizing statistic: " + costFunc + "\n" 
 		+ "c towards: " + (minimize ? "mimisation" : "maximisation") + "\n" 
-		+ "c Parcours expansion pro level: " + parcoursExpansionPerStep + "\n" 
+		+ "c Parcours expansion pro step: " + parcoursExpansionPerStep + "\n" 
 		+ "c Maximum parcours expansion factor: " + maxParcoursExpansionFactor + "\n" 
-		+ "c Initial Parcours for first config: " + initialDefaultParcoursLength + "\n" 
+		+ "c Initial parcours for first config: " + initialDefaultParcoursLength + "\n" 
 		+ "c Minimum number of runs for a new solver config: " + minE + "\n"
 		+ "c CPU time limit: " + jobCPUTimeLimit + "\n" 
 		+ "c Maximum tuning time: " + (maxTuningTime == -1 ? "unlimited" : maxTuningTime) + "\n" 
