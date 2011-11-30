@@ -13,11 +13,13 @@ public abstract class RacingMethods {
 	AAC pacc;
 	Parameters parameters;
 	protected Random rng;
+	protected int numCompCalls;
 	public RacingMethods(AAC pacc, Random rng, API api, Parameters parameters) {
 		this.pacc = pacc;
 		this.api = api;
 		this.parameters = parameters;
 		this.rng = rng;
+		this.numCompCalls = 0;
 		
 	}
 	public abstract int compareTo(SolverConfiguration sc1, SolverConfiguration sc2);
@@ -34,4 +36,7 @@ public abstract class RacingMethods {
 	public abstract int computeOptimalExpansion(int computationCoreCount, int computationJobCount, int listNewSCSize);
 	
 	public abstract String toString();
+	public int getNumCompCalls(){
+		return this.numCompCalls;
+	}
 }

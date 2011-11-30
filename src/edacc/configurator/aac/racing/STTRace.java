@@ -35,7 +35,7 @@ public class STTRace extends RacingMethods {
 	private int minEB;
 	//add random jobs from best or follow parcours?
 	private boolean randJob;
-
+	
 	/**
 	 * @param pacc
 	 * @param api
@@ -52,7 +52,7 @@ public class STTRace extends RacingMethods {
 				.getCourse().getInitialLength();
 		this.maxE = parameters.getMaxParcoursExpansionFactor() * num_instances;
 		this.randJob = true;
-		
+	
 		String val;
 		if ((val = parameters.getRacingMethodParameters().get("STTRace_a"))!= null)
 			this.a = Double.parseDouble(val);
@@ -81,6 +81,7 @@ public class STTRace extends RacingMethods {
 	 */
 	@Override
 	public int compareTo(SolverConfiguration sc1, SolverConfiguration sc2) {
+		this.numCompCalls ++;
 		// number of jobs that sc1 and sc2 have in common.
 		int n1 = sc1.getFinishedJobs().size();
 		int n2 = sc2.getFinishedJobs().size();
@@ -247,6 +248,7 @@ public class STTRace extends RacingMethods {
 					pacc.log("c Expanding parcours of best solver config (strange case)" + bestSC.getNumber() + " by 1");
 					pacc.expandParcoursSC(bestSC, 1);
 					pacc.addSolverConfigurationToListNewSC(bestSC);
+					pacc.addSolverConfigurationToListNewSC(sc);
 				} else if (sc.getJobCount() < bestSC.getJobCount()) {
 					pacc.log("c Expanding parcours of solver config " + sc.getNumber() + " by 1");
 					if (this.randJob) {

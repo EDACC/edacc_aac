@@ -534,6 +534,7 @@ public class AAC {
 	public void shutdown() {
 		log("c Solver Configurations generated: " + this.statNumSolverConfigs);
 		log("c Jobs generated: " + statNumJobs);
+		log("c Number of comparision performed with the racing method: " + racing.getNumCompCalls());
 		log("c Total runtime of the execution system (CPU time): " + cumulatedCPUTime);
 		log("c Best Configuration found: ");
 		log("c ID :" + racing.getBestSC().getIdSolverConfiguration());
