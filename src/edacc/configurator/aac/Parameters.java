@@ -36,6 +36,10 @@ public class Parameters {
 	HashMap<String, String> searchMethodParams = new HashMap<String, String>();
 	HashMap<String, String> racingMethodParams = new HashMap<String, String>();
 	
+	boolean simulation = false;
+	float simulation_multiplicator = 100.f;
+	int simulation_corecount = 8;
+	
 	public void showHelp(){
 		System.out.println("Parameters that should/can be specified in the configuration file!");
 		System.out.println("---Database parameters---");
@@ -68,6 +72,11 @@ public class Parameters {
 		System.out.println("maxTuningTime = <maximum sum of CPU seconds for all generated jobs (-1 no limitation)> (default = -1)");
 		System.out.println("minCPUCount = <minimum number of CPU that should be available before starting the configuration proccess (0 no limitation)> (default = 0)");
 		System.out.println("maxCPUCount = <maximum number of CPU that should be available before starting the configuration proccess (0 no limitation)> (default = 0)");
+		System.out.println("-----------------------\n");
+		System.out.println("---Simulation parameters---");
+		System.out.println("simulation = <1/0> (default = 0)");
+		System.out.println("simulation_multiplicator = <float> (default: 100): 1000 would be real time, 100 real time divided by 10, etc.");
+		System.out.println("simulation_corecount = <int> (default: 8): core count for computation units");
 		System.out.println("-----------------------\n");
 	}
 

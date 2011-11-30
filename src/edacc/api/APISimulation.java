@@ -88,6 +88,7 @@ public class APISimulation extends APIImpl {
 
 		public ExperimentResultWrapper(ExperimentResult er, int priority) {
 			super();
+			this.er = er;
 			this.status = StatusCode.NOT_STARTED;
 			this.priority = priority;
 			this.creationTime = System.currentTimeMillis();
@@ -268,7 +269,7 @@ public class APISimulation extends APIImpl {
 				if (c.currentJob == null) {
 					// client is currently not calculating a job
 					// add jobs which are visible to this client
-					while (jobsWaiting.get(job_index).creationTime <= c.idleSince && job_index < jobsWaiting.size()) {
+					while (job_index < jobsWaiting.size() && jobsWaiting.get(job_index).creationTime <= c.idleSince) {
 						jobs.add(jobsWaiting.get(job_index++));
 					}
 					if (jobs.isEmpty()) {
@@ -278,7 +279,7 @@ public class APISimulation extends APIImpl {
 							break;
 						} else {
 							jobs.add(jobsWaiting.get(job_index++));
-							while (jobsWaiting.get(job_index).creationTime == jobs.get(jobs.size()-1).creationTime && job_index < jobsWaiting.size()) {
+							while (job_index < jobsWaiting.size() && jobsWaiting.get(job_index).creationTime == jobs.get(jobs.size()-1).creationTime) {
 								jobs.add(jobsWaiting.get(job_index++));
 							}
 						}
@@ -326,7 +327,7 @@ public class APISimulation extends APIImpl {
 
 	@Override
 	public synchronized int launchJob(int idExperiment, int idSolverConfig, int idInstance, BigInteger seed, int cpuTimeLimit, int priority) throws Exception {
-		PreparedStatement ps = DatabaseConnector.getInstance().getConn().prepareStatement("SELECT idJob FROM ExperimentResults WHERE Experiment_idExperiment = ? AND SolverConfigs_idSolverConfig = ? AND Instances_idInstance = ? AND seed = ?");
+		PreparedStatement ps = DatabaseConnector.getInstance().getConn().prepareStatement("SELECT idJob FROM ExperimentResults WHERE Experiment_idExperiment = ? AND SolverConfig_idSolverConfig = ? AND Instances_idInstance = ? AND seed = ?");
 		ps.setInt(1, idExperiment);
 		ps.setInt(2, idSolverConfig);
 		ps.setInt(3, idInstance);
@@ -494,7 +495,8 @@ public class APISimulation extends APIImpl {
 		return course;
 	}
 
-	public void generateCourse(int expId, Random rng) throws SQLException {
+	public void generateCourse(int expId) throws SQLException {
+		System.out.println("[APISimulation] Generating course..");
 		course = new Course();
 		PreparedStatement ps = DatabaseConnector.getInstance().getConn().prepareStatement("SELECT DISTINCT Instances_idInstance, seed FROM ExperimentResults WHERE Experiment_idExperiment = ?");
 		ps.setInt(1, expId);
@@ -512,22 +514,26 @@ public class APISimulation extends APIImpl {
 			course.add(is);
 		}
 		// TODO: set initial length?
+		System.out.println("[APISimulation] Done.");
 	}
 
-	public APISimulation(int coreCount, Random rng) {
+	public APISimulation(int coreCount, float multiplicator, Random rng) throws SQLException {
 		super();
-		if (coreCount <= 0) {
-			throw new IllegalArgumentException("Core count must be greater than zero.");
+		if (coreCount <= 0 || multiplicator < 0.f) {
+			throw new IllegalArgumentException("Core count must be greater than zero and multiplicator must be greater or equal zero.");
 		}
+		this.multiplicator = multiplicator;
 		this.coreCount = coreCount;
 		this.rng = rng;
 		jobsWaiting = new LinkedList<ExperimentResultWrapper>();
 		clients = new LinkedList<Client>();
 		mapExperimentResults = new HashMap<Integer, ExperimentResultWrapper>();
 		solverConfigJobCount = new HashMap<Integer, Integer>();
+		System.out.println("[APISimulation] Generating " + coreCount + " clients. One core each.");
 		for (int i = 0; i < coreCount; i++) {
 			clients.add(new Client());
 		}
+
 	}
 	
 	

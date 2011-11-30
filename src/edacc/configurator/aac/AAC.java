@@ -15,6 +15,7 @@ import java.util.Scanner;
 
 import edacc.api.API;
 import edacc.api.APIImpl;
+import edacc.api.APISimulation;
 import edacc.configurator.aac.racing.RacingMethods;
 import edacc.configurator.aac.search.SearchMethods;
 import edacc.model.ConfigurationScenarioDAO;
@@ -22,7 +23,6 @@ import edacc.model.Course;
 import edacc.model.DatabaseConnector;
 //import edacc.model.ExperimentDAO;
 import edacc.model.ExperimentResult;
-import edacc.model.InstanceSeed;
 import edacc.parameterspace.ParameterConfiguration;
 import edacc.parameterspace.graph.ParameterGraph;
 
@@ -77,8 +77,18 @@ public class AAC {
 	private ParameterGraph graph;
 
 	public AAC(Parameters params) throws Exception {
-		api = new APIImpl();
+		
+		if (params.simulation) {
+			Random rng = new edacc.util.MersenneTwister(params.seedSearch);
+			log("Simulation flag set, using simulation api.");
+			api = new APISimulation(params.simulation_corecount, params.simulation_multiplicator, rng);
+		} else {
+			api = new APIImpl();
+		}
 		api.connect(params.hostname, params.port, params.database, params.user, params.password);
+		if (api instanceof APISimulation) {
+			((APISimulation) api).generateCourse(params.idExperiment);
+		}
 		this.graph = api.loadParameterGraphFromDB(params.idExperiment);
 		params.setStatistics(api.costFunctionByName(params.costFunc), params.minimize);
 		rngSearch = new edacc.util.MersenneTwister(params.seedSearch);
@@ -216,21 +226,10 @@ public class AAC {
 		try {
 			for (int i = 0; i < num; i++) {
 				statNumJobs++;
-				if (search instanceof edacc.configurator.aac.search.Matrix) {
-					edacc.configurator.aac.search.Matrix m = (edacc.configurator.aac.search.Matrix) search;
-					InstanceSeed is = m.course.get(sc.getJobCount());
-					ExperimentResult res = m.getJob(sc.getIdSolverConfiguration(), is.instance.getId(), is.seed);
-					if (res == null) {
-						throw new IllegalArgumentException("No job.");
-					}
-					sc.putJob(res);
-				} else {
-					int idJob = api.launchJob(parameters.getIdExperiment(), sc.getIdSolverConfiguration(),
-							parameters.getJobCPUTimeLimit(), rngSearch);
-					api.setJobPriority(idJob, Integer.MAX_VALUE);
-					sc.putJob(api.getJob(idJob)); // add the job to the solver
-					// configuration own job store
-				}
+				int idJob = api.launchJob(parameters.getIdExperiment(), sc.getIdSolverConfiguration(), parameters.getJobCPUTimeLimit(), rngSearch);
+				api.setJobPriority(idJob, Integer.MAX_VALUE);
+				sc.putJob(api.getJob(idJob)); // add the job to the solver
+				// configuration own job store
 			}
 		} finally {
 			DatabaseConnector.getInstance().getConn().setAutoCommit(true);
@@ -255,20 +254,8 @@ public class AAC {
 		try {
 			for (InstanceIdSeed is : instanceIdSeedList) {
 				statNumJobs++;
-				if (search instanceof edacc.configurator.aac.search.Matrix) {
-					edacc.configurator.aac.search.Matrix m = (edacc.configurator.aac.search.Matrix) search;
-					ExperimentResult res = m.getJob(toAdd.getIdSolverConfiguration(), is.instanceId, is.seed);
-					
-					if (res == null) {
-						System.out.println("SC "+ toAdd.getIdSolverConfiguration()+ " instance "+is.instanceId+ " seed " +is.seed);
-						throw new IllegalArgumentException("No job.");
-					}
-					toAdd.putJob(res);
-				} else {
-					int idJob = api.launchJob(parameters.getIdExperiment(), toAdd.getIdSolverConfiguration(),
-							is.instanceId, BigInteger.valueOf(is.seed), parameters.getJobCPUTimeLimit(), priority);
-					toAdd.putJob(api.getJob(idJob));
-				}
+				int idJob = api.launchJob(parameters.getIdExperiment(), toAdd.getIdSolverConfiguration(), is.instanceId, BigInteger.valueOf(is.seed), parameters.getJobCPUTimeLimit(), priority);
+				toAdd.putJob(api.getJob(idJob));
 				generated++;
 			}
 		} finally {
@@ -341,14 +328,7 @@ public class AAC {
 			// ----INCREASE PARALLELISM----
 			// compute the number of new solver configs that should be generated
 			if (!terminate()) {
-				if (search instanceof edacc.configurator.aac.search.Matrix) {
-					// 8 cores, 0 jobs currently computing
-					generateNumSC = racing.computeOptimalExpansion(8, 0, listNewSC.size());
-				} else {
-					generateNumSC = racing.computeOptimalExpansion(
-							api.getComputationCoreCount(parameters.getIdExperiment()),
-							api.getComputationJobCount(parameters.getIdExperiment()), listNewSC.size());
-				}
+				generateNumSC = racing.computeOptimalExpansion(api.getComputationCoreCount(parameters.getIdExperiment()), api.getComputationJobCount(parameters.getIdExperiment()), listNewSC.size());
 			}
 
 			// determine and add race solver configurations
@@ -390,7 +370,11 @@ public class AAC {
 				}
 				log("c " + statNumSolverConfigs + "SC -> Generated " + numNewSC + " new solver configurations");
 			} else {
-				Thread.sleep(2500);
+				int sleepTime = 2500;
+				if (api instanceof APISimulation) {
+					sleepTime /= (1000.f / parameters.simulation_multiplicator);
+				}
+				Thread.sleep(sleepTime);
 			}
 			// TODO : implement a method that determines an optimal wait
 			// according to the runtimes of the jobs!
@@ -633,6 +617,13 @@ public class AAC {
 				params.minCPUCount = Integer.valueOf(value);
 			else if (key.equalsIgnoreCase("maxCPUCount"))
 				params.maxCPUCount = Integer.valueOf(value);
+			
+			else if (key.equalsIgnoreCase("simulation")) 
+				params.simulation = Boolean.parseBoolean(value);
+			else if (key.equalsIgnoreCase("simulation_corecount"))
+				params.simulation_corecount = Integer.parseInt(value);
+			else if (key.equalsIgnoreCase("simulation_multiplicator"))
+				params.simulation_multiplicator = Float.parseFloat(value);
 			
 			else {
 				System.err.println("unrecognized parameter:" +" '" + key +"' " +" terminating! \n Valid Parameters for AACE:");
