@@ -32,4 +32,6 @@ public abstract class RacingMethods {
 	 * @throws Exception
 	 */
 	public abstract int computeOptimalExpansion(int computationCoreCount, int computationJobCount, int listNewSCSize);
+	
+	public abstract String toString();
 }

@@ -23,6 +23,7 @@ public class Matrix extends SearchMethods {
 	public Course course;
 	public Matrix(API api, Random rng, Parameters parameters) throws Exception {
 		super(api, rng, parameters);
+		float dbCost;
 		solverConfigs = new ArrayList<SolverConfiguration>();
 		mapResults = new HashMap<Integer, List<ExperimentResult>>();
 		course = null;
@@ -39,7 +40,8 @@ public class Matrix extends SearchMethods {
 		}
 		for (Integer scId : api.getSolverConfigurations(parameters.getIdExperiment())) {
 			System.out.println("[Matrix] Adding solver config with id: " + scId + " (" + (++curSc) + "/" + scCount + ")");
-			SolverConfiguration sc = new SolverConfiguration(scId, api.getParameterConfiguration(parameters.getIdExperiment(), scId), parameters.getStatistics());
+			dbCost = api.getSolverConfigurationCost(scId);
+			SolverConfiguration sc = new SolverConfiguration(scId, api.getParameterConfiguration(parameters.getIdExperiment(), scId), parameters.getStatistics(), dbCost);
 			solverConfigs.add(sc);
 			List<ExperimentResult> results = mapResults.get(scId);//ExperimentResultDAO.getAllBySolverConfiguration(SolverConfigurationDAO.getSolverConfigurationById(scId));
 			System.out.println("[Matrix] " + (results == null ? 0 : results.size()) + " runs.");

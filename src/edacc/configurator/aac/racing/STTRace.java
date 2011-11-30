@@ -33,6 +33,8 @@ public class STTRace extends RacingMethods {
 	private int minE, maxE; 
 	//minimum number of evaluations to beat best
 	private int minEB;
+	//add random jobs from best or follow parcours?
+	private boolean randJob;
 
 	/**
 	 * @param pacc
@@ -44,19 +46,32 @@ public class STTRace extends RacingMethods {
 		super(pacc, rng, api, parameters);
 		this.a = 0.6;
 		this.minE = parameters.getInitialDefaultParcoursLength();
+		this.minEB = 10;
 		incumbentNumber = 0;
 		num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment())
 				.getCourse().getInitialLength();
 		this.maxE = parameters.getMaxParcoursExpansionFactor() * num_instances;
+		this.randJob = true;
 		
 		String val;
 		if ((val = parameters.getRacingMethodParameters().get("STTRace_a"))!= null)
 			this.a = Double.parseDouble(val);
 		if ((val = parameters.getRacingMethodParameters().get("STTRace_minEB"))!= null)
 			this.minEB = Integer.parseInt(val);
-		
+		if ((val = parameters.getRacingMethodParameters().get("STTRace_randJob"))!= null)
+			this.randJob = Boolean.parseBoolean(val);
+		if (this.minEB<0){ 
+			System.out.println("<STTRace_minEB> <0 not allowed! Setting <STTRace_minEB> to default!)");
+			this.minEB = 10;
+		}
 	}
 
+	public String toString(){
+		return "\nThis is a sequential t-test racing method with the following parameters:\n" +
+				"<STTRace_a> = " + this.a + " (threshold a value) \n"+
+				"<STTRace_minEB> = " + this.minEB +" (minimum number of evaluations before replacing best as %(1..) of num instances) \n"+
+				"<STTRace_randJob> = " + this.randJob+ "(new config gets random jobs from best) \n"; 
+	}
 	/*
 	 * compares sc1 to sc2 with a sequential t-test. returns -1 if sc1 is not
 	 * better than sc2 and the test can be stopped (or has reached maxE) 1 if
@@ -70,7 +85,7 @@ public class STTRace extends RacingMethods {
 		int n1 = sc1.getFinishedJobs().size();
 		int n2 = sc2.getFinishedJobs().size();
 		int n = Math.min(n1, n2);
-		System.out.println("S: " + sc1.getNumber() + " vsn " + sc2.getNumber());
+		System.out.println("S: " + sc1.getNumber()+"("+sc1.getIdSolverConfiguration()+")" + " vsn " + sc2.getNumber()+"("+sc2.getIdSolverConfiguration()+")");
 		System.out.println("S: " + n1 + "(e)" + " vse " + n2 + "(e)");
 		System.out.println("S: n = " + n);
 		float[] y = new float[n]; // times of sc1
@@ -110,7 +125,7 @@ public class STTRace extends RacingMethods {
 		mean = mean / (double) n;
 		meanz = meanz / (double) n;
 		meany = meany / (double) n;
-		System.out.println("S: " + meany + " vss " + meanz);
+		System.out.println("S: " + meany+"(t=" + sc1.getDbCost()+")" + " vss " + meanz+"(t=" + sc2.getDbCost() +")");
 		System.out.println("S: mean = " + mean);
 		// compute std2
 		for (int j = 0; j < n; j++) {
@@ -193,10 +208,12 @@ public class STTRace extends RacingMethods {
 				continue;
 			int comp = compareTo(sc, bestSC);
 			if (comp >= 0) {// sc won against bestSC
-				if (sc.getJobCount() == bestSC.getJobCount()) {
+				//TODO: hier stimmt was nicht!!!
+				if (((sc.getJobCount() == bestSC.getJobCount())&&randJob)||((sc.getJobCount()>=this.num_instances/this.minEB)&&(!randJob))) {
 					sc.setFinished(true);
 					// all jobs from bestSC computed and won against
 					// best:
+					System.out.println("sc1 won!!!");
 					if (comp > 0) {
 						bestSC = sc;
 						sc.setIncumbentNumber(incumbentNumber++);
@@ -208,9 +225,13 @@ public class STTRace extends RacingMethods {
 					// statistics.getCostFunction());
 					// listNewSC.remove(i);
 				} else {
-					//pacc.expandParcoursSC(sc, 1);
-					int generated = pacc.addRandomJob(1, sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
-					//pacc.log("c Generated " + generated + " jobs for solver config id " + sc.getNumber());
+					if (this.randJob) {
+						int generated = pacc.addRandomJob(1, sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
+						pacc.log("c Generated " + generated + " jobs for solver config id " + sc.getNumber());
+					}
+					else{
+						pacc.expandParcoursSC(sc, 1);
+					}
 					pacc.addSolverConfigurationToListNewSC(sc);
 				}
 			} else if (comp == -1) {// lost against best on part of the actual
@@ -218,41 +239,29 @@ public class STTRace extends RacingMethods {
 				sc.setFinished(true);
 				if ((deleteSolverConfigs) && (sc.getIncumbentNumber() == -1)) {
 					api.removeSolverConfig(sc.getIdSolverConfiguration());
-
 					pacc.log("d Solver config " + sc.getNumber() + " with cost " + sc.getCost()
 							+ " lost against best solver config on " + sc.getJobCount() + " runs.");
 				}
-				/*
-				 * if (bestSC.getJobCount() <
-				 * parameters.getMaxParcoursExpansionFactor() * num_instances) {
-				 * pacc.log("c Expanding parcours of best solver config " +
-				 * bestSC.getIdSolverConfiguration() + " by 1");
-				 * pacc.expandParcoursSC(bestSC, 1);
-				 * pacc.addSolverConfigurationToListNewSC(bestSC); }
-				 */
 			} else { // comp == -2 further jobs are needed to asses performance
 				if (sc.getJobCount() > bestSC.getJobCount()) {
 					pacc.log("c Expanding parcours of best solver config (strange case)" + bestSC.getNumber() + " by 1");
 					pacc.expandParcoursSC(bestSC, 1);
-					// int generated = pacc.addRandomJob(1, bestSC, sc,
-					// Integer.MAX_VALUE - sc.getNumber());
-					// pacc.log("c Generated " + generated +
-					// " jobs for solver config id " +
-					// sc.getIdSolverConfiguration());
 					pacc.addSolverConfigurationToListNewSC(bestSC);
 				} else if (sc.getJobCount() < bestSC.getJobCount()) {
 					pacc.log("c Expanding parcours of solver config " + sc.getNumber() + " by 1");
-					 //pacc.expandParcoursSC(sc, 1);
-					int generated = pacc.addRandomJob(1, sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
-					//pacc.log("c Generated " + generated + " jobs for solver config id " + sc.getIdSolverConfiguration());
+					if (this.randJob) {
+						int generated = pacc.addRandomJob(1, sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
+						pacc.log("c Generated " + generated + " jobs for solver config id " + sc.getIdSolverConfiguration());
+					}
+					else{
+						pacc.expandParcoursSC(sc, 1);
+					}
 					pacc.addSolverConfigurationToListNewSC(sc);
 				} else {
 					pacc.log("c Expanding parcours of best and competitor solver config " + bestSC.getNumber()
 							+ " by 1");
 					pacc.expandParcoursSC(bestSC, 1);
 					pacc.addSolverConfigurationToListNewSC(bestSC);
-					// pacc.log("c Expanding parcours of solver config " +
-					// sc.getIdSolverConfiguration()+ " by 1");
 					pacc.expandParcoursSC(sc, 1);
 					pacc.addSolverConfigurationToListNewSC(sc);
 				}
@@ -271,15 +280,14 @@ public class STTRace extends RacingMethods {
 	public void solverConfigurationsCreated(List<SolverConfiguration> scs) throws Exception {
 		int gen;
 		for (SolverConfiguration sc : scs) {
-			// add 1 random job from the best configuration with the
-			// priority corresponding to the level
-			// lower levels -> higher priorities
-			// System.out.print("Adding "+minE+" jobs from bestSC "+bestSC.getNumber()
-			// + " to SC "+ sc.getNumber());
-			//pacc.expandParcoursSC(sc, minE);
-			gen = pacc.addRandomJob(minE, sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
-			System.out.println("added ->"+gen);
-			pacc.addSolverConfigurationToListNewSC(sc);
+			if (this.randJob){
+				gen = pacc.addRandomJob(minE, sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
+				System.out.println("added ->"+gen);
+			}
+			else{
+				pacc.expandParcoursSC(sc, minE);
+			}
+		pacc.addSolverConfigurationToListNewSC(sc);
 		}
 
 	}

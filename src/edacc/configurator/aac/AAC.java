@@ -258,7 +258,9 @@ public class AAC {
 				if (search instanceof edacc.configurator.aac.search.Matrix) {
 					edacc.configurator.aac.search.Matrix m = (edacc.configurator.aac.search.Matrix) search;
 					ExperimentResult res = m.getJob(toAdd.getIdSolverConfiguration(), is.instanceId, is.seed);
+					
 					if (res == null) {
+						System.out.println("SC "+ toAdd.getIdSolverConfiguration()+ " instance "+is.instanceId+ " seed " +is.seed);
 						throw new IllegalArgumentException("No job.");
 					}
 					toAdd.putJob(res);
@@ -638,9 +640,9 @@ public class AAC {
 			}
 		}
 		scanner.close();
-		System.out.println("c Starting the PROAR configurator with following settings: \n" + params);
-		System.out.println("c ---------------------------------");
 		AAC configurator = new AAC(params);
+		System.out.println("c Starting the PROAR configurator with following settings: \n" + params +  configurator.racing.toString()+ configurator.search.toString());
+		System.out.println("c ---------------------------------");
 		configurator.start();
 		configurator.shutdown();
 	}

@@ -25,6 +25,12 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	 * metric (cost or runtime);
 	 */
 	private Float cost;
+	
+	private Float dbCost;
+
+	public Float getDbCost() {
+		return dbCost;
+	}
 
 	/**
 	 * total runtime in seconds of all the jobs in the jobs list
@@ -57,6 +63,19 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	public SolverConfiguration(int idSolverConfiguration, ParameterConfiguration pc, StatisticFunction statFunc) {
 		this();
 
+		this.pConfig = pc;
+		this.idSolverConfiguration = idSolverConfiguration;
+		this.cost = null;
+		this.name = null;
+		this.statFunc = statFunc;
+		this.incumbentNumber = -1;
+		this.finished = false;
+		this.number = -1;
+	}
+	
+	public SolverConfiguration(int idSolverConfiguration, ParameterConfiguration pc, StatisticFunction statFunc, float dbCost) {
+		this();
+		this.dbCost = dbCost;
 		this.pConfig = pc;
 		this.idSolverConfiguration = idSolverConfiguration;
 		this.cost = null;

@@ -23,6 +23,9 @@ public class Default extends RacingMethods {
 		num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse().getInitialLength();
 	}
 
+	public String toString(){
+		return "This is the racing method or ROAR";
+	}
 	@Override
 	public int compareTo(SolverConfiguration sc1, SolverConfiguration sc2) {
 		return sc1.compareTo(sc2);
