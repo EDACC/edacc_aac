@@ -88,6 +88,7 @@ public class AAC {
 		api.connect(params.hostname, params.port, params.database, params.user, params.password);
 		if (api instanceof APISimulation) {
 			((APISimulation) api).generateCourse(params.idExperiment);
+			((APISimulation) api).cacheJobs(params.idExperiment);
 		}
 		this.graph = api.loadParameterGraphFromDB(params.idExperiment);
 		params.setStatistics(api.costFunctionByName(params.costFunc), params.minimize);

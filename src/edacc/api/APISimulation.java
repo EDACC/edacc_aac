@@ -1,5 +1,6 @@
 package edacc.api;
 
+import java.io.IOException;
 import java.math.BigInteger;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -13,17 +14,25 @@ import java.util.Map;
 import java.util.Random;
 
 import edacc.api.costfunctions.CostFunction;
+import edacc.model.ComputationMethodDoesNotExistException;
 import edacc.model.Course;
 import edacc.model.DatabaseConnector;
+import edacc.model.ExpResultHasSolvPropertyNotInDBException;
 import edacc.model.ExperimentResult;
 import edacc.model.ExperimentResultDAO;
 import edacc.model.ExperimentResultHasProperty;
+import edacc.model.ExperimentResultNotInDBException;
 import edacc.model.Instance;
 import edacc.model.InstanceDAO;
 import edacc.model.InstanceSeed;
+import edacc.model.NoConnectionToDBException;
+import edacc.model.PropertyNotInDBException;
 import edacc.model.ResultCode;
+import edacc.model.ResultCodeNotInDBException;
 import edacc.model.StatusCode;
+import edacc.model.StatusCodeNotInDBException;
 import edacc.parameterspace.ParameterConfiguration;
+import edacc.properties.PropertyTypeNotExistException;
 
 public class APISimulation extends APIImpl {
 
@@ -240,8 +249,55 @@ public class APISimulation extends APIImpl {
 		}
 	}
 
-	
-	private long overhead_overall;
+	private class JobIdentifier {
+		int idSolverConfig, idInstance, idExperiment;
+		long seed;
+		public JobIdentifier(int idExperiment, int idSolverConfig, int idInstance, long seed) {
+			this.idExperiment = idExperiment;
+			this.idSolverConfig = idSolverConfig;
+			this.idInstance = idInstance;
+			this.seed = seed;
+		}
+		@Override
+		public int hashCode() {
+			final int prime = 31;
+			int result = 1;
+			result = prime * result + getOuterType().hashCode();
+			result = prime * result + idExperiment;
+			result = prime * result + idInstance;
+			result = prime * result + idSolverConfig;
+			result = prime * result + (int) (seed ^ (seed >>> 32));
+			return result;
+		}
+		@Override
+		public boolean equals(Object obj) {
+			if (this == obj)
+				return true;
+			if (obj == null)
+				return false;
+			if (getClass() != obj.getClass())
+				return false;
+			JobIdentifier other = (JobIdentifier) obj;
+			if (!getOuterType().equals(other.getOuterType()))
+				return false;
+			if (idExperiment != other.idExperiment)
+				return false;
+			if (idInstance != other.idInstance)
+				return false;
+			if (idSolverConfig != other.idSolverConfig)
+				return false;
+			if (seed != other.seed)
+				return false;
+			return true;
+		}
+		private APISimulation getOuterType() {
+			return APISimulation.this;
+		}
+		
+	}
+	private HashMap<JobIdentifier, ExperimentResult> dbJobs = null;
+
+	private long overhead_overall, overhead_launchjob;
 	private float multiplicator = 100.f;
 	private Course course;
 	private int coreCount;
@@ -357,25 +413,31 @@ public class APISimulation extends APIImpl {
 	@Override
 	public synchronized int launchJob(int idExperiment, int idSolverConfig, int idInstance, BigInteger seed, int cpuTimeLimit, int priority) throws Exception {
 		long time = System.currentTimeMillis();
-		PreparedStatement ps = DatabaseConnector.getInstance().getConn().prepareStatement("SELECT idJob FROM ExperimentResults WHERE Experiment_idExperiment = ? AND SolverConfig_idSolverConfig = ? AND Instances_idInstance = ? AND seed = ?");
-		ps.setInt(1, idExperiment);
-		ps.setInt(2, idSolverConfig);
-		ps.setInt(3, idInstance);
-		ps.setLong(4, seed.longValue());
-		ResultSet rs = ps.executeQuery();
-		int idJob = -1;
-		if (rs.next()) {
-			idJob = rs.getInt(1);
+		ExperimentResult er;
+		if (dbJobs != null) {
+			er = dbJobs.get(new JobIdentifier(idExperiment, idSolverConfig, idInstance, seed.longValue()));
+		} else {
+			PreparedStatement ps = DatabaseConnector.getInstance().getConn().prepareStatement("SELECT idJob FROM ExperimentResults WHERE Experiment_idExperiment = ? AND SolverConfig_idSolverConfig = ? AND Instances_idInstance = ? AND seed = ?");
+			ps.setInt(1, idExperiment);
+			ps.setInt(2, idSolverConfig);
+			ps.setInt(3, idInstance);
+			ps.setLong(4, seed.longValue());
+			ResultSet rs = ps.executeQuery();
+			int idJob = -1;
+			if (rs.next()) {
+				idJob = rs.getInt(1);
+			}
+			rs.close();
+			ps.close();
+			if (idJob == -1) {
+				throw new IllegalArgumentException("No such job found. (idExperiment, idSolverConfig, idInstance, seed) = (" + idExperiment + "," + idSolverConfig + "," + idInstance + "," + seed.longValue() + ")");
+			}
+			if (mapExperimentResults.containsKey(idJob)) {
+				throw new IllegalArgumentException("Job with id " + idJob + " already started.");
+			}
+			er = ExperimentResultDAO.getById(idJob);
 		}
-		rs.close();
-		ps.close();
-		if (idJob == -1) {
-			throw new IllegalArgumentException("No such job found. (idExperiment, idSolverConfig, idInstance, seed) = (" + idExperiment + "," + idSolverConfig + "," + idInstance + "," + seed.longValue() + ")");
-		}
-		if (mapExperimentResults.containsKey(idJob)) {
-			throw new IllegalArgumentException("Job with id " + idJob + " already started.");
-		}
-		ExperimentResultWrapper ew = new ExperimentResultWrapper(ExperimentResultDAO.getById(idJob), priority);
+		ExperimentResultWrapper ew = new ExperimentResultWrapper(er, priority);
 		mapExperimentResults.put(ew.getId(), ew);
 		jobsWaiting.add(ew);
 		Integer jobCount = solverConfigJobCount.get(idSolverConfig);
@@ -385,6 +447,7 @@ public class APISimulation extends APIImpl {
 		jobCount++;
 		solverConfigJobCount.put(idSolverConfig, jobCount);
 		overhead_overall += System.currentTimeMillis() - time;
+		overhead_launchjob += System.currentTimeMillis() - time;
 		return ew.getId();
 	}
 
@@ -555,6 +618,15 @@ public class APISimulation extends APIImpl {
 		// TODO: set initial length?
 		System.out.println("[APISimulation] Done.");
 	}
+	
+	public void cacheJobs(int expId) throws PropertyTypeNotExistException, PropertyNotInDBException, NoConnectionToDBException, ComputationMethodDoesNotExistException, ExpResultHasSolvPropertyNotInDBException, ExperimentResultNotInDBException, StatusCodeNotInDBException, ResultCodeNotInDBException, SQLException, IOException {
+		System.out.println("[APISimulation] Caching jobs..");
+		dbJobs = new HashMap<JobIdentifier, ExperimentResult>();
+		for (ExperimentResult er : ExperimentResultDAO.getAllByExperimentId(expId)) {
+			dbJobs.put(new JobIdentifier(er.getExperimentId(), er.getSolverConfigId(), er.getInstanceId(), er.getSeed()), er);
+		}
+		System.out.println("[APISimulation] Done.");
+	}
 
 	public APISimulation(int coreCount, float multiplicator, Random rng) throws SQLException {
 		super();
@@ -573,9 +645,11 @@ public class APISimulation extends APIImpl {
 			clients.add(new Client());
 		}
 		overhead_overall = 0;
+		overhead_launchjob = 0;
 	}
 	
 	public void printStats() {
 		System.out.println("[APISimulation] Overhead time: " + overhead_overall);
+		System.out.println("[APISimulation] Overhead launch job: " + overhead_launchjob);
 	}
 }
