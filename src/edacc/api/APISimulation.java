@@ -31,7 +31,6 @@ public class APISimulation extends APIImpl {
 		long idleSince;
 		ExperimentResultWrapper currentJob;
 		long currentJobEndTime;
-		
 		public Client() {
 			idleSince = System.currentTimeMillis();
 		}
@@ -60,6 +59,7 @@ public class APISimulation extends APIImpl {
 			if (System.currentTimeMillis() > currentJobEndTime) {
 				currentJob.status = currentJob.er.getStatus();
 				idleSince = currentJobEndTime;
+				currentJob = null;
 			}
 		}
 
@@ -240,6 +240,8 @@ public class APISimulation extends APIImpl {
 		}
 	}
 
+	
+	
 	private float multiplicator = 100.f;
 	private Course course;
 	private int coreCount;
@@ -252,10 +254,15 @@ public class APISimulation extends APIImpl {
 	private Map<Integer, Integer> solverConfigJobCount;
 
 	private void checkJobs() {
+		//int cur_running_jobs = 0;
+		
 		// first check current running jobs
 		for (Client c : clients) {
 			c.checkJob();
+			//if (c.currentJob != null) 
+			//	cur_running_jobs++;
 		}
+		//System.out.println("[APISimulation] There are currently " + cur_running_jobs + " running.");
 		if (!jobsWaiting.isEmpty()) {
 			// sort client list by idleSince
 			Collections.sort(clients);
