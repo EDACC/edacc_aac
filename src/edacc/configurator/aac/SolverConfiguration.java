@@ -8,8 +8,8 @@ import java.util.List;
 import java.util.Random;
 
 import edacc.parameterspace.ParameterConfiguration;
+import edacc.api.API;
 import edacc.model.ExperimentResult;
-import edacc.model.ExperimentResultDAO;
 import edacc.model.StatusCode;
 
 public class SolverConfiguration implements Comparable<SolverConfiguration> {
@@ -285,7 +285,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	 * @throws Exception
 	 */
 
-	protected float updateJobsStatus() throws Exception {
+	protected float updateJobsStatus(API api) throws Exception {
 		LinkedList<Integer> ids = new LinkedList<Integer>();
 		ArrayList<ExperimentResult> tmp = new ArrayList<ExperimentResult>();
 		numRunningJobs = 0;
@@ -306,7 +306,8 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 		}
 
 		if (!ids.isEmpty()) {
-			jobs = ExperimentResultDAO.getByIds(ids);
+			jobs = new ArrayList<ExperimentResult>();
+			jobs.addAll(api.getJobsByIDs(ids).values());
 			tmp.addAll(jobs);
 			jobs = tmp;
 			float tmpTotalRuntime = totalRuntime;

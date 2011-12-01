@@ -244,8 +244,8 @@ public class AAC {
 	 */
 	public int addRandomJob(int num, SolverConfiguration toAdd, SolverConfiguration from, int priority)
 			throws Exception {
-		toAdd.updateJobsStatus();
-		from.updateJobsStatus();
+		toAdd.updateJobsStatus(api);
+		from.updateJobsStatus(api);
 		// compute a list with num jobs that "from" has computed and "toadd" has
 		// not in its job list
 		List<InstanceIdSeed> instanceIdSeedList = toAdd.getInstanceIdSeed(from, num, rngRacing);
@@ -291,7 +291,7 @@ public class AAC {
 		if (firstSC == null) {
 			throw new RuntimeException("best not initialized");
 		}
-		firstSC.updateJobsStatus(); // don't add best scs time to
+		firstSC.updateJobsStatus(api); // don't add best scs time to
 									// cumulatedCPUTime
 
 		racing.initFirstSC(firstSC);
@@ -390,7 +390,7 @@ public class AAC {
 				// consideration
 				// there might be some configs for the next level already
 				// generated and evaluated
-				cumulatedCPUTime += sc.updateJobsStatus();
+				cumulatedCPUTime += sc.updateJobsStatus(api);
 				if (sc.getNumNotStartedJobs() + sc.getNumRunningJobs() == 0) {
 					// api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(),
 					// sc.getCost(),
@@ -473,7 +473,7 @@ public class AAC {
 	}
 
 	public void updateJobsStatus(SolverConfiguration sc) throws Exception {
-		cumulatedCPUTime += sc.updateJobsStatus();
+		cumulatedCPUTime += sc.updateJobsStatus(api);
 	}
 
 	public float getWallTime() {

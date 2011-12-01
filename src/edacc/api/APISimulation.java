@@ -533,8 +533,5 @@ public class APISimulation extends APIImpl {
 		for (int i = 0; i < coreCount; i++) {
 			clients.add(new Client());
 		}
-
 	}
-	
-	
 }
