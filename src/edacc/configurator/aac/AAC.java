@@ -528,6 +528,9 @@ public class AAC {
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
+		if (api instanceof APISimulation) {
+			((APISimulation) api).printStats();
+		}
 		log("c halt.");
 		api.disconnect();
 	}

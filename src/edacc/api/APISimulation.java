@@ -56,7 +56,7 @@ public class APISimulation extends APIImpl {
 		public void checkJob() {
 			if (currentJob == null)
 				return;
-			if (System.currentTimeMillis() > currentJobEndTime) {
+			if (System.currentTimeMillis() >= currentJobEndTime) {
 				currentJob.status = currentJob.er.getStatus();
 				idleSince = currentJobEndTime;
 				currentJob = null;
@@ -85,9 +85,9 @@ public class APISimulation extends APIImpl {
 		StatusCode status;
 		ExperimentResult er;
 		int priority;
-
 		public ExperimentResultWrapper(ExperimentResult er, int priority) {
-			super();
+			// we have to fill run, solverconfig id, experiment id, instance id fields for equals method!
+			super(er.getRun(), 0, 0, null, 0, null, 0.f, er.getSolverConfigId(), er.getExperimentId(), er.getInstanceId(), null, 0, 0, 0, 0);
 			this.er = er;
 			this.status = StatusCode.NOT_STARTED;
 			this.priority = priority;
@@ -241,7 +241,7 @@ public class APISimulation extends APIImpl {
 	}
 
 	
-	
+	private long overhead_overall;
 	private float multiplicator = 100.f;
 	private Course course;
 	private int coreCount;
@@ -253,16 +253,25 @@ public class APISimulation extends APIImpl {
 	private Map<Integer, ExperimentResultWrapper> mapExperimentResults;
 	private Map<Integer, Integer> solverConfigJobCount;
 
+	//int last_running_jobs = 0;
+	//int last_running_jobs_before = 0;
 	private void checkJobs() {
-		//int cur_running_jobs = 0;
+	//	int cur_running_jobs = 0;
+	//	int cur_running_jobs_before = 0;
 		
 		// first check current running jobs
 		for (Client c : clients) {
+	//		if (c.currentJob != null)
+	//			cur_running_jobs_before++;
 			c.checkJob();
-			//if (c.currentJob != null) 
-			//	cur_running_jobs++;
+	//		if (c.currentJob != null) 
+	//			cur_running_jobs++;
 		}
-		//System.out.println("[APISimulation] There are currently " + cur_running_jobs + " running.");
+	/*	if (last_running_jobs != cur_running_jobs || last_running_jobs_before != cur_running_jobs) {
+			System.out.println("[APISimulation] Finished " + (cur_running_jobs_before - cur_running_jobs) + " jobs. There are currently " + cur_running_jobs + " running.");
+			last_running_jobs = cur_running_jobs;
+			last_running_jobs_before = cur_running_jobs_before;
+		}*/
 		if (!jobsWaiting.isEmpty()) {
 			// sort client list by idleSince
 			Collections.sort(clients);
@@ -272,7 +281,8 @@ public class APISimulation extends APIImpl {
 			int job_index = 0;
 			List<ExperimentResultWrapper> jobs = new LinkedList<ExperimentResultWrapper>();
 			List<ExperimentResultWrapper> jobs_given = new LinkedList<ExperimentResultWrapper>();
-			for (Client c : clients) {
+			for (int client_index = 0; client_index < clients.size(); client_index++) {
+				Client c = clients.get(client_index);
 				if (c.currentJob == null) {
 					// client is currently not calculating a job
 					// add jobs which are visible to this client
@@ -308,6 +318,18 @@ public class APISimulation extends APIImpl {
 					jobs.remove(job);
 					
 					c.startJob(job);
+					if (c.currentJob == null) {
+						// job calculated in time diff: currentTime - c.idleSince 
+						for (int tmp = client_index+1; tmp < clients.size(); tmp++) {
+							Client tmpClient = clients.get(tmp);
+							if (tmpClient.idleSince > c.idleSince) {
+								clients.add(tmp, c);
+								clients.remove(client_index);
+								break;
+							}
+						}
+						client_index--;
+					}
 				}
 			}
 			for (ExperimentResultWrapper ew : jobs_given) {
@@ -334,6 +356,7 @@ public class APISimulation extends APIImpl {
 
 	@Override
 	public synchronized int launchJob(int idExperiment, int idSolverConfig, int idInstance, BigInteger seed, int cpuTimeLimit, int priority) throws Exception {
+		long time = System.currentTimeMillis();
 		PreparedStatement ps = DatabaseConnector.getInstance().getConn().prepareStatement("SELECT idJob FROM ExperimentResults WHERE Experiment_idExperiment = ? AND SolverConfig_idSolverConfig = ? AND Instances_idInstance = ? AND seed = ?");
 		ps.setInt(1, idExperiment);
 		ps.setInt(2, idSolverConfig);
@@ -347,7 +370,7 @@ public class APISimulation extends APIImpl {
 		rs.close();
 		ps.close();
 		if (idJob == -1) {
-			throw new IllegalArgumentException("No such job found.");
+			throw new IllegalArgumentException("No such job found. (idExperiment, idSolverConfig, idInstance, seed) = (" + idExperiment + "," + idSolverConfig + "," + idInstance + "," + seed.longValue() + ")");
 		}
 		if (mapExperimentResults.containsKey(idJob)) {
 			throw new IllegalArgumentException("Job with id " + idJob + " already started.");
@@ -361,6 +384,7 @@ public class APISimulation extends APIImpl {
 		}
 		jobCount++;
 		solverConfigJobCount.put(idSolverConfig, jobCount);
+		overhead_overall += System.currentTimeMillis() - time;
 		return ew.getId();
 	}
 
@@ -421,7 +445,9 @@ public class APISimulation extends APIImpl {
 
 	@Override
 	public synchronized ExperimentResult getJob(int idJob) throws Exception {
+		long time = System.currentTimeMillis();
 		checkJobs();
+		overhead_overall += System.currentTimeMillis() - time;
 		return mapExperimentResults.get(idJob);
 	}
 
@@ -442,11 +468,13 @@ public class APISimulation extends APIImpl {
 
 	@Override
 	public synchronized Map<Integer, ExperimentResult> getJobsByIDs(List<Integer> ids) throws Exception {
+		long time = System.currentTimeMillis();
 		checkJobs();
 		Map<Integer, ExperimentResult> res = new HashMap<Integer, ExperimentResult>();
 		for (Integer id : ids) {
 			res.put(id, mapExperimentResults.get(id));
 		}
+		overhead_overall += System.currentTimeMillis() - time;
 		return res;
 	}
 
@@ -482,19 +510,23 @@ public class APISimulation extends APIImpl {
 
 	@Override
 	public int getComputationJobCount(int idExperiment) throws Exception {
+		long time = System.currentTimeMillis();
 		checkJobs();
 		int res = jobsWaiting.size();
 		for (Client c : clients) {
 			if (c.currentJob != null)
 				res++;
 		}
+		overhead_overall += System.currentTimeMillis() - time;
 		return res;
 	}
 
 	@Override
 	public void setJobPriority(int idJob, int priority) throws Exception {
+		long time = System.currentTimeMillis();
 		checkJobs();
 		mapExperimentResults.get(idJob).priority = priority;
+		overhead_overall += System.currentTimeMillis() - time;
 	}
 
 	@Override
@@ -540,5 +572,10 @@ public class APISimulation extends APIImpl {
 		for (int i = 0; i < coreCount; i++) {
 			clients.add(new Client());
 		}
+		overhead_overall = 0;
+	}
+	
+	public void printStats() {
+		System.out.println("[APISimulation] Overhead time: " + overhead_overall);
 	}
 }
