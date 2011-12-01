@@ -306,9 +306,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 		}
 
 		if (!ids.isEmpty()) {
-			jobs = new ArrayList<ExperimentResult>();
-			jobs.addAll(api.getJobsByIDs(ids).values());
-			tmp.addAll(jobs);
+			tmp.addAll(api.getJobsByIDs(ids).values());
 			jobs = tmp;
 			float tmpTotalRuntime = totalRuntime;
 			totalRuntime = 0.f;
