@@ -86,7 +86,8 @@ public class AAC {
 		} else {
 			api = new APIImpl();
 		}
-		api.connect(params.hostname, params.port, params.database, params.user, params.password);
+		boolean compress = (api instanceof APISimulation) ? true : false;
+		api.connect(params.hostname, params.port, params.database, params.user, params.password, compress);
 		if (api instanceof APISimulation) {
 			((APISimulation) api).generateCourse(params.idExperiment);
 			((APISimulation) api).cacheJobs(params.idExperiment);
