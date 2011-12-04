@@ -25,6 +25,7 @@ import edacc.model.DatabaseConnector;
 import edacc.model.ExperimentResult;
 import edacc.parameterspace.ParameterConfiguration;
 import edacc.parameterspace.graph.ParameterGraph;
+import edacc.util.Pair;
 
 public class AAC {
 	// private static final boolean useCapping = false;
@@ -79,7 +80,7 @@ public class AAC {
 	public AAC(Parameters params) throws Exception {
 		
 		if (params.simulation) {
-			Random rng = new edacc.util.MersenneTwister(params.seedSearch);
+			Random rng = new edacc.util.MersenneTwister(params.simulation_seed);
 			log("Simulation flag set, using simulation api.");
 			api = new APISimulation(params.simulation_corecount, params.simulation_multiplicator, rng);
 		} else {
@@ -553,12 +554,14 @@ public class AAC {
 	public static void main(String[] args) throws Exception {
 		Parameters params = new Parameters();
 		if (args.length < 1) {
-			System.out.println("Missing configuration file. Use java -jar PROAR.jar <config file path>");
+			System.out.println("Missing configuration file. Use java -jar PROAR.jar <config file path> [<key=value>]*");
+			System.out.println("If <key=value> pairs are given, config parameters will be overwritten.");
 			params.showHelp();
 			return;
 		}
 		Scanner scanner = new Scanner(new File(args[0]));
 
+		List<Pair<String, String>> paramvalues = new LinkedList<Pair<String, String>>();
 		while (scanner.hasNextLine()) {
 			String line = scanner.nextLine();
 			if (line.trim().startsWith("%"))
@@ -566,76 +569,18 @@ public class AAC {
 			String[] keyval = line.split("=");
 			String key = keyval[0].trim();
 			String value = keyval[1].trim();
-			//database parameters
-			if ("host".equalsIgnoreCase(key))
-				params.hostname = value;
-			else if ("user".equalsIgnoreCase(key))
-				params.user = value;
-			else if ("password".equalsIgnoreCase(key))
-				params.password = value;
-			else if ("port".equalsIgnoreCase(key))
-				params.port = Integer.valueOf(value);
-			else if ("database".equalsIgnoreCase(key))
-				params.database = value;
-			//experiment parameters
-			else if ("idExperiment".equalsIgnoreCase(key))
-				params.idExperiment = Integer.valueOf(value);
-			else if ("jobCPUTimeLimit".equalsIgnoreCase(key))
-				params.jobCPUTimeLimit = Integer.valueOf(value);
-			else if ("deterministicSolver".equalsIgnoreCase(key))
-				params.deterministicSolver = Boolean.parseBoolean(value);
-			//parcours parameters
-			else if ("maxParcoursExpansionFactor".equalsIgnoreCase(key))
-				params.maxParcoursExpansionFactor = Integer.valueOf(value);
-			else if ("parcoursExpansionPerStep".equalsIgnoreCase(key))
-				params.parcoursExpansionPerStep = Integer.valueOf(value);
-			else if ("initialDefaultParcoursLength".equalsIgnoreCase(key))
-				params.initialDefaultParcoursLength = Integer.valueOf(value);
-			//configurator parameters
-			else if ("seedSearch".equalsIgnoreCase(key))
-				params.seedSearch = Long.valueOf(value);
-			else if ("seedRacing".equalsIgnoreCase(key))
-				params.seedRacing = Long.valueOf(value);
-									
-			else if ("searchMethod".equalsIgnoreCase(key))
-				params.searchMethod = value;
-			else if (key.equalsIgnoreCase("racingMethod"))
-				params.racingMethod = value;
-			
-			else if (key.startsWith(params.searchMethod + "_"))
-				params.searchMethodParams.put(key, value);
-			else if (key.startsWith(params.racingMethod + "_"))
-				params.racingMethodParams.put(key, value);
-			
-			else if ("minEvalsNewSC".equalsIgnoreCase(key))
-				params.minE = Integer.parseInt(value);//TODO: minE muss kleiner sein als initialDefaultParcoursLength
-					
-			else if ("costFunction".equalsIgnoreCase(key))
-				params.costFunc = value;
-			else if ("minimize".equalsIgnoreCase(key))
-				params.minimize = Boolean.parseBoolean(value);
-			
-			else if (key.equalsIgnoreCase("maxTuningTime"))
-				params.maxTuningTime = Integer.valueOf(value);
-			else if (key.equalsIgnoreCase("minCPUCount"))
-				params.minCPUCount = Integer.valueOf(value);
-			else if (key.equalsIgnoreCase("maxCPUCount"))
-				params.maxCPUCount = Integer.valueOf(value);
-			
-			else if (key.equalsIgnoreCase("simulation")) 
-				params.simulation = Boolean.parseBoolean(value);
-			else if (key.equalsIgnoreCase("simulation_corecount"))
-				params.simulation_corecount = Integer.parseInt(value);
-			else if (key.equalsIgnoreCase("simulation_multiplicator"))
-				params.simulation_multiplicator = Float.parseFloat(value);
-			
-			else {
-				System.err.println("unrecognized parameter:" +" '" + key +"' " +" terminating! \n Valid Parameters for AACE:");
-				params.showHelp();
-				return; 
-			}
+			paramvalues.add(new Pair<String, String>(key, value));
 		}
 		scanner.close();
+		for (int i = 1; i < args.length; i++) {
+			String[] keyval = args[i].split("=");
+			paramvalues.add(new Pair<String, String>(keyval[0].trim(), keyval[1].trim()));
+		}
+		
+		if (!params.parseParameters(paramvalues)) {
+			System.out.println("Error while parsing parameters; exiting.");
+			return;
+		}
 		AAC configurator = new AAC(params);
 		System.out.println("c Starting the PROAR configurator with following settings: \n" + params +  configurator.racing.toString()+ configurator.search.toString());
 		System.out.println("c ---------------------------------");

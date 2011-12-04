@@ -1,8 +1,10 @@
 package edacc.configurator.aac;
 
 import java.util.HashMap;
+import java.util.List;
 
 import edacc.api.costfunctions.CostFunction;
+import edacc.util.Pair;
 
 public class Parameters {
 	String hostname = "", user = "", password = "", database = "";
@@ -37,8 +39,10 @@ public class Parameters {
 	HashMap<String, String> racingMethodParams = new HashMap<String, String>();
 	
 	boolean simulation = false;
+	boolean simulation_generate_instance = false;
 	float simulation_multiplicator = 100.f;
 	int simulation_corecount = 8;
+	long simulation_seed = System.currentTimeMillis();
 	
 	public void showHelp(){
 		System.out.println("Parameters that should/can be specified in the configuration file!");
@@ -75,9 +79,93 @@ public class Parameters {
 		System.out.println("-----------------------\n");
 		System.out.println("---Simulation parameters---");
 		System.out.println("simulation = <1/0> (default = 0)");
+		System.out.println("simulation_generate_instance = <1/0> (default = 0): whether to generate an instance to be used in edacc or not");
 		System.out.println("simulation_multiplicator = <float> (default: 100): 1000 would be real time, 100 real time divided by 10, etc.");
 		System.out.println("simulation_corecount = <int> (default: 8): core count for computation units");
+		System.out.println("simulation_seed = <seed for simulation> (default = currentTime())");
 		System.out.println("-----------------------\n");
+	}
+	
+	public boolean parseParameters(List<Pair<String, String>> params) {
+		for (Pair<String, String> p : params) {
+			String key = p.getFirst();
+			String value = p.getSecond();
+			// database parameters
+			if ("host".equalsIgnoreCase(key))
+				hostname = value;
+			else if ("user".equalsIgnoreCase(key))
+				user = value;
+			else if ("password".equalsIgnoreCase(key))
+				password = value;
+			else if ("port".equalsIgnoreCase(key))
+				port = Integer.valueOf(value);
+			else if ("database".equalsIgnoreCase(key))
+				database = value;
+			// experiment parameters
+			else if ("idExperiment".equalsIgnoreCase(key))
+				idExperiment = Integer.valueOf(value);
+			else if ("jobCPUTimeLimit".equalsIgnoreCase(key))
+				jobCPUTimeLimit = Integer.valueOf(value);
+			else if ("deterministicSolver".equalsIgnoreCase(key))
+				deterministicSolver = Boolean.parseBoolean(value);
+			// parcours parameters
+			else if ("maxParcoursExpansionFactor".equalsIgnoreCase(key))
+				maxParcoursExpansionFactor = Integer.valueOf(value);
+			else if ("parcoursExpansionPerStep".equalsIgnoreCase(key))
+				parcoursExpansionPerStep = Integer.valueOf(value);
+			else if ("initialDefaultParcoursLength".equalsIgnoreCase(key))
+				initialDefaultParcoursLength = Integer.valueOf(value);
+			// configurator parameters
+			else if ("seedSearch".equalsIgnoreCase(key))
+				seedSearch = Long.valueOf(value);
+			else if ("seedRacing".equalsIgnoreCase(key))
+				seedRacing = Long.valueOf(value);
+
+			else if ("searchMethod".equalsIgnoreCase(key))
+				searchMethod = value;
+			else if (key.equalsIgnoreCase("racingMethod"))
+				racingMethod = value;
+
+			else if (key.startsWith(searchMethod + "_"))
+				searchMethodParams.put(key, value);
+			else if (key.startsWith(racingMethod + "_"))
+				racingMethodParams.put(key, value);
+
+			else if ("minEvalsNewSC".equalsIgnoreCase(key))
+				minE = Integer.parseInt(value);// TODO: minE muss kleiner sein
+												// als
+												// initialDefaultParcoursLength
+
+			else if ("costFunction".equalsIgnoreCase(key))
+				costFunc = value;
+			else if ("minimize".equalsIgnoreCase(key))
+				minimize = Boolean.parseBoolean(value);
+
+			else if (key.equalsIgnoreCase("maxTuningTime"))
+				maxTuningTime = Integer.valueOf(value);
+			else if (key.equalsIgnoreCase("minCPUCount"))
+				minCPUCount = Integer.valueOf(value);
+			else if (key.equalsIgnoreCase("maxCPUCount"))
+				maxCPUCount = Integer.valueOf(value);
+			// simulation parameters
+			else if (key.equalsIgnoreCase("simulation"))
+				simulation = Boolean.parseBoolean(value);
+			else if (key.equalsIgnoreCase("simulation_generate_instance"))
+				simulation_generate_instance = Boolean.parseBoolean(value);
+			else if (key.equalsIgnoreCase("simulation_corecount"))
+				simulation_corecount = Integer.parseInt(value);
+			else if (key.equalsIgnoreCase("simulation_multiplicator"))
+				simulation_multiplicator = Float.parseFloat(value);
+			else if (key.equalsIgnoreCase("simulation_seed"))
+				simulation_seed = Long.parseLong(value);
+
+			else {
+				System.err.println("unrecognized parameter:" + " '" + key + "' " + " terminating! \n Valid Parameters for AACE:");
+				showHelp();
+				return false;
+			}
+		}
+		return true;
 	}
 
 	public boolean isDeterministicSolver() {
