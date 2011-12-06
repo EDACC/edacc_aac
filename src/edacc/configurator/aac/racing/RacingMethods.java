@@ -35,7 +35,7 @@ public abstract class RacingMethods {
 	 */
 	public abstract int computeOptimalExpansion(int computationCoreCount, int computationJobCount, int listNewSCSize);
 	
-	public abstract String toString();
+	public abstract void listParameters();
 	public int getNumCompCalls(){
 		return this.numCompCalls;
 	}

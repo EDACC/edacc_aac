@@ -30,4 +30,10 @@ public class ROAR extends SearchMethods {
 		return res;
 	}
 
+	@Override
+	public void listParameters() {
+		// TODO Auto-generated method stub
+		
+	}
+
 }

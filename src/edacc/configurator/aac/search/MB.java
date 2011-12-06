@@ -29,4 +29,10 @@ public class MB extends SearchMethods {
 		return res;
 	}
 
+	@Override
+	public void listParameters() {
+		// TODO Auto-generated method stub
+		
+	}
+
 }
