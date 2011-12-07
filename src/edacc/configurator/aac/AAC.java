@@ -106,6 +106,10 @@ public class AAC {
 		racing = (RacingMethods) ClassLoader.getSystemClassLoader()
 				.loadClass("edacc.configurator.aac.racing." + params.racingMethod).getDeclaredConstructors()[0]
 				.newInstance(this, rngRacing, api, parameters);
+		parameters.listParameters();
+		search.listParameters();
+		racing.listParameters();
+		
 	}
 
 	/**
@@ -373,7 +377,7 @@ public class AAC {
 				}
 				log("c " + statNumSolverConfigs + "SC -> Generated " + numNewSC + " new solver configurations");
 			} else {
-				int sleepTime = 2500;
+				int sleepTime = parameters.pollingInterval;
 				if (api instanceof APISimulation) {
 					sleepTime /= (1000.f / parameters.simulationMultiplicator);
 				}

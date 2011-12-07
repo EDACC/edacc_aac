@@ -1,5 +1,8 @@
 package edacc.configurator.aac;
 
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 
@@ -9,7 +12,7 @@ import edacc.util.Pair;
 public class Parameters {
 	String hostname = "", user = "", password = "", database = "";
 	int port = 3306;
-	
+	int pollingInterval=2500; //value in ms
 	int idExperiment = 0;
 	int jobCPUTimeLimit = 10;
 	boolean deterministicSolver = false;
@@ -53,27 +56,28 @@ public class Parameters {
 	 */
 	public void listParameters(){
 		if (pnp){
-			System.out.println("\nParameters that are supported by EAAC version ... with their default values:");
-			System.out.println("If no default value listed -> specified by user!\n");
+			System.out.println("\n%Parameters that are supported by EAAC version ... with their default values:");
+			System.out.println("%If no default value listed -> specified by user!\n");
 		}
-		System.out.println("---Database parameters---");
+		System.out.println("%---Database parameters---");
 		System.out.println("host = "+this.hostname+ (pnp?" (name or IP of database host)":""));
 		System.out.println("user = " + this.user + (pnp?" (database user)":""));
 		System.out.println("password = " + this.password + (pnp?" (database user password)":""));
 		System.out.println("port = "+ this.port + (pnp?"(database server port)":""));
 		System.out.println("database = " + this.database + (pnp?" (name of database to use)":""));
-		System.out.println("-----------------------\n");
-		System.out.println("---Experiment parameters---");
+		System.out.println("pollingIntervall = " + this.pollingInterval + (pnp?" <int>(number of ms between two polls)":""));
+		System.out.println("%-----------------------\n");
+		System.out.println("%---Experiment parameters---");
 		System.out.println("idExperiment = " + this.idExperiment + (pnp?" <int>(id of experiment to run the configurator on)":""));
 		System.out.println("jobCPUTimeLimit = " +this.jobCPUTimeLimit + (pnp?" <int>(maximum number of CPU seconds a job is allowed to run)":""));
 		System.out.println("deterministicSolver = " + this.deterministicSolver + (pnp?" <boolean>(0 for stochastic / 1 for determinisitc)":""));
-		System.out.println("-----------------------\n");
-		System.out.println("---Parcours parameters---");
+		System.out.println("%-----------------------\n");
+		System.out.println("%---Parcours parameters---");
 		System.out.println("maxParcoursExpansionFactor = " + this.maxParcoursExpansionFactor + (pnp?" <int>(maxParcoursLength = maxParcoursExpansionFactor x numInstances)":""));
 		System.out.println("parcoursExpansionPerStep = " + this.parcoursExpansionPerStep + (pnp?" <int>(number of jobs the parcours is expanded in each step)":""));
 		System.out.println("initialDefaultParcoursLength = " + this.initialDefaultParcoursLength + (pnp?" <int>(initial length of the parcours)":""));
-		System.out.println("-----------------------\n");
-		System.out.println("---Configurator parameters---");
+		System.out.println("%-----------------------\n");
+		System.out.println("%---Configurator parameters---");
 		System.out.println("searchSeed =  " + this.searchSeed + (pnp?" <long>(seed for search method)":""));
 		System.out.println("racingSeed = " + this.racingSeed + (pnp?" <long>(seed for racing method)":""));
 		System.out.println("searchMethod = " + this.searchMethod + (pnp?" <string>(method used to generate new SC)":""));
@@ -87,15 +91,27 @@ public class Parameters {
 		System.out.println("minCPUCount = " + this.minCPUCount + (pnp?" <int>(minimum number of CPU that should be available before starting the configuration proccess (0 no limitation))":""));
 		System.out.println("maxCPUCount = " + this.maxCPUCount + (pnp?" <int>(maximum number of CPU that should be available before starting the configuration proccess (0 no limitation))":""));
 		System.out.println("deleteSolverConfigs = " + this.deleteSolverConfigs + (pnp?" <boolean>(wheater to delete bad solver configs from DB or not)":""));
-		System.out.println("-----------------------\n");
-		System.out.println("---Simulation parameters---");
+		System.out.println("%-----------------------\n");
+		System.out.println("%---Simulation parameters---");
 		System.out.println("simulation = " + this.simulation + (pnp?" <boolean>(simulate configuration proccess within an full matrix experiment)":""));
 		System.out.println("simulationGenerateInstance = " + this.simulationGenerateInstance + (pnp? " <boolean>(whether to generate an instance to be used in edacc or not)":""));
 		System.out.println("simulationMultiplicator = " + this.simulationMultiplicator + (pnp?" <float>(1000 would be real time, 100 real time divided by 10, etc.)":""));
 		System.out.println("simulationCorecount = " +this.simulationCorecount + (pnp?" <int>(core count for computation units)":""));
 		System.out.println("simulationSeed = " + this.simulationSeed + (pnp?" <long>(seed for simulation)":""));
-		System.out.println("-----------------------\n");
+		System.out.println("%-----------------------\n");
 		//TODO : add parameter that generated generic config file!
+	}
+	
+	public void generateGenericConfigFile(){//TODO
+		try 
+		{
+			FileWriter fstream = new FileWriter("generic_config");
+			BufferedWriter outputConfig = new BufferedWriter(fstream);
+		} catch (IOException e) {
+			
+			e.printStackTrace();
+		}
+		
 	}
 	
 	public boolean parseParameters(List<Pair<String, String>> params) {
@@ -128,9 +144,9 @@ public class Parameters {
 			else if ("initialDefaultParcoursLength".equalsIgnoreCase(key))
 				initialDefaultParcoursLength = Integer.valueOf(value);
 			// configurator parameters
-			else if ("seedSearch".equalsIgnoreCase(key))
+			else if ("searchSeed".equalsIgnoreCase(key))
 				searchSeed = Long.valueOf(value);
-			else if ("seedRacing".equalsIgnoreCase(key))
+			else if ("racingSeed".equalsIgnoreCase(key))
 				racingSeed = Long.valueOf(value);
 
 			else if ("searchMethod".equalsIgnoreCase(key))
@@ -162,19 +178,20 @@ public class Parameters {
 			// simulation parameters
 			else if (key.equalsIgnoreCase("simulation"))
 				simulation = Boolean.parseBoolean(value);
-			else if (key.equalsIgnoreCase("simulation_generate_instance"))
+			else if (key.equalsIgnoreCase("simulationGenerateInstance"))
 				simulationGenerateInstance = Boolean.parseBoolean(value);
-			else if (key.equalsIgnoreCase("simulation_corecount"))
+			else if (key.equalsIgnoreCase("simulationCorecount"))
 				simulationCorecount = Integer.parseInt(value);
-			else if (key.equalsIgnoreCase("simulation_multiplicator"))
+			else if (key.equalsIgnoreCase("simulationMultiplicator"))
 				simulationMultiplicator = Float.parseFloat(value);
-			else if (key.equalsIgnoreCase("simulation_seed"))
+			else if (key.equalsIgnoreCase("simulationSeed"))
 				simulationSeed = Long.parseLong(value);
 
 			else {
 				System.err.println("unrecognized parameter:" + " '" + key + "' " + " terminating! \n Valid Parameters for EAAC:");
 				listParameters();
 				return false;
+				
 			}
 		}
 		if (simulation) //within simultations do NOT delete Solver Configurations!!!

@@ -27,8 +27,8 @@ public class STTRace extends RacingMethods {
 
 	// Threshold for the test
 	private double a;
-	// min number of evaluations and max number of evaluations
-	private int minE, maxE;
+	// max number of evaluations
+	private int maxE;
 	// minimum number of evaluations to beat best
 	private int minEB;
 	// add random jobs from best or follow parcours?
@@ -45,7 +45,6 @@ public class STTRace extends RacingMethods {
 	public STTRace(AAC pacc, Random rng, API api, Parameters parameters) throws SQLException {
 		super(pacc, rng, api, parameters);
 		this.a = 0.6;
-		this.minE = parameters.getInitialDefaultParcoursLength();
 		this.minEB = 10;
 		incumbentNumber = 0;
 		num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment())
@@ -56,8 +55,6 @@ public class STTRace extends RacingMethods {
 		String val;
 		if ((val = parameters.getRacingMethodParameters().get("STTRace_a")) != null)
 			this.a = Double.parseDouble(val);
-		if ((val = parameters.getRacingMethodParameters().get("STTRace_minEB")) != null)
-			this.minEB = Integer.parseInt(val);
 		if ((val = parameters.getRacingMethodParameters().get("STTRace_randJob")) != null)
 			this.randJob = Boolean.parseBoolean(val);
 		if (this.minEB < 0) {
@@ -265,12 +262,14 @@ public class STTRace extends RacingMethods {
 					pacc.addSolverConfigurationToListNewSC(bestSC);
 					pacc.addSolverConfigurationToListNewSC(sc);
 				} else if (sc.getJobCount() < bestSC.getJobCount()) {
-					pacc.log("c Expanding parcours of solver config " + sc.getNumber() + " by 1");
 					if (this.randJob) {
+						pacc.log("c Expanding parcours of solver config " + sc.getNumber() + " by 1 random job from best");
 						int generated = pacc.addRandomJob(1, sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
+						
 						pacc.log("c Generated " + generated + " jobs for solver config id "
 								+ sc.getIdSolverConfiguration());
 					} else {
+						pacc.log("c Expanding parcours of solver config " + sc.getNumber() + " by 1");
 						pacc.expandParcoursSC(sc, 1);
 					}
 					pacc.addSolverConfigurationToListNewSC(sc);
@@ -301,10 +300,10 @@ public class STTRace extends RacingMethods {
 		int gen;
 		for (SolverConfiguration sc : scs) {
 			if (this.randJob) {
-				gen = pacc.addRandomJob(minE, sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
+				gen = pacc.addRandomJob(parameters.getMinRuns(), sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
 				System.out.println("added ->" + gen);
 			} else {
-				pacc.expandParcoursSC(sc, minE);
+				pacc.expandParcoursSC(sc, parameters.getMinRuns());
 			}
 			pacc.addSolverConfigurationToListNewSC(sc);
 		}
@@ -332,22 +331,16 @@ public class STTRace extends RacingMethods {
 			res = 1;
 		}
 		return res;
-		/*
-		 * TODO: was geschickteres implementieren, denn von diesem Wert haengt
-		 * sehr stark der Grad der parallelisierung statt. denkbar ware noch
-		 * api.getNumComputingUnits(); wenn man die Methode haette. eine andere
-		 * geschicktere Moeglichkeit ist es: Anzahl cores = numCores Größe der
-		 * besseren solver configs in letzter runde = numBests Anzahl der jobs
-		 * die in der letzten Iteration berechnet wurden = numJobs Anzahl der
-		 * neuen solver configs beim letzten Aufruf zurückgeliefert wurden =
-		 * lastExpansion CPUTimeLimit = time Dann kann man die Anzahl an neuen
-		 * konfigs berechnen durch newNumConfigs = TODO
-		 */
 	}
 
 	@Override
 	public void listParameters() {
-		// TODO Auto-generated method stub
+		System.out.println("---STTRace parameters---");
+		System.out.println("STTRace_a= "+this.a+ "(constant to compute the threshold for passing the t-test = 2*a/n)");
+		System.out.println("STTRace_randJob = " + this.randJob + "(wheater to pick random jobs from best for new configs)");
+		System.out.println("STTRace_minEB = " + this.minEB + "(minimum number of jobs to beat best; only valid when randJob=false)");
+		System.out.println("-----------------------\n");
+		
 		
 	}
 
