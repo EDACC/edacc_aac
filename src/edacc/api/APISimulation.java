@@ -437,6 +437,9 @@ public class APISimulation extends APIImpl {
 			}
 			er = ExperimentResultDAO.getById(idJob);
 		}
+		if (er == null) {
+			throw new IllegalArgumentException("No such job found. (idExperiment, idSolverConfig, idInstance, seed) = (" + idExperiment + "," + idSolverConfig + "," + idInstance + "," + seed.longValue() + ")");
+		}
 		ExperimentResultWrapper ew = new ExperimentResultWrapper(er, priority);
 		mapExperimentResults.put(ew.getId(), ew);
 		jobsWaiting.add(ew);
