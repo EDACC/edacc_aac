@@ -7,6 +7,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.util.Collections;
+import java.util.Formatter;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -41,7 +42,7 @@ public class APISimulation extends APIImpl {
 		ExperimentResultWrapper currentJob;
 		long currentJobEndTime;
 		public Client() {
-			idleSince = System.currentTimeMillis();
+			idleSince = currentTime; //System.currentTimeMillis();
 		}
 
 		public void startJob(ExperimentResultWrapper ew) {
@@ -58,14 +59,15 @@ public class APISimulation extends APIImpl {
 			if (currentJob.er.getStatus().equals(StatusCode.SUCCESSFUL)) {
 				cpuTime = currentJob.er.getResultTime();
 			}
-			currentJobEndTime = currentJob.startTime + Math.round(cpuTime * multiplicator);
+			currentJobEndTime = currentJob.startTime + Math.round(cpuTime * 1000);
 			checkJob();
 		}
 
 		public void checkJob() {
 			if (currentJob == null)
 				return;
-			if (System.currentTimeMillis() >= currentJobEndTime) {
+			//if (System.currentTimeMillis() >= currentJobEndTime) {
+			if (currentTime >= currentJobEndTime) {
 				currentJob.status = currentJob.er.getStatus();
 				idleSince = currentJobEndTime;
 				currentJob = null;
@@ -100,7 +102,7 @@ public class APISimulation extends APIImpl {
 			this.er = er;
 			this.status = StatusCode.NOT_STARTED;
 			this.priority = priority;
-			this.creationTime = System.currentTimeMillis();
+			this.creationTime = currentTime; // System.currentTimeMillis();
 			this.startTime = 0;
 		}
 
@@ -298,11 +300,11 @@ public class APISimulation extends APIImpl {
 	private HashMap<JobIdentifier, ExperimentResult> dbJobs = null;
 
 	private long overhead_overall, overhead_launchjob;
-	private float multiplicator = 100.f;
 	private Course course;
 	private int coreCount;
 	private List<ExperimentResultWrapper> jobsWaiting;
 	private Random rng;
+	long currentTime;
 	
 	// every client has exactly one core
 	private List<Client> clients;
@@ -631,12 +633,11 @@ public class APISimulation extends APIImpl {
 		System.out.println("[APISimulation] Done.");
 	}
 
-	public APISimulation(int coreCount, float multiplicator, Random rng) throws SQLException {
+	public APISimulation(int coreCount, Random rng) throws SQLException {
 		super();
-		if (coreCount <= 0 || multiplicator < 0.f) {
-			throw new IllegalArgumentException("Core count must be greater than zero and multiplicator must be greater or equal zero.");
+		if (coreCount <= 0) {
+			throw new IllegalArgumentException("Core count must be greater than zero.");
 		}
-		this.multiplicator = multiplicator;
 		this.coreCount = coreCount;
 		this.rng = rng;
 		jobsWaiting = new LinkedList<ExperimentResultWrapper>();
@@ -649,10 +650,17 @@ public class APISimulation extends APIImpl {
 		}
 		overhead_overall = 0;
 		overhead_launchjob = 0;
+		currentTime = 0;
+	}
+	
+	public void incrementTime(long time) {
+		currentTime += time;
 	}
 	
 	public void printStats() {
+		Formatter f = new Formatter();
 		System.out.println("[APISimulation] Overhead time: " + overhead_overall);
 		System.out.println("[APISimulation] Overhead launch job: " + overhead_launchjob);
+		System.out.println("[APISimulation] Real wall time: " + f.format("%.3f sec", currentTime / 1000.f));
 	}
 }

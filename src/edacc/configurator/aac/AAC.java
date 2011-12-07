@@ -82,16 +82,15 @@ public class AAC {
 		if (params.simulation) {
 			Random rng = new edacc.util.MersenneTwister(params.simulationSeed);
 			log("Simulation flag set, using simulation api.");
-			api = new APISimulation(params.simulationCorecount, params.simulationMultiplicator, rng);
-		} else {
-			api = new APIImpl();
-		}
-		boolean compress = (api instanceof APISimulation) ? true : false;
-		api.connect(params.hostname, params.port, params.database, params.user, params.password, compress);
-		if (api instanceof APISimulation) {
+			api = new APISimulation(params.simulationCorecount, rng);
+			api.connect(params.hostname, params.port, params.database, params.user, params.password, true);
 			((APISimulation) api).generateCourse(params.idExperiment);
 			((APISimulation) api).cacheJobs(params.idExperiment);
+		} else {
+			api = new APIImpl();
+			api.connect(params.hostname, params.port, params.database, params.user, params.password);
 		}
+		
 		this.graph = api.loadParameterGraphFromDB(params.idExperiment);
 		params.setStatistics(api.costFunctionByName(params.costFunc), params.minimize);
 		rngSearch = new edacc.util.MersenneTwister(params.searchSeed);
@@ -347,6 +346,7 @@ public class AAC {
 				listNewSC.put(sc.getIdSolverConfiguration(), sc);
 			}
 
+			boolean generatedSCs = false;
 			if (generateNumSC > 0) {
 				int numNewSC = 0;
 				if (generateNumSC >= 210) {
@@ -375,13 +375,16 @@ public class AAC {
 					}
 					racing.solverConfigurationsCreated(tmpList);
 				}
-				log("c " + statNumSolverConfigs + "SC -> Generated " + numNewSC + " new solver configurations");
-			} else {
+				log("c " + statNumSolverConfigs + "SC -> Generated " + tmpList.size() + " new solver configurations");
+				generatedSCs = (!tmpList.isEmpty());
+			} 
+			if (!generatedSCs) {
 				int sleepTime = parameters.pollingInterval;
 				if (api instanceof APISimulation) {
-					sleepTime /= (1000.f / parameters.simulationMultiplicator);
+					((APISimulation) api).incrementTime(sleepTime);
+				} else {
+					Thread.sleep(sleepTime);
 				}
-				Thread.sleep(sleepTime);
 			}
 			// TODO : implement a method that determines an optimal wait
 			// according to the runtimes of the jobs!
@@ -550,6 +553,14 @@ public class AAC {
 						+ sc.getNumFinishedJobs() + "/" + sc.getJobCount() + " ID: " + sc.getIdSolverConfiguration());
 	}
 
+	public void sleep(long millis) throws InterruptedException {
+		if (api instanceof APISimulation) {
+			((APISimulation) api).incrementTime(millis);
+		} else {
+			Thread.sleep(millis);
+		}
+	}
+	
 	/**
 	 * Parses the configuration file and starts the configurator.
 	 * 

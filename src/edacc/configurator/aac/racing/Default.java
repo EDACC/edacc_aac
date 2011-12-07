@@ -97,7 +97,7 @@ public class Default extends RacingMethods {
 				if (bestSC.getNotStartedJobs().isEmpty() && bestSC.getRunningJobs().isEmpty()) {
 					break;
 				}
-				Thread.sleep(1000);
+				pacc.sleep(1000);
 			}
 		} else {
 			pacc.updateJobsStatus(bestSC);

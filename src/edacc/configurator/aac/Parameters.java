@@ -44,7 +44,6 @@ public class Parameters {
 	
 	boolean simulation = false;
 	boolean simulationGenerateInstance = false;
-	float simulationMultiplicator = 100.f;
 	int simulationCorecount = 8;
 	long simulationSeed = searchSeed;
 	
@@ -94,8 +93,10 @@ public class Parameters {
 		System.out.println("%-----------------------\n");
 		System.out.println("%---Simulation parameters---");
 		System.out.println("simulation = " + this.simulation + (pnp?" <boolean>(simulate configuration proccess within an full matrix experiment)":""));
-		System.out.println("simulationGenerateInstance = " + this.simulationGenerateInstance + (pnp? " <boolean>(whether to generate an instance to be used in edacc or not)":""));
-		System.out.println("simulationMultiplicator = " + this.simulationMultiplicator + (pnp?" <float>(1000 would be real time, 100 real time divided by 10, etc.)":""));
+		// TODO: maybe implement
+		// System.out.println("simulationGenerateInstance = " + this.simulationGenerateInstance + (pnp? " <boolean>(whether to generate an instance to be used in edacc or not)":""));
+		// if specified a serialized output of the experiment result cache + solver config cache will be generated and can be used as input instance
+		// simulation process could be started without a connection to the db => no traffic needed after downloading the instance
 		System.out.println("simulationCorecount = " +this.simulationCorecount + (pnp?" <int>(core count for computation units)":""));
 		System.out.println("simulationSeed = " + this.simulationSeed + (pnp?" <long>(seed for simulation)":""));
 		System.out.println("%-----------------------\n");
@@ -182,8 +183,6 @@ public class Parameters {
 				simulationGenerateInstance = Boolean.parseBoolean(value);
 			else if (key.equalsIgnoreCase("simulationCorecount"))
 				simulationCorecount = Integer.parseInt(value);
-			else if (key.equalsIgnoreCase("simulationMultiplicator"))
-				simulationMultiplicator = Float.parseFloat(value);
 			else if (key.equalsIgnoreCase("simulationSeed"))
 				simulationSeed = Long.parseLong(value);
 
