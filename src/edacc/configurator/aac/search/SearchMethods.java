@@ -26,7 +26,5 @@ public abstract class SearchMethods {
 	 */
 	public abstract List<SolverConfiguration> generateNewSC(int num, SolverConfiguration currentBestSC) throws Exception;
 	
-	public String toString(){
-		return "\ntodo implement a toString - method for all search procedures!\n";
-	}
+	public abstract void listParameters();
 }

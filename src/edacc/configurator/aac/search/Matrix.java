@@ -43,4 +43,10 @@ public class Matrix extends SearchMethods {
 		}
 		return scs;
 	}
+
+	@Override
+	public void listParameters() {
+		// TODO Auto-generated method stub
+		
+	}
 }

@@ -80,9 +80,9 @@ public class AAC {
 	public AAC(Parameters params) throws Exception {
 		
 		if (params.simulation) {
-			Random rng = new edacc.util.MersenneTwister(params.simulation_seed);
+			Random rng = new edacc.util.MersenneTwister(params.simulationSeed);
 			log("Simulation flag set, using simulation api.");
-			api = new APISimulation(params.simulation_corecount, params.simulation_multiplicator, rng);
+			api = new APISimulation(params.simulationCorecount, params.simulationMultiplicator, rng);
 		} else {
 			api = new APIImpl();
 		}
@@ -94,8 +94,8 @@ public class AAC {
 		}
 		this.graph = api.loadParameterGraphFromDB(params.idExperiment);
 		params.setStatistics(api.costFunctionByName(params.costFunc), params.minimize);
-		rngSearch = new edacc.util.MersenneTwister(params.seedSearch);
-		rngRacing = new edacc.util.MersenneTwister(params.seedRacing);
+		rngSearch = new edacc.util.MersenneTwister(params.searchSeed);
+		rngRacing = new edacc.util.MersenneTwister(params.racingSeed);
 		listNewSC = new HashMap<Integer, SolverConfiguration>();
 		this.statNumSolverConfigs = 0;
 		this.statNumJobs = 0;
@@ -106,6 +106,10 @@ public class AAC {
 		racing = (RacingMethods) ClassLoader.getSystemClassLoader()
 				.loadClass("edacc.configurator.aac.racing." + params.racingMethod).getDeclaredConstructors()[0]
 				.newInstance(this, rngRacing, api, parameters);
+		parameters.listParameters();
+		search.listParameters();
+		racing.listParameters();
+		
 	}
 
 	/**
@@ -373,9 +377,9 @@ public class AAC {
 				}
 				log("c " + statNumSolverConfigs + "SC -> Generated " + numNewSC + " new solver configurations");
 			} else {
-				int sleepTime = 2500;
+				int sleepTime = parameters.pollingInterval;
 				if (api instanceof APISimulation) {
-					sleepTime /= (1000.f / parameters.simulation_multiplicator);
+					sleepTime /= (1000.f / parameters.simulationMultiplicator);
 				}
 				Thread.sleep(sleepTime);
 			}
@@ -557,7 +561,7 @@ public class AAC {
 		if (args.length < 1) {
 			System.out.println("Missing configuration file. Use java -jar PROAR.jar <config file path> [<key=value>]*");
 			System.out.println("If <key=value> pairs are given, config parameters will be overwritten.");
-			params.showHelp();
+			params.listParameters();
 			return;
 		}
 		Scanner scanner = new Scanner(new File(args[0]));
@@ -583,7 +587,7 @@ public class AAC {
 			return;
 		}
 		AAC configurator = new AAC(params);
-		System.out.println("c Starting the PROAR configurator with following settings: \n" + params +  configurator.racing.toString()+ configurator.search.toString());
+		System.out.println("c Starting the EAAC configurator with following settings: \n" + params +  configurator.racing.toString()+ configurator.search.toString());
 		System.out.println("c ---------------------------------");
 		configurator.start();
 		configurator.shutdown();

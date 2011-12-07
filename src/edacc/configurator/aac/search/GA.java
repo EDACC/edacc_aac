@@ -370,4 +370,10 @@ public class GA extends SearchMethods {
 			return GA.this;
 		}
 	}
+
+	@Override
+	public void listParameters() {
+		// TODO Auto-generated method stub
+		
+	}
 }

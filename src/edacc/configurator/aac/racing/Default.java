@@ -11,8 +11,6 @@ import edacc.configurator.aac.SolverConfiguration;
 import edacc.model.ConfigurationScenarioDAO;
 
 public class Default extends RacingMethods {
-	private static final boolean deleteSolverConfigs = false;
-
 	SolverConfiguration bestSC;
 	int incumbentNumber;
 	int num_instances;
@@ -64,7 +62,7 @@ public class Default extends RacingMethods {
 			} else {// lost against best on part of the actual
 					// parcours:
 				sc.setFinished(true);
-				if (deleteSolverConfigs)
+				if (parameters.isDeleteSolverConfigs())
 					api.removeSolverConfig(sc.getIdSolverConfiguration());
 				pacc.log("d Solver config " + sc.getIdSolverConfiguration() + " with cost " + sc.getCost() + " lost against best solver config on " + sc.getJobCount() + " runs.");
 				if (bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
@@ -142,6 +140,12 @@ public class Default extends RacingMethods {
 		 * lastExpansion CPUTimeLimit = time Dann kann man die Anzahl an neuen
 		 * konfigs berechnen durch newNumConfigs = TODO
 		 */
+	}
+
+	@Override
+	public void listParameters() {
+		// TODO Auto-generated method stub
+		
 	}
 
 }
