@@ -16,20 +16,68 @@ import edacc.parameterspace.graph.ParameterGraph;
 import edacc.util.Pair;
 
 public class GA extends SearchMethods {
+	/**
+	 * Cache the parameter graph, will be used often
+	 */
 	private ParameterGraph graph;
+	/**
+	 * This is the population which can be used for crossover. The corresponding solver config for each individual is marked as
+	 * finished by the racing method
+	 */
 	private List<Individual> population;
+	/**
+	 * Generated individuals, but currently not used. They will be used until the corresponding solver config is marked as finished
+	 * by the racing method
+	 */
 	private List<Individual> oldIndividuals;
+	/**
+	 * The currently best individual found so far, should be the corresponding individual to the best solver config from the racing method
+	 */
 	private Individual bestInd;
-	HashSet<ParameterConfiguration> createdParamConfigs;
-	
+	/**
+	 * Used to determine if a new solver config was already generated
+	 */
+	private HashSet<ParameterConfiguration> createdParamConfigs;
+	/**
+	 * If a solver configuration should be generated via random/random-neighbour search, with this probability random-neighbour search 
+	 * will be used. random otherwise. (Maybe this should be adaptive)
+	 */
 	private float probN = 0.6f;
-	private int maxAge = 100;
+	/**
+	 * @see time
+	 */
+	private int maxAge = 30;
+	/**
+	 * If we have individuals generated via crossover, then this is the probability whether to do a mutation afterwards or not. 
+	 */
 	private float mutationProb = 0.1f;
+	/**
+	 * a maximum of crossoverPercentage * (# solver configs to be generated) will be generated via crossover
+	 * a minimum of (1-crossoverPercentage) * (# solver configs to be generated) will be generated via random/random-neighbour
+	 */
 	private float crossoverPercentage = 0.6f;
-	private int childCountLimit = 12;
+	/**
+	 * maximum number of children for a solver configuration.
+	 * calculation for each sc generated: min{(# successful runs) / 2, childCountLimit};
+	 */
+	private int childCountLimit = 120;
+	/**
+	 * Every individual has its family tree. This value determines how old the youngest common ancestor must be at a minimum.
+	 */
 	private int minSameAncestorAgeDiff = 70;
+	/**
+	 * Will be incremented by one for every newly generated individual. Is then used as its id and influences the hash value of
+	 * the individual.
+	 */
 	private static int idCounter = 0;
+	/**
+	 * current time, used to see whether maxAge is reached.
+	 * will be updated on every solver config generated. time := (#solver configs generated)/100
+	 */
 	private static int time = 0;
+	/**
+	 * Incremented by (# generated solver configs) after every generateNewSC call. 
+	 */
 	private static int genSC = 0;
 	public GA(API api, Random rng, Parameters parameters) throws Exception {
 		super(api, rng, parameters);
@@ -89,13 +137,17 @@ public class GA extends SearchMethods {
 
 		System.out.println("[GA] GA generate Solver configs: " + num);
 		System.out.println("[GA] Population size: " + population.size());
+		
+		// remove all individuals which died, i.e. they have enough children or the maxAge is reached.
 		for (int i = population.size()-1; i >= 0; i--) {
 			if (population.get(i).getAge(time) > maxAge || population.get(i).getChildCount() > population.get(i).getMaxChildCount()) {
 				population.remove(i);
 			}
 		}
+		
+		// determine which individuals can be used from the oldIndividuals-list. The corresponding solver config must be marked as
+		// finished and they must have more than one run.
 		int index = 0;
-
 		while (oldIndividuals.size() > index) {
 			Individual cur = oldIndividuals.get(index);
 			if (!cur.getSolverConfig().isFinished()) {
@@ -118,6 +170,8 @@ public class GA extends SearchMethods {
 			} 
 		}
 		System.out.println("[GA] Sorting solver configurations");
+		// TODO: write a sort method for solver configurations!!
+		// currently shuffling, but crossover "thinks" that the best solver configuration is the last one
 		Collections.shuffle(population, rng);
 		
 		float avg = 0.f;
@@ -138,6 +192,8 @@ public class GA extends SearchMethods {
 		
 		int noPartner = 0;
 		while (res.size() < Math.ceil(crossoverPercentage * num) && best.size() >= 2) {
+			// use the best solver configuration and a random solver configuration for crossover
+			// constraint: minSameAncestorAgeDiff must be satisfied
 			Individual m = best.pollLast();
 			Individual f = null;
 			for (Individual ind : best) {
@@ -155,11 +211,14 @@ public class GA extends SearchMethods {
 				}
 			}
 			if (f == null) {
+				// we didn't find any partner for this solver configuration
+				// will do mutation on that one.
 				noPartner++;
 				
 				ParameterConfiguration pConfig = new ParameterConfiguration(m.getSolverConfig().getParameterConfiguration()); 
 				graph.mutateParameterConfiguration(rng, pConfig);
 				int mutationCount = 1;
+				// repeat mutation until we have a unique parameter configuration
 				while (true) {
 					if (!createdParamConfigs.contains(pConfig)) {
 						createdParamConfigs.add(pConfig);
@@ -180,13 +239,14 @@ public class GA extends SearchMethods {
 				continue;
 			}
 			best.remove(f);
-
+			// found partner f: do crossover
 			
 			Pair<ParameterConfiguration, ParameterConfiguration> configs = graph.crossover(m.getSolverConfig().getParameterConfiguration(), f.getSolverConfig().getParameterConfiguration(), rng);
 
 			int firstMutationCount = 0;
 			int secondMutationCount = 0;
 			
+			// determine if mutation should be done for each child
 			if (rng.nextFloat() < mutationProb) {
 				graph.mutateParameterConfiguration(rng, configs.getFirst());
 				firstMutationCount++;
@@ -196,6 +256,7 @@ public class GA extends SearchMethods {
 				secondMutationCount++;
 			}
 			
+			// be sure that those children are unique
 			while (true) {
 				if (!createdParamConfigs.contains(configs.getFirst())) {
 					createdParamConfigs.add(configs.getFirst());
@@ -207,7 +268,6 @@ public class GA extends SearchMethods {
 				graph.mutateParameterConfiguration(rng, configs.getFirst());
 				firstMutationCount++;
 			}
-			
 			while (true) {
 				if (!createdParamConfigs.contains(configs.getSecond())) {
 					createdParamConfigs.add(configs.getSecond());
@@ -220,6 +280,8 @@ public class GA extends SearchMethods {
 				secondMutationCount++;
 			}
 			
+			// finally create the solver configurations
+			// and add corresponding individuals to oldIndividuals list
 			m.incrementChildCount();
 			f.incrementChildCount();
 
@@ -250,6 +312,7 @@ public class GA extends SearchMethods {
 			System.out.println("[GA] Did not find a partner for " + noPartner + " individuals.");
 		
 		while (res.size() != num) {
+			// do random/random-neighbour search for other solver configs.
 			boolean random = true;
 			ParameterConfiguration paramconfig;
 			SolverConfiguration nSC = null;
