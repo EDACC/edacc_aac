@@ -580,9 +580,13 @@ public class AAC {
 		List<Pair<String, String>> paramvalues = new LinkedList<Pair<String, String>>();
 		while (scanner.hasNextLine()) {
 			String line = scanner.nextLine();
-			if (line.trim().startsWith("%"))
+			if (line.trim().startsWith("%") || "".equals(line.trim()))
 				continue;
 			String[] keyval = line.split("=");
+			if (keyval.length != 2) {
+				System.err.println("Error while parsing: '" + line + "' in config. exiting.");
+				return;
+			}
 			String key = keyval[0].trim();
 			String value = keyval[1].trim();
 			paramvalues.add(new Pair<String, String>(key, value));
@@ -590,6 +594,10 @@ public class AAC {
 		scanner.close();
 		for (int i = 1; i < args.length; i++) {
 			String[] keyval = args[i].split("=");
+			if (keyval.length != 2) {
+				System.err.println("Error while parsing: '" + args[i] + "' in parameters. exiting.");
+				return;
+			}
 			paramvalues.add(new Pair<String, String>(keyval[0].trim(), keyval[1].trim()));
 		}
 		

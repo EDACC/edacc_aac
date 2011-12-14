@@ -64,7 +64,7 @@ public class Parameters {
 		System.out.println("password = " + this.password + (pnp?" (database user password)":""));
 		System.out.println("port = "+ this.port + (pnp?"(database server port)":""));
 		System.out.println("database = " + this.database + (pnp?" (name of database to use)":""));
-		System.out.println("pollingIntervall = " + this.pollingInterval + (pnp?" <int>(number of ms between two polls)":""));
+		System.out.println("pollingInterval = " + this.pollingInterval + (pnp?" <int>(number of ms between two polls)":""));
 		System.out.println("%-----------------------\n");
 		System.out.println("%---Experiment parameters---");
 		System.out.println("idExperiment = " + this.idExperiment + (pnp?" <int>(id of experiment to run the configurator on)":""));
@@ -130,6 +130,8 @@ public class Parameters {
 				port = Integer.valueOf(value);
 			else if ("database".equalsIgnoreCase(key))
 				database = value;
+			else if ("pollingInterval".equalsIgnoreCase(key))
+				pollingInterval = Integer.valueOf(value);
 			// experiment parameters
 			else if ("idExperiment".equalsIgnoreCase(key))
 				idExperiment = Integer.valueOf(value);
@@ -176,6 +178,8 @@ public class Parameters {
 				minCPUCount = Integer.valueOf(value);
 			else if (key.equalsIgnoreCase("maxCPUCount"))
 				maxCPUCount = Integer.valueOf(value);
+			else if (key.equalsIgnoreCase("deleteSolverConfigs"))
+				deleteSolverConfigs = Boolean.parseBoolean(value);
 			// simulation parameters
 			else if (key.equalsIgnoreCase("simulation"))
 				simulation = Boolean.parseBoolean(value);

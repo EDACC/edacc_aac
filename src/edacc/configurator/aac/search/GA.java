@@ -1,5 +1,6 @@
 package edacc.configurator.aac.search;
 
+import java.security.AccessControlContext;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -172,7 +173,7 @@ public class GA extends SearchMethods {
 		System.out.println("[GA] Sorting solver configurations");
 		// TODO: write a sort method for solver configurations!!
 		// currently shuffling, but crossover "thinks" that the best solver configuration is the last one
-		Collections.shuffle(population, rng);
+		Collections.sort(population);
 		
 		float avg = 0.f;
 		for (Individual i : population) {
@@ -195,6 +196,7 @@ public class GA extends SearchMethods {
 			// use the best solver configuration and a random solver configuration for crossover
 			// constraint: minSameAncestorAgeDiff must be satisfied
 			Individual m = best.pollLast();
+			System.out.println("[GA] Looking for partner for " + m.getSolverConfig().getIdSolverConfiguration() + " which has " + m.getSolverConfig().getNumSuccessfulJobs() + " successful jobs..");
 			Individual f = null;
 			for (Individual ind : best) {
 				boolean goodPartner = true;
@@ -214,7 +216,7 @@ public class GA extends SearchMethods {
 				// we didn't find any partner for this solver configuration
 				// will do mutation on that one.
 				noPartner++;
-				
+				System.out.println("[GA] Found no partner for " + m.getSolverConfig().getIdSolverConfiguration());
 				ParameterConfiguration pConfig = new ParameterConfiguration(m.getSolverConfig().getParameterConfiguration()); 
 				graph.mutateParameterConfiguration(rng, pConfig);
 				int mutationCount = 1;
@@ -240,7 +242,7 @@ public class GA extends SearchMethods {
 			}
 			best.remove(f);
 			// found partner f: do crossover
-			
+			System.out.println("[GA] Crossover: " + m.getSolverConfig().getIdSolverConfiguration() + " with " + f.getSolverConfig().getIdSolverConfiguration() + " - successful runs: " + m.getSolverConfig().getNumSuccessfulJobs() + " - " + f.getSolverConfig().getNumSuccessfulJobs());
 			Pair<ParameterConfiguration, ParameterConfiguration> configs = graph.crossover(m.getSolverConfig().getParameterConfiguration(), f.getSolverConfig().getParameterConfiguration(), rng);
 
 			int firstMutationCount = 0;
@@ -319,12 +321,23 @@ public class GA extends SearchMethods {
 			if (currentBestSC != null && rng.nextFloat() < probN) {
 				random = false;
 				if (population.size() == 0 || rng.nextFloat() < 0.5) {
+					System.out.println("[GA] random neighbour of " + currentBestSC.getIdSolverConfiguration() + " (best)");
 					nSC = currentBestSC;
 				} else {
-					nSC = population.get(rng.nextInt(population.size())).getSolverConfig();
+					int nSC_index = population.size() -1;
+					
+					for (int i = population.size() - 1; i >= 0; i--) {
+						if (rng.nextFloat() < 0.25) {
+							nSC_index = i;
+							break;
+						}
+					}
+					nSC = population.get(nSC_index).getSolverConfig();
+					System.out.println("[GA] random neighbour of " + nSC.getIdSolverConfiguration());
 				}
 				paramconfig = graph.getRandomNeighbour(nSC.getParameterConfiguration(), rng);
 			} else {
+				System.out.println("[GA] random solver configuration");
 				paramconfig = graph.getRandomConfiguration(rng);
 			}
 			int mutationCount = 0;
@@ -426,7 +439,8 @@ public class GA extends SearchMethods {
 
 		@Override
 		public int compareTo(Individual arg0) {
-			return sc.compareTo(arg0.sc);
+			//return sc.compareTo(arg0.sc);
+			return sc.getNumSuccessfulJobs() - arg0.getSolverConfig().getNumSuccessfulJobs();
 		}
 
 		private GA getOuterType() {
