@@ -563,7 +563,7 @@ public class APISimulation extends APIImpl {
 
 	@Override
 	public void updateSolverConfigurationName(int idSolverConfig, String name) throws Exception {
-		// TODO: implement?
+		super.updateSolverConfigurationName(idSolverConfig, name);
 	}
 
 	@Override

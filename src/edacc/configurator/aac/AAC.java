@@ -597,6 +597,7 @@ public class AAC {
 			System.out.println("Error while parsing parameters; exiting.");
 			return;
 		}
+		params.listParameters();
 		AAC configurator = new AAC(params);
 		System.out.println("c Starting the EAAC configurator with following settings: \n" + params +  configurator.racing.toString()+ configurator.search.toString());
 		System.out.println("c ---------------------------------");
