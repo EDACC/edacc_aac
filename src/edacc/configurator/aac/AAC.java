@@ -109,6 +109,13 @@ public class AAC {
 		search.listParameters();
 		racing.listParameters();
 		
+		if (params.deleteSolverConfigsAtStart) {
+			log("c Removing solver configurations..");
+			for (Integer id : api.getSolverConfigurations(parameters.idExperiment)) {
+				api.removeSolverConfig(id);
+			}
+			log("c Done.");
+		}
 	}
 
 	/**
@@ -541,6 +548,17 @@ public class AAC {
 		if (api instanceof APISimulation) {
 			((APISimulation) api).printStats();
 		}
+		
+		if (parameters.idExperimentEvaluation > 0) {
+			String name = parameters.evaluationSolverConfigName + racing.getBestSC().getName();
+			log("c adding " + racing.getBestSC().getIdSolverConfiguration() + " to experiment " + parameters.idExperimentEvaluation + " with name " + name);
+			try {
+				api.createSolverConfig(parameters.idExperimentEvaluation, racing.getBestSC().getParameterConfiguration(), name);
+			} catch (Exception ex) {
+				ex.printStackTrace();
+			}
+		}
+		
 		log("c halt.");
 		api.disconnect();
 	}

@@ -14,6 +14,9 @@ public class Parameters {
 	int port = 3306;
 	int pollingInterval=2500; //value in ms
 	int idExperiment = 0;
+	int idExperimentEvaluation = -1;
+	String evaluationSolverConfigName = "";
+	boolean deleteSolverConfigsAtStart = false;
 	int jobCPUTimeLimit = 10;
 	boolean deterministicSolver = false;
 	
@@ -65,9 +68,12 @@ public class Parameters {
 		System.out.println("port = "+ this.port + (pnp?"(database server port)":""));
 		System.out.println("database = " + this.database + (pnp?" (name of database to use)":""));
 		System.out.println("pollingInterval = " + this.pollingInterval + (pnp?" <int>(number of ms between two polls)":""));
+		System.out.println("deleteSolverConfigsAtStart = " + this.deleteSolverConfigsAtStart + (pnp?" <boolean> (whether to delete solver configs at the beginning or not; can be useful for multiple runs on the same experiment)":""));
 		System.out.println("%-----------------------\n");
 		System.out.println("%---Experiment parameters---");
 		System.out.println("idExperiment = " + this.idExperiment + (pnp?" <int>(id of experiment to run the configurator on)":""));
+		System.out.println("idExperimentEvaluation = " + this.idExperiment + (pnp?" <int> (id of evaluation experiment; best solver config will be added to it at the end)" : ""));
+		System.out.println("evaluationSolverConfigName = " + this.evaluationSolverConfigName + (pnp?" <String> (This string will be used as suffix for the solver config added to the evaluation experiment)" : ""));
 		System.out.println("jobCPUTimeLimit = " +this.jobCPUTimeLimit + (pnp?" <int>(maximum number of CPU seconds a job is allowed to run)":""));
 		System.out.println("deterministicSolver = " + this.deterministicSolver + (pnp?" <boolean>(0 for stochastic / 1 for determinisitc)":""));
 		System.out.println("%-----------------------\n");
@@ -132,9 +138,15 @@ public class Parameters {
 				database = value;
 			else if ("pollingInterval".equalsIgnoreCase(key))
 				pollingInterval = Integer.valueOf(value);
+			else if ("deleteSolverConfigsAtStart".equalsIgnoreCase(key))
+				deleteSolverConfigsAtStart = Boolean.parseBoolean(value);
 			// experiment parameters
 			else if ("idExperiment".equalsIgnoreCase(key))
 				idExperiment = Integer.valueOf(value);
+			else if ("idExperimentEvaluation".equalsIgnoreCase(key))
+				idExperimentEvaluation = Integer.valueOf(value);
+			else if ("evaluationSolverConfigName".equalsIgnoreCase(key))
+				evaluationSolverConfigName = value;
 			else if ("jobCPUTimeLimit".equalsIgnoreCase(key))
 				jobCPUTimeLimit = Integer.valueOf(value);
 			else if ("deterministicSolver".equalsIgnoreCase(key))
