@@ -550,7 +550,7 @@ public class AAC {
 		}
 		
 		if (parameters.idExperimentEvaluation > 0) {
-			String name = parameters.evaluationSolverConfigName + racing.getBestSC().getName();
+			String name = ("".equals(parameters.evaluationSolverConfigName) ? "" : parameters.evaluationSolverConfigName + " ") + getSolverConfigName(racing.getBestSC(), true);
 			log("c adding " + racing.getBestSC().getIdSolverConfiguration() + " to experiment " + parameters.idExperimentEvaluation + " with name " + name);
 			try {
 				api.createSolverConfig(parameters.idExperimentEvaluation, racing.getBestSC().getParameterConfiguration(), name);
@@ -564,11 +564,13 @@ public class AAC {
 	}
 
 	public void updateSolverConfigName(SolverConfiguration sc, boolean best) throws Exception {
-		api.updateSolverConfigurationName(
-				sc.getIdSolverConfiguration(),
-				(best ? "_ BEST " : "") + (sc.getIncumbentNumber() == -1 ? "" : -sc.getIncumbentNumber()) + " "
-						+ sc.getNumber() + " " + (sc.getName() != null ? " " + sc.getName() + " " : "") + " Runs: "
-						+ sc.getNumFinishedJobs() + "/" + sc.getJobCount() + " ID: " + sc.getIdSolverConfiguration());
+		api.updateSolverConfigurationName(sc.getIdSolverConfiguration(), getSolverConfigName(sc, best));
+	}
+	
+	public String getSolverConfigName(SolverConfiguration sc, boolean best) {
+		return (best ? "_ BEST " : "") + (sc.getIncumbentNumber() == -1 ? "" : -sc.getIncumbentNumber()) + " "
+				+ sc.getNumber() + " " + (sc.getName() != null ? " " + sc.getName() + " " : "") + " Runs: "
+				+ sc.getNumFinishedJobs() + "/" + sc.getJobCount() + " ID: " + sc.getIdSolverConfiguration();
 	}
 
 	public void sleep(long millis) throws InterruptedException {
