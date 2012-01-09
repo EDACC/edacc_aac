@@ -25,9 +25,9 @@ public class ILS extends SearchMethods {
 	 * @param rng
 	 * @param parameters
 	 */
-	float stdDevFactor = 0.2f;
+	float stdDevFactor = 0.1f;
 	boolean sampleOrdinals = true;
-	int sampleSize = 5;
+	int sampleSize = 10;
 	
 	
 	public ILS(API api, Random rng, Parameters parameters) {

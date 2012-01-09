@@ -354,6 +354,9 @@ public class AAC {
 			}
 
 			boolean generatedSCs = false;
+			//if the number of sc to be generated together with the number of sc so far generated excceds total allowed number 
+			if (this.statNumSolverConfigs+generateNumSC > parameters.getMaxNumSC())
+				generateNumSC = parameters.getMaxNumSC() - this.statNumSolverConfigs; //then limit the number of new sc 
 			if (generateNumSC > 0) {
 				int numNewSC = 0;
 				if (generateNumSC >= 210) {

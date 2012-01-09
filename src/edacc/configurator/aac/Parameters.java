@@ -40,7 +40,12 @@ public class Parameters {
 	int minCPUCount = 0;
 	int maxCPUCount = 0;
 	float maxTuningTime = -1;
+	int maxNumSC=-1;
 	
+	public int getMaxNumSC() {
+		return maxNumSC;
+	}
+
 	StatisticFunction statistics;
 	HashMap<String, String> searchMethodParams = new HashMap<String, String>();
 	HashMap<String, String> racingMethodParams = new HashMap<String, String>();
@@ -96,6 +101,7 @@ public class Parameters {
 		System.out.println("minCPUCount = " + this.minCPUCount + (pnp?" <int>(minimum number of CPU that should be available before starting the configuration proccess (0 no limitation))":""));
 		System.out.println("maxCPUCount = " + this.maxCPUCount + (pnp?" <int>(maximum number of CPU that should be available before starting the configuration proccess (0 no limitation))":""));
 		System.out.println("deleteSolverConfigs = " + this.deleteSolverConfigs + (pnp?" <boolean>(wheater to delete bad solver configs from DB or not)":""));
+		System.out.println("maxNumSC = " + this.maxNumSC + (pnp?" <int>(maximum number of solver configurations that the configurator should generate (-1 no limitation))":""));
 		System.out.println("%-----------------------\n");
 		System.out.println("%---Simulation parameters---");
 		System.out.println("simulation = " + this.simulation + (pnp?" <boolean>(simulate configuration proccess within an full matrix experiment)":""));
@@ -192,6 +198,8 @@ public class Parameters {
 				maxCPUCount = Integer.valueOf(value);
 			else if (key.equalsIgnoreCase("deleteSolverConfigs"))
 				deleteSolverConfigs = Boolean.parseBoolean(value);
+			else if (key.equalsIgnoreCase("maxNumSC"))
+				maxNumSC = Integer.valueOf(value);
 			// simulation parameters
 			else if (key.equalsIgnoreCase("simulation"))
 				simulation = Boolean.parseBoolean(value);
