@@ -220,12 +220,15 @@ public class AAC {
 			return false;
 	}
 
+	public void expandParcoursSC(SolverConfiguration sc, int num) throws Exception {
+		expandParcoursSC(sc, num, Integer.MAX_VALUE);
+	}
 	/**
 	 * Add num additional runs/jobs from the parcours to the configuration sc.
 	 * 
 	 * @throws Exception
 	 */
-	public void expandParcoursSC(SolverConfiguration sc, int num) throws Exception {
+	public void expandParcoursSC(SolverConfiguration sc, int num, int priority) throws Exception {
 		// TODO implement
 		// fuer deterministische solver sollte man allerdings beachten,
 		// dass wenn alle instanzen schon verwendet wurden das der parcours
@@ -235,18 +238,19 @@ public class AAC {
 		// waere ein Obergrenze sinvoll die als funktion der anzahl der
 		// instanzen definiert werden sollte
 		// z.B: 10*#instanzen
-		DatabaseConnector.getInstance().getConn().setAutoCommit(false);
-		try {
-			for (int i = 0; i < num; i++) {
-				statNumJobs++;
-				int idJob = api.launchJob(parameters.getIdExperiment(), sc.getIdSolverConfiguration(), parameters.getJobCPUTimeLimit(), rngSearch);
-				api.setJobPriority(idJob, Integer.MAX_VALUE);
-				sc.putJob(api.getJob(idJob)); // add the job to the solver
-				// configuration own job store
-			}
-		} finally {
-			DatabaseConnector.getInstance().getConn().setAutoCommit(true);
+		
+		int[] cputimelimits = new int[num];
+		int[] priorities = new int[num];
+		for (int i = 0; i < num; i++) {
+			cputimelimits[i] = parameters.getJobCPUTimeLimit();
+			priorities[i] = priority;
 		}
+	
+		List<Integer> ids = api.launchJob(parameters.getIdExperiment(), sc.getIdSolverConfiguration(), cputimelimits, num, priorities, rngSearch);
+		for (ExperimentResult er : api.getJobsByIDs(ids).values())
+			sc.putJob(er);// add the job to the solver configuration own job store
+		
+		statNumJobs += num;
 	}
 
 	/**
