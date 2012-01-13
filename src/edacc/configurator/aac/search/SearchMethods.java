@@ -4,18 +4,21 @@ import java.util.List;
 import java.util.Random;
 
 import edacc.api.API;
+import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 
 public abstract class SearchMethods {
+	protected AAC pacc;
 	protected API api;
 	protected Random rng;
 	protected Parameters parameters;
 	
-	public SearchMethods(API api, Random rng, Parameters parameters) {
+	public SearchMethods(AAC pacc, API api, Random rng, Parameters parameters) {
 		this.api = api;
 		this.parameters = parameters;
 		this.rng = rng;
+		this.pacc = pacc;
 	}
 	
 	/**

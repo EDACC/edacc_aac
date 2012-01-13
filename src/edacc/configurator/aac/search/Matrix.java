@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Random;
 
 import edacc.api.API;
+import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.model.SolverConfigurationDAO;
@@ -12,8 +13,8 @@ import edacc.model.SolverConfigurationDAO;
 public class Matrix extends SearchMethods {
 	private List<SolverConfiguration> solverConfigs;
 	
-	public Matrix(API api, Random rng, Parameters parameters) throws Exception {
-		super(api, rng, parameters);
+	public Matrix(AAC pacc, API api, Random rng, Parameters parameters) throws Exception {
+		super(pacc, api, rng, parameters);
 		solverConfigs = new ArrayList<SolverConfiguration>();
 		
 		for (edacc.model.SolverConfiguration db_sc : SolverConfigurationDAO.getSolverConfigurationByExperimentId(parameters.getIdExperiment())) {

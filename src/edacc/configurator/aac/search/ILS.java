@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Random;
 
 import edacc.api.API;
+import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.parameterspace.ParameterConfiguration;
@@ -30,8 +31,8 @@ public class ILS extends SearchMethods {
 	int sampleSize = 10;
 	
 	
-	public ILS(API api, Random rng, Parameters parameters) {
-		super(api, rng, parameters);
+	public ILS(AAC pacc, API api, Random rng, Parameters parameters) {
+		super(pacc, api, rng, parameters);
 		// TODO Auto-generated constructor stub
 	}
 

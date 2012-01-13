@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Random;
 
 import edacc.api.API;
+import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.parameterspace.Parameter;
@@ -21,8 +22,8 @@ public class SingleParameter extends SearchMethods {
 	Parameter param;
 	Parameter param2;
 	ParameterGraph graph;
-	public SingleParameter(API api, Random rng, Parameters parameters) throws Exception {
-		super(api, rng, parameters);
+	public SingleParameter(AAC pacc, API api, Random rng, Parameters parameters) throws Exception {
+		super(pacc, api, rng, parameters);
 		
 		graph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
 		numScs2_spec = false;

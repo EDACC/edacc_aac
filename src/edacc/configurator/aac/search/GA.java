@@ -10,6 +10,7 @@ import java.util.Random;
 import java.util.Set;
 
 import edacc.api.API;
+import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.parameterspace.ParameterConfiguration;
@@ -80,14 +81,14 @@ public class GA extends SearchMethods {
 	 * Incremented by (# generated solver configs) after every generateNewSC call. 
 	 */
 	private static int genSC = 0;
-	public GA(API api, Random rng, Parameters parameters) throws Exception {
-		super(api, rng, parameters);
+	public GA(AAC pacc, API api, Random rng, Parameters parameters) throws Exception {
+		super(pacc, api, rng, parameters);
 		graph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
 		population = new ArrayList<Individual>();
 		oldIndividuals = new ArrayList<Individual>();
 		bestInd = null;
 		createdParamConfigs = new HashSet<ParameterConfiguration>();
-		
+
 		String val;
 		if ((val = parameters.getSearchMethodParameters().get("GA_probN")) != null) {
 			probN = Float.parseFloat(val);

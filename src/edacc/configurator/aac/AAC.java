@@ -49,10 +49,10 @@ public class AAC {
 	private Random rngRacing;
 	
 	/** Method used for searching within the parameter search space */
-	private SearchMethods search;
+	public SearchMethods search;
 	
 	/** Method to race SC against each other */
-	private RacingMethods racing;
+	public RacingMethods racing;
 
 	/**
 	 * Indicates the start time of the configurator (used to determine walltime).
