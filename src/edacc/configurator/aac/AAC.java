@@ -101,7 +101,7 @@ public class AAC {
 		this.parameters = params;
 		search = (SearchMethods) ClassLoader.getSystemClassLoader()
 				.loadClass("edacc.configurator.aac.search." + params.searchMethod).getDeclaredConstructors()[0]
-				.newInstance(api, rngSearch, parameters);
+				.newInstance(this, api, rngSearch, parameters);
 		racing = (RacingMethods) ClassLoader.getSystemClassLoader()
 				.loadClass("edacc.configurator.aac.racing." + params.racingMethod).getDeclaredConstructors()[0]
 				.newInstance(this, rngRacing, api, parameters);
@@ -304,7 +304,7 @@ public class AAC {
 		cumulatedCPUTime = 0.f;
 		SolverConfiguration firstSC = initializeBest();// TODO: mittels dem
 														// Classloader
-														// überschreiben
+														// Ã¼berschreiben
 		if (firstSC == null) {
 			throw new RuntimeException("best not initialized");
 		}
@@ -326,8 +326,8 @@ public class AAC {
 		SolverConfiguration lastBest = null;
 		while (!terminate()) {
 			// bestSC.updateJobsStatus(); das ist glaube ich doppelt gemoppelt
-			// denn im übernächsten if wird auf jeden Fall
-			// bestSC.updateJobsSatus() ausgeführt!
+			// denn im Ã¼bernÃ¤chsten if wird auf jeden Fall
+			// bestSC.updateJobsSatus() ausgefÃ¼hrt!
 			// expand the parcours of the bestSC
 			if (racing.getBestSC() != lastBest) {
 				updateSolverConfigName(racing.getBestSC(), true);
