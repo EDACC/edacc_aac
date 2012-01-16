@@ -1,8 +1,13 @@
 package edacc.configurator.aac.search;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
 import java.util.Random;
+import java.util.TreeMap;
 
 import edacc.api.API;
 import edacc.configurator.aac.AAC;
@@ -10,6 +15,7 @@ import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.parameterspace.ParameterConfiguration;
 import edacc.parameterspace.graph.ParameterGraph;
+import edacc.parameterspace.Parameter;
 
 public class IteratedFRace extends SearchMethods {
     private int iteration = 0;
@@ -17,6 +23,7 @@ public class IteratedFRace extends SearchMethods {
     private float total_budget;
     private float budget_used = 0.0f;
     private ParameterGraph pspace;
+    private Map<Parameter, Float> parameterStdDev;
     
     private int max_iterations;
 
@@ -25,20 +32,37 @@ public class IteratedFRace extends SearchMethods {
         total_budget = parameters.getMaxTuningTime();
         pspace = api.loadParameterGraphFromDB(parameters.getIdExperiment());
         max_iterations = (int) (2 + Math.round(Math.log(api.getConfigurableParameters(parameters.getIdExperiment()).size()) / Math.log(2)));
+        parameterStdDev = new HashMap<Parameter, Float>();
+        for (Parameter p: api.getConfigurableParameters(parameters.getIdExperiment())) {
+            parameterStdDev.put(p, 1.0f);
+        }
     }
 
     @Override
     public List<SolverConfiguration> generateNewSC(int num, SolverConfiguration currentBestSC) throws Exception {
+        pacc.log("Starting new iteration of I/F-Race");
         List<SolverConfiguration> newSC = new ArrayList<SolverConfiguration>();
         if (iteration > 0) {
-            for (int i = 0; i < num; i++) {
-                // simply sample new configurations randomly around old configurations for now
-                // TODO: update probability distributions using raceSurvivors
-                SolverConfiguration raceSurvivor = raceSurvivors.get(rng.nextInt(raceSurvivors.size()));
-                ParameterConfiguration paramConfig = new ParameterConfiguration(raceSurvivor.getParameterConfiguration());
-                pspace.mutateParameterConfiguration(rng, raceSurvivor.getParameterConfiguration(), 0.1f, 1.0f);
+            Collections.sort(raceSurvivors);
+            Collections.reverse(raceSurvivors);
+            int Ns = Math.min(raceSurvivors.size(), getNmin());
+            for (int i = 0; i < Ns; i++) newSC.add(raceSurvivors.get(i));
+            iteration++;
+            int Nlnext = getNumRaceCandidates();
+            iteration--; // ...
+            
+            RandomCollection<SolverConfiguration> roulette = new RandomCollection<SolverConfiguration>(rng);
+            for (int i = 0; i < Ns; i++) roulette.add((Ns - (i+1) + 1.0)/(Ns * (Ns + 1) / 2.0), raceSurvivors.get(i));
+            for (int i = 0; i < Nlnext - Ns; i++) {
+                SolverConfiguration eliteConfig = roulette.next();
+                ParameterConfiguration paramConfig = pspace.getGaussianRandomNeighbour(eliteConfig.getParameterConfiguration(), rng, parameterStdDev, 1000, true);
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
                 newSC.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
+            }
+
+            for (Parameter p: parameterStdDev.keySet()) {
+                float sigma = parameterStdDev.get(p);
+                parameterStdDev.put(p, sigma*(float)Math.pow(1.0f/Nlnext, 1.0f/(float)parameterStdDev.size()));
             }
         } else {
             for (int i = 0; i < num; i++) {
@@ -63,7 +87,7 @@ public class IteratedFRace extends SearchMethods {
     }
     
     public float getRacingComputationalBudget() {
-        if (total_budget == -1) return 42; // TODO: no limit was given, use something clever 
+        if (total_budget == -1) return 5000; // TODO: no limit was given, use something clever 
         return (total_budget - budget_used) / (max_iterations - iteration + 1);
     }
     
@@ -83,5 +107,27 @@ public class IteratedFRace extends SearchMethods {
     public void updateBudgetUsed(float db) {
         budget_used += db;
     }
+    
+    private class RandomCollection<E> {
+        private final NavigableMap<Double, E> map = new TreeMap<Double, E>();
+        private final Random random;
+        private double total = 0;
+
+        public RandomCollection(Random rng) {
+            this.random = rng;
+        }
+
+        public void add(double weight, E result) {
+            if (weight <= 0) return;
+            total += weight;
+            map.put(total, result);
+        }
+
+        public E next() {
+            double value = random.nextDouble() * total;
+            return map.ceilingEntry(value).getValue();
+        }
+    }
+
 
 }

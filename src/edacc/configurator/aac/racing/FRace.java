@@ -40,9 +40,10 @@ public class FRace extends RacingMethods {
     private Map<Integer, Map<SolverConfiguration, Float>> courseResults;
     private SolverConfiguration bestSC;
     private IteratedFRace fraceSearch;
+    private int level = 0;
 
     double alpha = 0.05; // significance level alpha
-    float budget;
+    float raceBudget;
 
     public FRace(AAC pacc, Random rng, API api, Parameters parameters) throws Exception {
         super(pacc, rng, api, parameters);
@@ -81,12 +82,12 @@ public class FRace extends RacingMethods {
         curFinishedConfigurations.addAll(scs);
         
         // check if budget is exhausted (sum of CPU time of the jobs of all configuration this race was started with)
-        float budget_used = 0;
+        float budgetUsed = 0;
         for (SolverConfiguration solverConfig: initialRaceConfigurations) {
-            for (ExperimentResult run: solverConfig.getFinishedJobs()) budget_used += run.getResultTime();
+            for (ExperimentResult run: solverConfig.getFinishedJobs()) budgetUsed += run.getResultTime();
         }
-        pacc.log("CPU time used so far: " + budget_used);
-        if (budget_used > budget) {
+        pacc.log("CPU time used so far: " + budgetUsed);
+        if (budgetUsed > raceBudget) {
             pacc.log("Terminating race because budget was exhausted");
             terminateRace();
             return;
@@ -97,7 +98,8 @@ public class FRace extends RacingMethods {
             // fill result tableau
             for (SolverConfiguration solverConfig : raceConfigurations) {
                 int i = 0; // course entry number
-                for (ExperimentResult run : solverConfig.getFinishedJobs()) {
+                for (ExperimentResult run : api.getRuns(parameters.getIdExperiment(), solverConfig.getIdSolverConfiguration())) {
+                    if (i > level) break;
                     if (!courseResults.containsKey(i))
                         courseResults.put(i, new HashMap<SolverConfiguration, Float>());
                     courseResults.get(i).put(solverConfig, parameters.getStatistics().getCostFunction().singleCost(run));
@@ -207,10 +209,11 @@ public class FRace extends RacingMethods {
             // all configurations that get to the next round are evaluated on
             // additional instances
             for (SolverConfiguration solverConfig : raceConfigurations) {
-                pacc.expandParcoursSC(solverConfig, 2);
+                pacc.expandParcoursSC(solverConfig, 1);
                 solverConfig.setFinished(false);
                 pacc.addSolverConfigurationToListNewSC(solverConfig);
             }
+            level += 1;
             curFinishedConfigurations.clear();
 
         }
@@ -225,12 +228,15 @@ public class FRace extends RacingMethods {
         raceConfigurations.addAll(scs);
         initialRaceConfigurations.addAll(scs);
         for (SolverConfiguration solverConfig : scs) {
-            solverConfig.setName(String.valueOf(solverConfig.getIdSolverConfiguration()));
-            pacc.expandParcoursSC(solverConfig, 4);
+            if (solverConfig.getNumFinishedJobs() == 0) {
+                solverConfig.setName(String.valueOf(solverConfig.getIdSolverConfiguration()));
+                pacc.expandParcoursSC(solverConfig, 1);
+            }
             pacc.addSolverConfigurationToListNewSC(solverConfig);
         }
-        budget = fraceSearch.getRacingComputationalBudget();
-        pacc.log("c Starting new race with " + scs.size() + " solver configurations, budget: " + budget);
+        level = 0;
+        raceBudget = fraceSearch.getRacingComputationalBudget();
+        pacc.log("c Starting new race with " + scs.size() + " solver configurations, budget: " + raceBudget);
     }
 
     @Override
@@ -258,11 +264,11 @@ public class FRace extends RacingMethods {
         List<SolverConfiguration> raceSurvivors = new ArrayList<SolverConfiguration>();
         raceSurvivors.addAll(raceConfigurations);
         fraceSearch.setRaceSurvivors(raceSurvivors);
-        float budget_used = 0;
+        float budgetUsed = 0;
         for (SolverConfiguration solverConfig: initialRaceConfigurations) {
-            for (ExperimentResult run: solverConfig.getFinishedJobs()) budget_used += run.getResultTime();
+            for (ExperimentResult run: solverConfig.getFinishedJobs()) budgetUsed += run.getResultTime();
         }
-        fraceSearch.updateBudgetUsed(budget_used);
+        fraceSearch.updateBudgetUsed(budgetUsed);
         raceConfigurations.clear(); // this will end the race, since the next computeOptimalExpansion call will trigger the call to solverConfigurations created
     }
 
