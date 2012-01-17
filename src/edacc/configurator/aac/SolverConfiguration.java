@@ -292,10 +292,12 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 		numFinishedJobs = 0;
 		numSuccessfulJobs = 0;
 		numNotStartedJobs = 0;
-		
+		float tmpTotalRuntime = totalRuntime;
+		totalRuntime = 0.f;
 		for (ExperimentResult j : jobs) {
 			if (!j.getStatus().equals(StatusCode.NOT_STARTED) && !j.getStatus().equals(StatusCode.RUNNING)) {
 				numFinishedJobs++;
+				totalRuntime += j.getResultTime();
 				if (String.valueOf(j.getResultCode().getResultCode()).startsWith("1")) {
 					numSuccessfulJobs++;
 				}
@@ -309,8 +311,6 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 			jobs.clear();
 			jobs.addAll(api.getJobsByIDs(ids).values());
 			
-			float tmpTotalRuntime = totalRuntime;
-			totalRuntime = 0.f;
 			for (ExperimentResult j : jobs) {
 				totalRuntime += j.getResultTime();
 				if (j.getStatus().equals(StatusCode.RUNNING)) {

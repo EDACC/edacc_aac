@@ -21,7 +21,7 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 
 	private ParameterGraph graph;
 	private List<Parameter> graphParams;
-	private int numInitSamples = 20;
+	private int numInitSamples = 3;
 	private LinkedList<Object>[] paramValues;
 	private LinkedList<Pair<Object, Object>>[] paramValuesPrevNext;
 	private int iteration = 0;
@@ -40,7 +40,7 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 			paramValues[i].addAll(graphParams.get(i).getDomain().getUniformDistributedValues(numInitSamples));
 			paramValuesPrevNext[i] = new LinkedList();
 			for (int j = 0; j < paramValues[i].size(); j++) {
-				Pair<Object, Object> p = new Pair<Object, Object>(j > 0 ? paramValues[i].get(j-1) : null, j < paramValues[i].size() ? paramValues[i].get(j+1) : null);
+				Pair<Object, Object> p = new Pair<Object, Object>(j > 0 ? paramValues[i].get(j-1) : null, j+1 < paramValues[i].size() ? paramValues[i].get(j+1) : null);
 				paramValuesPrevNext[i].add(p);
 			}
 		}
@@ -48,6 +48,17 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 
 	@Override
 	public List<SolverConfiguration> generateNewSC(int num, SolverConfiguration currentBestSC) throws Exception {
+		boolean iterationFinished = true;
+		for (SolverConfiguration sc : lastSolverConfigs) {
+			if (!sc.isFinished()) {
+				iterationFinished = false;
+				break;
+			}
+		}
+		if (!iterationFinished) {
+			return new LinkedList<SolverConfiguration>();
+		}
+		
 		HashSet<Integer> goodSolverConfigIds = new HashSet<Integer>();
 		if (iteration > 0) {
 			Collections.sort(lastSolverConfigs, new Comparator<SolverConfiguration>() {
@@ -74,12 +85,12 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 		
 		
 		ParameterConfiguration base = graph.getRandomConfiguration(rng);
-		List<SolverConfiguration> newSCs = new LinkedList<SolverConfiguration>();
+		LinkedList<SolverConfiguration> newSCs = new LinkedList<SolverConfiguration>();
 		int[] p_index = new int[graphParams.size()];
 		for (int i = 0; i < graphParams.size(); i++) {
 			p_index[i] = 0;
 		}
-		while (p_index[0] < graphParams.size()) {
+		while (p_index[0] < paramValues[0].size()) {
 			ParameterConfiguration pconfig = new ParameterConfiguration(base);
 			Object[] paramVal = new Object[graphParams.size()];
 			Pair<Object, Object>[] paramValPrevNext = new Pair[graphParams.size()];
@@ -100,7 +111,9 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 					// there are 3^(# params) solver configs to check; might be
 					// inefficient
 					Object[] otherScPVal = new Object[graphParams.size()];
+					
 					while (state[0] < 2) {
+						boolean valid = true;
 						for (int i = 0; i < graphParams.size(); i++) {
 							switch (state[i]) {
 							case 0: {
@@ -119,12 +132,17 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 								throw new IllegalArgumentException("case " + state[i] + " is unknown.");
 							}
 							}
+							if (otherScPVal[i] == null) {
+								valid = false;
+							}
 						}
-						SolverConfiguration sc = solverConfigs.get(new ObjectArrayWrapper(otherScPVal));
-						if (sc != null) {
-							if (goodSolverConfigIds.contains(sc.getIdSolverConfiguration())) {
-								generate_solver_config = true;
-								break;
+						if (valid) {
+							SolverConfiguration sc = solverConfigs.get(new ObjectArrayWrapper(otherScPVal));
+							if (sc != null) {
+								if (goodSolverConfigIds.contains(sc.getIdSolverConfiguration())) {
+									generate_solver_config = true;
+									break;
+								}
 							}
 						}
 
@@ -133,6 +151,7 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 						while (i > 0 && state[i] > 2) {
 							state[i] = 0;
 							state[i - 1]++;
+							i--;
 						}
 					}
 				}
@@ -184,6 +203,8 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 			}
 		}
 		pacc.log("[ISSS] Generated " + newSCs.size() + " solver configurations in iteration " + iteration + ".");
+		iteration++;
+		lastSolverConfigs = newSCs;
 		return newSCs;
 	}
 
