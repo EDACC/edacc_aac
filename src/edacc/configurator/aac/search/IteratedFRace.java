@@ -31,7 +31,7 @@ public class IteratedFRace extends SearchMethods {
         super(pacc, api, rng, parameters);
         total_budget = parameters.getMaxTuningTime();
         pspace = api.loadParameterGraphFromDB(parameters.getIdExperiment());
-        max_iterations = (int) (2 + Math.round(Math.log(api.getConfigurableParameters(parameters.getIdExperiment()).size()) / Math.log(2)));
+        max_iterations = 3 + (int) (2 + Math.round(Math.log(api.getConfigurableParameters(parameters.getIdExperiment()).size()) / Math.log(2)));
         parameterStdDev = new HashMap<Parameter, Float>();
         for (Parameter p: api.getConfigurableParameters(parameters.getIdExperiment())) {
             parameterStdDev.put(p, 1.0f);
@@ -40,6 +40,8 @@ public class IteratedFRace extends SearchMethods {
 
     @Override
     public List<SolverConfiguration> generateNewSC(int num, SolverConfiguration currentBestSC) throws Exception {
+        if (iteration > max_iterations) return new ArrayList<SolverConfiguration>();
+        
         pacc.log("Starting new iteration of I/F-Race");
         List<SolverConfiguration> newSC = new ArrayList<SolverConfiguration>();
         if (iteration > 0) {
@@ -53,10 +55,15 @@ public class IteratedFRace extends SearchMethods {
             
             RandomCollection<SolverConfiguration> roulette = new RandomCollection<SolverConfiguration>(rng);
             for (int i = 0; i < Ns; i++) roulette.add((Ns - (i+1) + 1.0)/(Ns * (Ns + 1) / 2.0), raceSurvivors.get(i));
+            
+            pacc.log("Generating " + (Nlnext - Ns) + " new configurations based on the " + Ns + " elite configurations from the last race, Parameters are sampled with the following stddev:");
+            for (Parameter p: parameterStdDev.keySet()) {
+                pacc.log(p.getName() + ": " + parameterStdDev.get(p));
+            }
             for (int i = 0; i < Nlnext - Ns; i++) {
                 SolverConfiguration eliteConfig = roulette.next();
                 ParameterConfiguration paramConfig = pspace.getGaussianRandomNeighbour(eliteConfig.getParameterConfiguration(), rng, parameterStdDev, 1000, true);
-                int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
+                int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, "I" + iteration + " " + api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
                 newSC.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
             }
 
@@ -87,7 +94,7 @@ public class IteratedFRace extends SearchMethods {
     }
     
     public float getRacingComputationalBudget() {
-        if (total_budget == -1) return 1000; // TODO: no limit was given, use something clever 
+        if (total_budget == -1) return 20000; // TODO: no limit was given, use something clever 
         return (total_budget - budget_used) / (max_iterations - iteration + 1);
     }
     
@@ -97,11 +104,11 @@ public class IteratedFRace extends SearchMethods {
     
     public int getNmin() throws Exception {
         long d = api.getConfigurableParameters(parameters.getIdExperiment()).size();
-        return (int) (2 + Math.round(Math.log((double)d) / Math.log(2.0))); 
+        return 2 * (int) (2 + Math.round(Math.log((double)d) / Math.log(2.0))); 
     }
     
     public int getNumRaceCandidates() {
-        return (int) (getRacingComputationalBudget()/(10+5+iteration));
+        return (int) (getRacingComputationalBudget()/(500+5+iteration));
     }
     
     public void updateBudgetUsed(float db) {
@@ -128,6 +135,5 @@ public class IteratedFRace extends SearchMethods {
             return map.ceilingEntry(value).getValue();
         }
     }
-
 
 }

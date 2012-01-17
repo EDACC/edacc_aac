@@ -38,10 +38,10 @@ public class FRace extends RacingMethods {
     private List<SolverConfiguration> curFinishedConfigurations;
     private List<SolverConfiguration> initialRaceConfigurations;
     private Map<Integer, Map<SolverConfiguration, Float>> courseResults;
-    private SolverConfiguration bestSC;
+    private SolverConfiguration bestSC = null;
     private IteratedFRace fraceSearch;
     private int level = 0;
-    private int initialRaceRuns = 1; // how many runs per solver config initially
+    private int initialRaceRuns = 5; // how many runs per solver config initially
 
     double alpha = 0.05; // significance level alpha
     float raceBudget;
@@ -70,7 +70,7 @@ public class FRace extends RacingMethods {
 
     @Override
     public void initFirstSC(SolverConfiguration firstSC) throws Exception {
-        this.bestSC = firstSC;
+       // this.bestSC = firstSC;
     }
 
     @Override
@@ -95,7 +95,7 @@ public class FRace extends RacingMethods {
         }
         
         if (curFinishedConfigurations.containsAll(raceConfigurations)) {
-            pacc.log("c All "+raceConfigurations.size()+" currently racing configurations have finished their jobs");
+            pacc.log("c All "+raceConfigurations.size()+" currently racing configurations have finished their jobs (Level " + level + ")");
             // fill result tableau
             for (SolverConfiguration solverConfig : raceConfigurations) {
                 int i = 0; // course entry number
@@ -210,11 +210,11 @@ public class FRace extends RacingMethods {
             // all configurations that get to the next round are evaluated on
             // additional instances
             for (SolverConfiguration solverConfig : raceConfigurations) {
-                pacc.expandParcoursSC(solverConfig, 1);
+                pacc.expandParcoursSC(solverConfig, 3);
                 solverConfig.setFinished(false);
                 pacc.addSolverConfigurationToListNewSC(solverConfig);
             }
-            level += 1;
+            level += 3;
             curFinishedConfigurations.clear();
         }
     }
@@ -229,10 +229,10 @@ public class FRace extends RacingMethods {
         initialRaceConfigurations.addAll(scs);
         for (SolverConfiguration solverConfig : scs) {
             if (solverConfig.getNumFinishedJobs() == 0) {
-                solverConfig.setName(String.valueOf(solverConfig.getIdSolverConfiguration()));
                 pacc.expandParcoursSC(solverConfig, initialRaceRuns);
             }
             pacc.addSolverConfigurationToListNewSC(solverConfig);
+            solverConfig.setName(String.valueOf(solverConfig.getIdSolverConfiguration()));
         }
         level = initialRaceRuns - 1;
         raceBudget = fraceSearch.getRacingComputationalBudget();
