@@ -41,6 +41,7 @@ public class FRace extends RacingMethods {
     private SolverConfiguration bestSC;
     private IteratedFRace fraceSearch;
     private int level = 0;
+    private int initialRaceRuns = 1; // how many runs per solver config initially
 
     double alpha = 0.05; // significance level alpha
     float raceBudget;
@@ -99,7 +100,7 @@ public class FRace extends RacingMethods {
             for (SolverConfiguration solverConfig : raceConfigurations) {
                 int i = 0; // course entry number
                 for (ExperimentResult run : api.getRuns(parameters.getIdExperiment(), solverConfig.getIdSolverConfiguration())) {
-                    if (i > level) break;
+                    if (i > level) break; // only consider runs up until the current level (already existing configurations might have more)
                     if (!courseResults.containsKey(i))
                         courseResults.put(i, new HashMap<SolverConfiguration, Float>());
                     courseResults.get(i).put(solverConfig, parameters.getStatistics().getCostFunction().singleCost(run));
@@ -215,7 +216,6 @@ public class FRace extends RacingMethods {
             }
             level += 1;
             curFinishedConfigurations.clear();
-
         }
     }
 
@@ -230,11 +230,11 @@ public class FRace extends RacingMethods {
         for (SolverConfiguration solverConfig : scs) {
             if (solverConfig.getNumFinishedJobs() == 0) {
                 solverConfig.setName(String.valueOf(solverConfig.getIdSolverConfiguration()));
-                pacc.expandParcoursSC(solverConfig, 1);
+                pacc.expandParcoursSC(solverConfig, initialRaceRuns);
             }
             pacc.addSolverConfigurationToListNewSC(solverConfig);
         }
-        level = 0;
+        level = initialRaceRuns - 1;
         raceBudget = fraceSearch.getRacingComputationalBudget();
         pacc.log("c Starting new race with " + scs.size() + " solver configurations, budget: " + raceBudget);
     }

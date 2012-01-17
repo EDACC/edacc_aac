@@ -87,7 +87,7 @@ public class IteratedFRace extends SearchMethods {
     }
     
     public float getRacingComputationalBudget() {
-        if (total_budget == -1) return 5000; // TODO: no limit was given, use something clever 
+        if (total_budget == -1) return 1000; // TODO: no limit was given, use something clever 
         return (total_budget - budget_used) / (max_iterations - iteration + 1);
     }
     
@@ -101,7 +101,7 @@ public class IteratedFRace extends SearchMethods {
     }
     
     public int getNumRaceCandidates() {
-        return (int) (getRacingComputationalBudget()/(5+iteration));
+        return (int) (getRacingComputationalBudget()/(10+5+iteration));
     }
     
     public void updateBudgetUsed(float db) {
