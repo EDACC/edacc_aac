@@ -59,7 +59,7 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 			return new LinkedList<SolverConfiguration>();
 		}
 		
-		HashSet<Integer> goodSolverConfigIds = new HashSet<Integer>();
+		LinkedList<SolverConfiguration> goodSolverConfigs = new LinkedList<SolverConfiguration>();
 		if (iteration > 0) {
 			Collections.sort(lastSolverConfigs, new Comparator<SolverConfiguration>() {
 
@@ -76,10 +76,10 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 				return new LinkedList<SolverConfiguration>();
 			}
 			for (int i = lastSolverConfigs.size()-1; i >= lastSolverConfigs.size()-goodSolverConfigSize; i--) {
-				goodSolverConfigIds.add(lastSolverConfigs.get(i).getIdSolverConfiguration());
+				goodSolverConfigs.add(lastSolverConfigs.get(i));
 				pacc.log("[ISSS] Good solver config: " + api.getCanonicalName(parameters.getIdExperiment(), lastSolverConfigs.get(i).getParameterConfiguration()));
 			}
-			pacc.log("[ISSS] Iteration #" + iteration + ": found " + goodSolverConfigIds.size() + " good solver configs");
+			pacc.log("[ISSS] Iteration #" + iteration + ": found " + goodSolverConfigs.size() + " good solver configs");
 		} else {
 			pacc.log("[ISSS] Sampling the search space, first iteration");
 		}
@@ -91,74 +91,14 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 		for (int i = 0; i < graphParams.size(); i++) {
 			p_index[i] = 0;
 		}
-		while (p_index[0] < paramValues[0].size()) {
-			ParameterConfiguration pconfig = new ParameterConfiguration(base);
-			Object[] paramVal = new Object[graphParams.size()];
-			Pair<Object, Object>[] paramValPrevNext = new Pair[graphParams.size()];
-			for (int i = 0; i < graphParams.size(); i++) {
-				paramVal[i] = paramValues[i].get(p_index[i]);
-				paramValPrevNext[i] = paramValuesPrevNext[i].get(p_index[i]);
-			}
-			
-			boolean generate_solver_config = false;
-			if (iteration == 0) {
-				generate_solver_config = true;
-			} else {
-				int[] state = new int[graphParams.size()];
-				for (int i = 0; i < state.length; i++) {
-					state[i] = 0;
+		if (iteration == 0) {
+			while (p_index[0] < paramValues[0].size()) {
+				ParameterConfiguration pconfig = new ParameterConfiguration(base);
+				Object[] paramVal = new Object[graphParams.size()];
+				for (int i = 0; i < graphParams.size(); i++) {
+					paramVal[i] = paramValues[i].get(p_index[i]);
 				}
-				if (solverConfigs.get(new ObjectArrayWrapper(paramVal)) == null) {
-					// there are 3^(# params) solver configs to check; might be
-					// inefficient
-					Object[] otherScPVal = new Object[graphParams.size()];
-					
-					while (state[0] < 2) {
-						boolean valid = true;
-						for (int i = 0; i < graphParams.size(); i++) {
-							switch (state[i]) {
-							case 0: {
-								otherScPVal[i] = paramValPrevNext[i].getFirst();
-								break;
-							}
-							case 1: {
-								otherScPVal[i] = paramVal[i];
-								break;
-							}
-							case 2: {
-								otherScPVal[i] = paramValPrevNext[i].getSecond();
-								break;
-							}
-							default: {
-								throw new IllegalArgumentException("case " + state[i] + " is unknown.");
-							}
-							}
-							if (otherScPVal[i] == null) {
-								valid = false;
-							}
-						}
-						if (valid) {
-							SolverConfiguration sc = solverConfigs.get(new ObjectArrayWrapper(otherScPVal));
-							if (sc != null) {
-								if (goodSolverConfigIds.contains(sc.getIdSolverConfiguration())) {
-									generate_solver_config = true;
-									break;
-								}
-							}
-						}
 
-						state[graphParams.size() - 1]++;
-						int i = graphParams.size() - 1;
-						while (i > 0 && state[i] > 2) {
-							state[i] = 0;
-							state[i - 1]++;
-							i--;
-						}
-					}
-				}
-			}
-			
-			if (generate_solver_config) {
 				for (int i = 0; i < graphParams.size(); i++) {
 					pconfig.setParameterValue(graphParams.get(i), paramVal[i]);
 				}
@@ -167,21 +107,96 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 				SolverConfiguration sc = new SolverConfiguration(idSolverConfig, pconfig, parameters.getStatistics());
 				newSCs.add(sc);
 				solverConfigs.put(new ObjectArrayWrapper(paramVal), sc);
+
+				p_index[graphParams.size() - 1]++;
+				for (int i = graphParams.size() - 1; i >= 0; i--) {
+					if (p_index[i] < paramValues[i].size()) {
+						break;
+					}
+					if (i > 0) {
+						p_index[i - 1]++;
+						p_index[i] = 0;
+					}
+				}
+			}
+		} else {
+			
+			LinkedList<HashMap<Object, Pair<Object, Object>>> paramValuesPrevNextMaps = new LinkedList<HashMap<Object, Pair<Object, Object>>>();
+			for (int i = 0; i < graphParams.size(); i++) {
+				HashMap<Object, Pair<Object, Object>> map = new HashMap<Object, Pair<Object, Object>>();
+				paramValuesPrevNextMaps.add(map);
+				for (int j = 0; j < paramValues[i].size(); j++) {
+					map.put(paramValues[i].get(j), paramValuesPrevNext[i].get(j));
+				}
 			}
 			
-			
-			
-			p_index[graphParams.size()-1]++;
-			for (int i = graphParams.size()-1; i >= 0; i--) {
-				if (p_index[i] < paramValues[i].size()) {
-					break;
+			for (SolverConfiguration goodSC : goodSolverConfigs) {
+				Object[] paramVal = new Object[graphParams.size()];
+				Pair<Object, Object>[] paramValPrevNext = new Pair[graphParams.size()];
+				for (int i = 0; i < graphParams.size(); i++) {
+					paramVal[i] = goodSC.getParameterConfiguration().getParameterValue(graphParams.get(i));
+					paramValPrevNext[i] = paramValuesPrevNextMaps.get(i).get(paramVal[i]);
 				}
-				if (i > 0) {
-					p_index[i-1]++;
-					p_index[i] = 0;
+
+				int[] state = new int[graphParams.size()];
+				for (int i = 0; i < state.length; i++) {
+					state[i] = 0;
+				}
+				// there are 3^(# params) solver configs to check
+
+				Object[] otherScPVal = new Object[graphParams.size()];
+
+				while (state[0] < 2) {
+					boolean valid = true;
+					for (int i = 0; i < graphParams.size(); i++) {
+						switch (state[i]) {
+						case 0: {
+							otherScPVal[i] = paramValPrevNext[i].getFirst();
+							break;
+						}
+						case 1: {
+							otherScPVal[i] = paramVal[i];
+							break;
+						}
+						case 2: {
+							otherScPVal[i] = paramValPrevNext[i].getSecond();
+							break;
+						}
+						default: {
+							throw new IllegalArgumentException("case " + state[i] + " is unknown.");
+						}
+						}
+						if (otherScPVal[i] == null) {
+							valid = false;
+							break;
+						}
+					}
+					if (valid) {
+						if (!solverConfigs.containsKey(new ObjectArrayWrapper(otherScPVal))) {
+							// generate a new solver config.
+							
+							ParameterConfiguration pconfig = new ParameterConfiguration(base);
+							for (int i = 0; i < graphParams.size(); i++) {
+								pconfig.setParameterValue(graphParams.get(i), otherScPVal[i]);
+							}
+							int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), pconfig, "just created");
+							SolverConfiguration sc = new SolverConfiguration(idSolverConfig, pconfig, parameters.getStatistics());
+							newSCs.add(sc);
+							solverConfigs.put(new ObjectArrayWrapper(paramVal), sc);
+						}
+					}
+
+					state[graphParams.size() - 1]++;
+					int i = graphParams.size() - 1;
+					while (i > 0 && state[i] > 2) {
+						state[i] = 0;
+						state[i - 1]++;
+						i--;
+					}
 				}
 			}
 		}
+		
 		
 		for (int i = 0; i < graphParams.size(); i++) {
 			int j = 0;
