@@ -77,6 +77,7 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 			}
 			for (int i = lastSolverConfigs.size()-1; i >= lastSolverConfigs.size()-goodSolverConfigSize; i--) {
 				goodSolverConfigIds.add(lastSolverConfigs.get(i).getIdSolverConfiguration());
+				pacc.log("[ISSS] Good solver config: " + api.getCanonicalName(parameters.getIdExperiment(), lastSolverConfigs.get(i).getParameterConfiguration()));
 			}
 			pacc.log("[ISSS] Iteration #" + iteration + ": found " + goodSolverConfigIds.size() + " good solver configs");
 		} else {
