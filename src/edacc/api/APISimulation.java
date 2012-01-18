@@ -37,6 +37,7 @@ import edacc.properties.PropertyTypeNotExistException;
 
 public class APISimulation extends APIImpl {
 
+	private static int sc_idcounter = 1;
 	private class Client implements Comparable<Client> {
 		long idleSince;
 		ExperimentResultWrapper currentJob;
@@ -399,7 +400,9 @@ public class APISimulation extends APIImpl {
 
 	@Override
 	public synchronized int createSolverConfig(int idExperiment, ParameterConfiguration config, String name) throws Exception {
-		throw new IllegalArgumentException("Can't create solver configurations in read only mode.");
+		System.out.println("[SimulationAPI] createSolverConfig(int, ParamaeterConfiguration, String): " + this.getCanonicalName(idExperiment, config));
+		return sc_idcounter++;
+		//throw new IllegalArgumentException("Can't create solver configurations in read only mode.");
 	}
 
 	@Override
