@@ -61,25 +61,30 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 		
 		LinkedList<SolverConfiguration> goodSolverConfigs = new LinkedList<SolverConfiguration>();
 		if (iteration > 0) {
-			Collections.sort(lastSolverConfigs, new Comparator<SolverConfiguration>() {
+			if (pacc.racing instanceof edacc.configurator.aac.racing.FRace) {
+				goodSolverConfigs.addAll(((edacc.configurator.aac.racing.FRace) pacc.racing).getRaceSurvivors());
+			} else {
+				Collections.sort(lastSolverConfigs, new Comparator<SolverConfiguration>() {
 
-				@Override
-				public int compare(SolverConfiguration arg0, SolverConfiguration arg1) {
-					return pacc.racing.compareTo(arg0, arg1);
-					
+					@Override
+					public int compare(SolverConfiguration arg0, SolverConfiguration arg1) {
+						return pacc.racing.compareTo(arg0, arg1);
+
+					}
+
+				});
+				int goodSolverConfigSize = (int) Math.round(lastSolverConfigs.size() * 0.1);
+				if (goodSolverConfigSize == 0) {
+					// finished search.
+					return new LinkedList<SolverConfiguration>();
 				}
-				
-			});
-			int goodSolverConfigSize = (int) Math.round(lastSolverConfigs.size() * 0.1);
-			if (goodSolverConfigSize == 0) {
-				// finished search.
-				return new LinkedList<SolverConfiguration>();
-			}
-			for (int i = lastSolverConfigs.size()-1; i >= lastSolverConfigs.size()-goodSolverConfigSize; i--) {
-				goodSolverConfigs.add(lastSolverConfigs.get(i));
-				pacc.log("[ISSS] Good solver config: " + api.getCanonicalName(parameters.getIdExperiment(), lastSolverConfigs.get(i).getParameterConfiguration()));
+				for (int i = lastSolverConfigs.size() - 1; i >= lastSolverConfigs.size() - goodSolverConfigSize; i--) {
+					goodSolverConfigs.add(lastSolverConfigs.get(i));
+					pacc.log("[ISSS] Good solver config: " + api.getCanonicalName(parameters.getIdExperiment(), lastSolverConfigs.get(i).getParameterConfiguration()));
+				}
 			}
 			pacc.log("[ISSS] Iteration #" + iteration + ": found " + goodSolverConfigs.size() + " good solver configs");
+			
 		} else {
 			pacc.log("[ISSS] Sampling the search space, first iteration");
 		}
