@@ -68,7 +68,8 @@ public class IteratedFRace extends SearchMethods {
             }*/
             for (int i = 0; i < Nlnext - Ns; i++) {
                 SolverConfiguration eliteConfig = roulette.next();
-                ParameterConfiguration paramConfig = pspace.getGaussianRandomNeighbour(eliteConfig.getParameterConfiguration(), rng, parameterStdDev, 1, true);
+                ParameterConfiguration paramConfig = new ParameterConfiguration(eliteConfig.getParameterConfiguration());
+                pspace.mutateParameterConfiguration(rng, paramConfig, parameterStdDev, 1.0f);
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, "I" + iteration + " " + api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
                 newSC.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
             }

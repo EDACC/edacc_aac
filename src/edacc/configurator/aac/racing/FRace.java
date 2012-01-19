@@ -88,7 +88,8 @@ public class FRace extends RacingMethods {
         pacc.log("CPU time used so far: " + budgetUsed);
         
         if (level+1 > parameters.getMaxParcoursExpansionFactor() * num_instances) {
-            terminateRace();
+            // only terminate when all jobs are finished
+            if (curFinishedConfigurations.containsAll(raceConfigurations)) terminateRace();
             return;
         }
         
