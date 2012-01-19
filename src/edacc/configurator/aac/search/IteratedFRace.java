@@ -25,6 +25,9 @@ public class IteratedFRace extends SearchMethods {
     //private Map<Parameter, Float> parameterStdDev;
     private float parameterStdDev;
     private FRace race = null;
+    
+    double initialParameterStdDev = 1.0f;
+    double minStdDev = 1e-6;
 
     public IteratedFRace(AAC pacc, API api, Random rng, Parameters parameters) throws Exception {
         super(pacc, api, rng, parameters);
@@ -33,7 +36,13 @@ public class IteratedFRace extends SearchMethods {
         for (Parameter p: api.getConfigurableParameters(parameters.getIdExperiment())) {
             parameterStdDev.put(p, 1.0f);
         }*/
-        this.parameterStdDev = 1.0f; // initial standard deviation for sampling
+        String val;
+        if ((val = parameters.getRacingMethodParameters().get("IteratedFRace_initialParameterStdDev")) != null)
+            this.initialParameterStdDev = Double.parseDouble(val);
+        if ((val = parameters.getRacingMethodParameters().get("IteratedFRace_minStdDev")) != null)
+            this.minStdDev = Double.parseDouble(val);
+
+        this.parameterStdDev = (float) initialParameterStdDev; // initial standard deviation for sampling
     }
 
     @Override
@@ -48,7 +57,7 @@ public class IteratedFRace extends SearchMethods {
             
             int Nlnext = race.getNumRaceConfigurations();
             parameterStdDev *= (float)Math.pow(1.0f/Nlnext, 1.0f/(float)api.getConfigurableParameters(parameters.getIdExperiment()).size());
-            if (parameterStdDev < 0.000001f) {
+            if (parameterStdDev < minStdDev) {
                 pacc.log("Parameter standard deviation reduced to " + parameterStdDev + " which is probably insignificant enough to stop here.");
                 return newSC;
             }
@@ -97,7 +106,10 @@ public class IteratedFRace extends SearchMethods {
 
     @Override
     public void listParameters() {
-        // TODO Auto-generated method stub
+        System.out.println("--- IteratedFRace parameters ---");
+        System.out.println("IteratedFRace_initialParameterStdDev = "+this.initialParameterStdDev+ " (Initial normalized standard deviation used to sample the second generation of configurations based on the elite configurations obtained from the race)");
+        System.out.println("IteratedFRace_minStdDev = "+this.minStdDev+ " (Down to which value should the standard deviation be reduced before the search terminates)");
+        System.out.println("-----------------------\n");
 
     }
     
