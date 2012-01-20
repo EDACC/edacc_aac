@@ -45,8 +45,12 @@ public class FRace extends RacingMethods {
     private int Nmin;
     private int numRaceConfigurations;
 
+    // parameters
     double alpha = 0.05; // significance level alpha
-
+    double NminFactor = 2.5;
+    double initialRunsFactor = 0.05;
+    double numRaceConfigurationsFactor = 10;
+    
     public FRace(AAC pacc, Random rng, API api, Parameters parameters) throws Exception {
         super(pacc, rng, api, parameters);
         this.num_instances = api.getCourse(parameters.getIdExperiment()).getInitialLength();
@@ -55,9 +59,20 @@ public class FRace extends RacingMethods {
         this.curFinishedConfigurations = new ArrayList<SolverConfiguration>();
         this.courseResults = new HashMap<Integer, Map<SolverConfiguration, Float>>();
         this.raceSurvivors = new ArrayList<SolverConfiguration>();
-        this.Nmin = Math.round(2.5f * api.getConfigurableParameters(parameters.getIdExperiment()).size());
-        this.initialRaceRuns = Math.max(1, Math.round(0.05f * num_instances));
-        this.numRaceConfigurations = 10 * api.getConfigurableParameters(parameters.getIdExperiment()).size();
+        
+        String val;
+        if ((val = parameters.getRacingMethodParameters().get("FRace_alpha")) != null)
+            this.alpha = Double.parseDouble(val);
+        if ((val = parameters.getRacingMethodParameters().get("FRace_NminFactor")) != null)
+            this.NminFactor = Double.parseDouble(val);
+        if ((val = parameters.getRacingMethodParameters().get("FRace_initialRunsFactor")) != null)
+            this.initialRunsFactor = Double.parseDouble(val);
+        if ((val = parameters.getRacingMethodParameters().get("FRace_numRaceConfigurationsFactor")) != null)
+            this.numRaceConfigurationsFactor = Double.parseDouble(val);
+        
+        this.Nmin = (int) Math.round(NminFactor * api.getConfigurableParameters(parameters.getIdExperiment()).size());
+        this.initialRaceRuns = (int) Math.max(1, Math.round(initialRunsFactor * num_instances));
+        this.numRaceConfigurations = (int) Math.max(1, Math.round(numRaceConfigurationsFactor * api.getConfigurableParameters(parameters.getIdExperiment()).size()));
     }
 
     @Override
@@ -88,7 +103,8 @@ public class FRace extends RacingMethods {
         pacc.log("CPU time used so far: " + budgetUsed);
         
         if (level+1 > parameters.getMaxParcoursExpansionFactor() * num_instances) {
-            terminateRace();
+            // only terminate when all jobs are finished
+            if (curFinishedConfigurations.containsAll(raceConfigurations)) terminateRace();
             return;
         }
         
@@ -270,8 +286,12 @@ public class FRace extends RacingMethods {
 
     @Override
     public void listParameters() {
-        // TODO Auto-generated method stub
-
+        System.out.println("--- FRace parameters ---");
+        System.out.println("FRace_alpha = "+this.alpha+ " (Significance level alpha used in the statistical hypothesis tests)");
+        System.out.println("FRace_NminFactor = " + this.NminFactor + " (#Solver configurations at most to survive a race: round(NminFactor * #configurable parameters) )");
+        System.out.println("FRace_initialRunsFactor = " + this.initialRunsFactor + " (How many runs each configuration should get at the start of the race: round(initialRunsFactor * #instances) )");
+        System.out.println("FRace_numRaceConfigurationsFactor = " + this.numRaceConfigurationsFactor + " (How many solver configurations should the racing method request from the search method: round(numRaceConfigurationsFactor * #parameters) )");
+        System.out.println("-----------------------\n");
     }
 
     @Override
