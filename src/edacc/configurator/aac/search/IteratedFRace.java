@@ -58,8 +58,10 @@ public class IteratedFRace extends SearchMethods {
             int Nlnext = race.getNumRaceConfigurations();
             parameterStdDev *= (float)Math.pow(1.0f/Nlnext, 1.0f/(float)api.getConfigurableParameters(parameters.getIdExperiment()).size());
             if (parameterStdDev < minStdDev) {
-                pacc.log("Parameter standard deviation reduced to " + parameterStdDev + " which is probably insignificant enough to stop here.");
-                return newSC;
+                pacc.log("Parameter standard deviation reduced to " + parameterStdDev + " which is probably insignificant enough to stop here. Starting over.");
+                this.parameterStdDev = (float)initialParameterStdDev;
+                this.iteration = 0;
+                return generateNewSC(num, currentBestSC);
             }
             
             raceSurvivors = race.getRaceSurvivors();
@@ -81,6 +83,7 @@ public class IteratedFRace extends SearchMethods {
                 pspace.mutateParameterConfiguration(rng, paramConfig, parameterStdDev, 1.0f);
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, "I" + iteration + " " + api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
                 newSC.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
+                pacc.log("Created " + api.getCanonicalName(parameters.getIdExperiment(), paramConfig) + " based on the elite configuration " + api.getCanonicalName(parameters.getIdExperiment(), eliteConfig.getParameterConfiguration()));
             }
 
             /*for (Parameter p: parameterStdDev.keySet()) {

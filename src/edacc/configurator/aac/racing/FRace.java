@@ -95,15 +95,16 @@ public class FRace extends RacingMethods {
     public void solverConfigurationsFinished(List<SolverConfiguration> scs) throws Exception {
         curFinishedConfigurations.addAll(scs);
         
-        float budgetUsed = 0.0f;
+        /*float budgetUsed = 0.0f;
         for (SolverConfiguration solverConfig: initialRaceConfigurations) {
             int i = 0;
             for (ExperimentResult run: solverConfig.getFinishedJobs()) { if (i++ > level) break;  budgetUsed += run.getResultTime(); }
         }
-        pacc.log("CPU time used so far: " + budgetUsed);
+        pacc.log("CPU time used so far: " + budgetUsed);*/
         
         if (level+1 > parameters.getMaxParcoursExpansionFactor() * num_instances) {
             // only terminate when all jobs are finished
+            pacc.log("Exceeded maximum number of runs per solver config");
             if (curFinishedConfigurations.containsAll(raceConfigurations)) terminateRace();
             return;
         }
@@ -201,11 +202,13 @@ public class FRace extends RacingMethods {
 
                     // TODO: really m - 1 degrees of freedom here?
                     TDistribution tDist = new TDistributionImpl(m - 1);
+                    pacc.log(raceConfigurations.get(j).getIdSolverConfiguration() + " vs. best: F = " + F + ", Quantile= " + tDist.inverseCumulativeProbability((1 - alpha / 2.0)));
                     if (F > tDist.inverseCumulativeProbability((1 - alpha / 2.0))) {
                         // the best and this configuration are significantly
                         // different enough to discard this one from the race
                         //System.out.println("Determined " + raceConfigurations.get(j) + " to be a worse configuration");
                         worseConfigurations.add(raceConfigurations.get(j));
+                        raceConfigurations.get(j).setFinished(true);
                         pacc.log("Removing " + raceConfigurations.get(j).getName() + " ("+raceConfigurations.get(j).getCost()+") from race because it is significantly worse than the best configuration ("+bestSC.getCost()+")");
                     }
                 }
@@ -231,7 +234,7 @@ public class FRace extends RacingMethods {
                 for (SolverConfiguration solverConfig : raceConfigurations) {
                     int numJobs = solverConfig.getJobs().size();
                     //System.out.println("SC: " + solverConfig.getIdSolverConfiguration() + " numJobs: " + numJobs);
-                    if (numJobs == level + 1) {
+                    if (numJobs == level + 1 && level + 1 < parameters.getMaxParcoursExpansionFactor() * num_instances) {
                         //System.out.println("added a job to SC " + solverConfig.getIdSolverConfiguration());
                         // this SC needs a new job
                         pacc.expandParcoursSC(solverConfig, 1);
@@ -268,6 +271,7 @@ public class FRace extends RacingMethods {
         raceConfigurations.addAll(scs);
         initialRaceConfigurations.addAll(scs);
         for (SolverConfiguration solverConfig : scs) {
+            solverConfig.setFinished(false);
             if (solverConfig.getNumFinishedJobs() == 0) {
                 pacc.expandParcoursSC(solverConfig, initialRaceRuns);
             }
@@ -302,6 +306,7 @@ public class FRace extends RacingMethods {
     private void terminateRace() {
         pacc.log("The race ended with the following configurations remaining:");
         for (SolverConfiguration solverConfig: raceConfigurations) {
+            solverConfig.setFinished(true);
             pacc.log(solverConfig.getName() + " - " + solverConfig.getCost());
         }
         raceSurvivors.addAll(raceConfigurations);
