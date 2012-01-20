@@ -4,7 +4,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
@@ -21,7 +20,7 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 
 	private ParameterGraph graph;
 	private List<Parameter> graphParams;
-	private int numInitSamples = 3;
+	private int numInitSamples = 5;
 	private LinkedList<Object>[] paramValues;
 	private LinkedList<Pair<Object, Object>>[] paramValuesPrevNext;
 	private int iteration = 0;
@@ -36,9 +35,9 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 		solverConfigs = new HashMap<ObjectArrayWrapper, SolverConfiguration>();
 		lastSolverConfigs = new LinkedList<SolverConfiguration>();
 		for (int i = 0; i < graphParams.size(); i++) {
-			paramValues[i] = new LinkedList();
+			paramValues[i] = new LinkedList<Object>();
 			paramValues[i].addAll(graphParams.get(i).getDomain().getUniformDistributedValues(numInitSamples));
-			paramValuesPrevNext[i] = new LinkedList();
+			paramValuesPrevNext[i] = new LinkedList<Pair<Object, Object>>();
 			for (int j = 0; j < paramValues[i].size(); j++) {
 				Pair<Object, Object> p = new Pair<Object, Object>(j > 0 ? paramValues[i].get(j-1) : null, j+1 < paramValues[i].size() ? paramValues[i].get(j+1) : null);
 				paramValuesPrevNext[i].add(p);
@@ -59,8 +58,11 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 			return new LinkedList<SolverConfiguration>();
 		}
 		
+		
+		
 		LinkedList<SolverConfiguration> goodSolverConfigs = new LinkedList<SolverConfiguration>();
 		if (iteration > 0) {
+			long time = System.currentTimeMillis();
 			if (pacc.racing instanceof edacc.configurator.aac.racing.FRace) {
 				goodSolverConfigs.addAll(((edacc.configurator.aac.racing.FRace) pacc.racing).getRaceSurvivors());
 			} else {
@@ -73,22 +75,22 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 					}
 
 				});
-				int goodSolverConfigSize = (int) Math.round(lastSolverConfigs.size() * 0.1);
+				int goodSolverConfigSize = 2*graphParams.size();
 				if (goodSolverConfigSize == 0) {
 					// finished search.
 					return new LinkedList<SolverConfiguration>();
 				}
-				for (int i = lastSolverConfigs.size() - 1; i >= lastSolverConfigs.size() - goodSolverConfigSize; i--) {
+				for (int i = lastSolverConfigs.size() - 1; i >= lastSolverConfigs.size() - goodSolverConfigSize && i >= 0; i--) {
 					goodSolverConfigs.add(lastSolverConfigs.get(i));
 					pacc.log("[ISSS] Good solver config: " + api.getCanonicalName(parameters.getIdExperiment(), lastSolverConfigs.get(i).getParameterConfiguration()));
 				}
 			}
-			pacc.log("[ISSS] Iteration #" + iteration + ": found " + goodSolverConfigs.size() + " good solver configs");
+			pacc.log("[IS設 Iteration #" + iteration + ": found " + goodSolverConfigs.size() + " good solver configs");
+			pacc.log("[IS設 Finding good solver configs took " + (System.currentTimeMillis() - time) + " ms");
 			
 		} else {
-			pacc.log("[ISSS] Sampling the search space, first iteration");
+			pacc.log("[IS設 Sampling the search space, first iteration");
 		}
-		
 		
 		ParameterConfiguration base = graph.getRandomConfiguration(rng);
 		LinkedList<SolverConfiguration> newSCs = new LinkedList<SolverConfiguration>();
@@ -97,6 +99,7 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 			p_index[i] = 0;
 		}
 		if (iteration == 0) {
+			long time = System.currentTimeMillis();
 			while (p_index[0] < paramValues[0].size()) {
 				ParameterConfiguration pconfig = new ParameterConfiguration(base);
 				Object[] paramVal = new Object[graphParams.size()];
@@ -124,7 +127,9 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 					}
 				}
 			}
+			pacc.log("[IS設 Generating initial solver configurations took " + (System.currentTimeMillis() - time) + " ms");
 		} else {
+			long time = System.currentTimeMillis();
 			
 			LinkedList<HashMap<Object, Pair<Object, Object>>> paramValuesPrevNextMaps = new LinkedList<HashMap<Object, Pair<Object, Object>>>();
 			for (int i = 0; i < graphParams.size(); i++) {
@@ -200,9 +205,10 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 					}
 				}
 			}
+			pacc.log("[IS設 Generating solver configurations took " + (System.currentTimeMillis() - time) + "ms");
 		}
 		
-		
+		long time = System.currentTimeMillis();
 		for (int i = 0; i < graphParams.size(); i++) {
 			int j = 0;
 			while (j+1 < paramValues[i].size()) {
@@ -223,7 +229,8 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 				j++;
 			}
 		}
-		pacc.log("[ISSS] Generated " + newSCs.size() + " solver configurations in iteration " + iteration + ".");
+		pacc.log("[IS設 Updating search space took " + (System.currentTimeMillis() - time) + " ms");
+		pacc.log("[IS設 Generated " + newSCs.size() + " solver configurations in iteration " + iteration + ".");
 		iteration++;
 		lastSolverConfigs = newSCs;
 		return newSCs;
@@ -233,21 +240,6 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 	public void listParameters() {
 
 	}
-
-	
-	private class SolverConfigurationEx extends SolverConfiguration {
-
-		SolverConfigurationEx[] neighboursHigh, neighboursLow;
-		public SolverConfigurationEx(int idSolverConfiguration, ParameterConfiguration pc, StatisticFunction statFunc) {
-			super(idSolverConfiguration, pc, statFunc);
-			neighboursHigh = new SolverConfigurationEx[graphParams.size()];
-			neighboursLow = new SolverConfigurationEx[graphParams.size()];
-			for (int i = 0; i < graphParams.size(); i++) {
-				neighboursHigh[i] = null;
-				neighboursLow[i] = null;
-			}
-		}
-	}
 	
 	private class ObjectArrayWrapper {
 		private Object[] array;
@@ -255,6 +247,7 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 		public ObjectArrayWrapper(Object[] array) {
 			this.array = array;
 		}
+		
 		@Override
 		public int hashCode() {
 			final int prime = 31;
@@ -263,6 +256,7 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 			result = prime * result + Arrays.hashCode(array);
 			return result;
 		}
+		
 		@Override
 		public boolean equals(Object obj) {
 			if (this == obj)
@@ -278,10 +272,9 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 				return false;
 			return true;
 		}
+		
 		private IterativeSearchSpaceSampling getOuterType() {
 			return IterativeSearchSpaceSampling.this;
 		}
-		
-		
 	}
 }
