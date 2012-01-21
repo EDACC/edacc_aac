@@ -102,13 +102,6 @@ public class FRace extends RacingMethods {
         }
         pacc.log("CPU time used so far: " + budgetUsed);*/
         
-        if (level+1 >= parameters.getMaxParcoursExpansionFactor() * num_instances) {
-            // only terminate when all jobs are finished
-            pacc.log("Exceeded maximum number of runs per solver config");
-            if (curFinishedConfigurations.containsAll(raceConfigurations)) terminateRace();
-            return;
-        }
-        
         if (curFinishedConfigurations.containsAll(raceConfigurations)) {
             pacc.log("c All "+raceConfigurations.size()+" currently racing configurations have finished their jobs (#Runs: " + (level + 1) + ")");
             // fill result tableau
@@ -222,6 +215,13 @@ public class FRace extends RacingMethods {
                 }
             } else {
                 pacc.log("family-wise comparison test indicated no significant differences between the configurations (T = " + T + " < Quantile = "+ XS.inverseCumulativeProbability(1.0 - alpha) + ")");
+            }
+            
+            if (level+1 >= parameters.getMaxParcoursExpansionFactor() * num_instances) {
+                // only terminate when all jobs are finished
+                pacc.log("Exceeded maximum number of runs per solver config");
+                terminateRace();
+                return;
             }
 
             int numAvailableCores = Math.max(1, api.getComputationCoreCount(parameters.getIdExperiment())); // make sure there's at least one iteration
