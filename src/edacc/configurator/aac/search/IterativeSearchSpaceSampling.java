@@ -21,6 +21,7 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 	private ParameterGraph graph;
 	private List<Parameter> graphParams;
 	private int numInitSamples = 5;
+	private double maxSolverConfigsFactor = 2;
 	private LinkedList<Object>[] paramValues;
 	private LinkedList<Pair<Object, Object>>[] paramValuesPrevNext;
 	private int iteration = 0;
@@ -43,6 +44,14 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 				paramValuesPrevNext[i].add(p);
 			}
 		}
+		
+		String val;
+		if ((val = parameters.getSearchMethodParameters().get("IterativeSearchSpaceSampling_numInitSamples")) != null) {
+			numInitSamples = Integer.valueOf(val);
+		}
+		if ((val = parameters.getSearchMethodParameters().get("IterativeSearchSpaceSampling_maxSolverConfigs")) != null) {
+			maxSolverConfigsFactor = Double.valueOf(val);
+		}
 	}
 
 	@Override
@@ -62,9 +71,17 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 		
 		LinkedList<SolverConfiguration> goodSolverConfigs = new LinkedList<SolverConfiguration>();
 		if (iteration > 0) {
+			int goodSolverConfigSize = (int) Math.round(maxSolverConfigsFactor*graphParams.size());
+			if (goodSolverConfigSize <= 5) {
+				goodSolverConfigSize = 5;
+			}
 			long time = System.currentTimeMillis();
 			if (pacc.racing instanceof edacc.configurator.aac.racing.FRace) {
 				goodSolverConfigs.addAll(((edacc.configurator.aac.racing.FRace) pacc.racing).getRaceSurvivors());
+				Collections.sort(goodSolverConfigs);
+				while(goodSolverConfigs.size() > goodSolverConfigSize) {
+					goodSolverConfigs.removeFirst();
+				}
 			} else {
 				Collections.sort(lastSolverConfigs, new Comparator<SolverConfiguration>() {
 
@@ -75,7 +92,7 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 					}
 
 				});
-				int goodSolverConfigSize = 2*graphParams.size();
+				
 				if (goodSolverConfigSize == 0) {
 					// finished search.
 					return new LinkedList<SolverConfiguration>();
@@ -85,11 +102,11 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 					pacc.log("[ISSS] Good solver config: " + api.getCanonicalName(parameters.getIdExperiment(), lastSolverConfigs.get(i).getParameterConfiguration()));
 				}
 			}
-			pacc.log("[IS設 Iteration #" + iteration + ": found " + goodSolverConfigs.size() + " good solver configs");
-			pacc.log("[IS設 Finding good solver configs took " + (System.currentTimeMillis() - time) + " ms");
+			pacc.log("[ISSS] Iteration #" + iteration + ": found " + goodSolverConfigs.size() + " good solver configs");
+			pacc.log("[ISSS] Finding good solver configs took " + (System.currentTimeMillis() - time) + " ms");
 			
 		} else {
-			pacc.log("[IS設 Sampling the search space, first iteration");
+			pacc.log("[ISSS] Sampling the search space, first iteration");
 		}
 		
 		ParameterConfiguration base = graph.getRandomConfiguration(rng);
@@ -113,6 +130,7 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 
 				int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), pconfig, "just created");
 				SolverConfiguration sc = new SolverConfiguration(idSolverConfig, pconfig, parameters.getStatistics());
+				sc.setName(api.getCanonicalName(parameters.getIdExperiment(), pconfig));
 				newSCs.add(sc);
 				solverConfigs.put(new ObjectArrayWrapper(paramVal), sc);
 
@@ -127,7 +145,7 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 					}
 				}
 			}
-			pacc.log("[IS設 Generating initial solver configurations took " + (System.currentTimeMillis() - time) + " ms");
+			pacc.log("[ISSS] Generating initial solver configurations took " + (System.currentTimeMillis() - time) + " ms");
 		} else {
 			long time = System.currentTimeMillis();
 			
@@ -191,8 +209,9 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 							}
 							int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), pconfig, "just created");
 							SolverConfiguration sc = new SolverConfiguration(idSolverConfig, pconfig, parameters.getStatistics());
+							sc.setName(api.getCanonicalName(parameters.getIdExperiment(), pconfig));
 							newSCs.add(sc);
-							solverConfigs.put(new ObjectArrayWrapper(paramVal), sc);
+							solverConfigs.put(new ObjectArrayWrapper(otherScPVal), sc);
 						}
 					}
 
@@ -205,7 +224,7 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 					}
 				}
 			}
-			pacc.log("[IS設 Generating solver configurations took " + (System.currentTimeMillis() - time) + "ms");
+			pacc.log("[ISSS] Generating solver configurations took " + (System.currentTimeMillis() - time) + "ms");
 		}
 		
 		long time = System.currentTimeMillis();
@@ -229,8 +248,8 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 				j++;
 			}
 		}
-		pacc.log("[IS設 Updating search space took " + (System.currentTimeMillis() - time) + " ms");
-		pacc.log("[IS設 Generated " + newSCs.size() + " solver configurations in iteration " + iteration + ".");
+		pacc.log("[ISSS] Updating search space took " + (System.currentTimeMillis() - time) + " ms");
+		pacc.log("[ISSS] Generated " + newSCs.size() + " solver configurations in iteration " + iteration + ".");
 		iteration++;
 		lastSolverConfigs = newSCs;
 		return newSCs;
