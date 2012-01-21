@@ -37,9 +37,9 @@ public class IteratedFRace extends SearchMethods {
             parameterStdDev.put(p, 1.0f);
         }*/
         String val;
-        if ((val = parameters.getRacingMethodParameters().get("IteratedFRace_initialParameterStdDev")) != null)
+        if ((val = parameters.getSearchMethodParameters().get("IteratedFRace_initialParameterStdDev")) != null)
             this.initialParameterStdDev = Double.parseDouble(val);
-        if ((val = parameters.getRacingMethodParameters().get("IteratedFRace_minStdDev")) != null)
+        if ((val = parameters.getSearchMethodParameters().get("IteratedFRace_minStdDev")) != null)
             this.minStdDev = Double.parseDouble(val);
 
         this.parameterStdDev = (float) initialParameterStdDev; // initial standard deviation for sampling
