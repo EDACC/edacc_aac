@@ -35,6 +35,17 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 		paramValuesPrevNext = new LinkedList[graphParams.size()];
 		solverConfigs = new HashMap<ObjectArrayWrapper, SolverConfiguration>();
 		lastSolverConfigs = new LinkedList<SolverConfiguration>();
+		
+		// max numInitSamples^(#parameters) solver configs will be created in iteration 0
+		
+		String val;
+		if ((val = parameters.getSearchMethodParameters().get("IterativeSearchSpaceSampling_numInitSamples")) != null) {
+			numInitSamples = Integer.valueOf(val);
+		}
+		if ((val = parameters.getSearchMethodParameters().get("IterativeSearchSpaceSampling_maxSolverConfigsFactor")) != null) {
+			maxSolverConfigsFactor = Double.valueOf(val);
+		}
+		
 		for (int i = 0; i < graphParams.size(); i++) {
 			paramValues[i] = new LinkedList<Object>();
 			paramValues[i].addAll(graphParams.get(i).getDomain().getUniformDistributedValues(numInitSamples));
@@ -43,14 +54,6 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 				Pair<Object, Object> p = new Pair<Object, Object>(j > 0 ? paramValues[i].get(j-1) : null, j+1 < paramValues[i].size() ? paramValues[i].get(j+1) : null);
 				paramValuesPrevNext[i].add(p);
 			}
-		}
-		
-		String val;
-		if ((val = parameters.getSearchMethodParameters().get("IterativeSearchSpaceSampling_numInitSamples")) != null) {
-			numInitSamples = Integer.valueOf(val);
-		}
-		if ((val = parameters.getSearchMethodParameters().get("IterativeSearchSpaceSampling_maxSolverConfigs")) != null) {
-			maxSolverConfigsFactor = Double.valueOf(val);
 		}
 	}
 
@@ -130,10 +133,10 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 
 				int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), pconfig, "just created");
 				SolverConfiguration sc = new SolverConfiguration(idSolverConfig, pconfig, parameters.getStatistics());
-				sc.setName(api.getCanonicalName(parameters.getIdExperiment(), pconfig));
+				sc.setName(api.getCanonicalName(parameters.getIdExperiment(), pconfig) + " it 0");
 				newSCs.add(sc);
 				solverConfigs.put(new ObjectArrayWrapper(paramVal), sc);
-
+				pacc.log("[ISSS] put: " + Arrays.toString(paramVal));
 				p_index[graphParams.size() - 1]++;
 				for (int i = graphParams.size() - 1; i >= 0; i--) {
 					if (p_index[i] < paramValues[i].size()) {
@@ -159,13 +162,16 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 			}
 			
 			for (SolverConfiguration goodSC : goodSolverConfigs) {
+				
 				Object[] paramVal = new Object[graphParams.size()];
 				Pair<Object, Object>[] paramValPrevNext = new Pair[graphParams.size()];
 				for (int i = 0; i < graphParams.size(); i++) {
 					paramVal[i] = goodSC.getParameterConfiguration().getParameterValue(graphParams.get(i));
 					paramValPrevNext[i] = paramValuesPrevNextMaps.get(i).get(paramVal[i]);
 				}
-
+				
+				pacc.log("[ISSS] Current config: " + Arrays.toString(paramVal));
+				
 				int[] state = new int[graphParams.size()];
 				for (int i = 0; i < state.length; i++) {
 					state[i] = 0;
@@ -200,8 +206,10 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 						}
 					}
 					if (valid) {
+						pacc.log("[ISSS] check contains: " + Arrays.toString(otherScPVal));
 						if (!solverConfigs.containsKey(new ObjectArrayWrapper(otherScPVal))) {
 							// generate a new solver config.
+							pacc.log("[ISSS] false.");
 							
 							ParameterConfiguration pconfig = new ParameterConfiguration(base);
 							for (int i = 0; i < graphParams.size(); i++) {
@@ -209,9 +217,11 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 							}
 							int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), pconfig, "just created");
 							SolverConfiguration sc = new SolverConfiguration(idSolverConfig, pconfig, parameters.getStatistics());
-							sc.setName(api.getCanonicalName(parameters.getIdExperiment(), pconfig));
+							sc.setName(api.getCanonicalName(parameters.getIdExperiment(), pconfig) + " it " + iteration);
 							newSCs.add(sc);
 							solverConfigs.put(new ObjectArrayWrapper(otherScPVal), sc);
+						} else {
+							pacc.log("[ISSS] true.");
 						}
 					}
 
@@ -264,14 +274,13 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 		private Object[] array;
 		
 		public ObjectArrayWrapper(Object[] array) {
-			this.array = array;
+			this.array = Arrays.copyOf(array, array.length);
 		}
 		
 		@Override
 		public int hashCode() {
 			final int prime = 31;
 			int result = 1;
-			result = prime * result + getOuterType().hashCode();
 			result = prime * result + Arrays.hashCode(array);
 			return result;
 		}
@@ -285,15 +294,9 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 			if (getClass() != obj.getClass())
 				return false;
 			ObjectArrayWrapper other = (ObjectArrayWrapper) obj;
-			if (!getOuterType().equals(other.getOuterType()))
-				return false;
 			if (!Arrays.equals(array, other.array))
 				return false;
 			return true;
-		}
-		
-		private IterativeSearchSpaceSampling getOuterType() {
-			return IterativeSearchSpaceSampling.this;
 		}
 	}
 }
