@@ -202,7 +202,7 @@ public class FRace extends RacingMethods {
                         //System.out.println("Determined " + raceConfigurations.get(j) + " to be a worse configuration");
                         worseConfigurations.add(raceConfigurations.get(j));
                         raceConfigurations.get(j).setFinished(true);
-                        pacc.log("Removing " + raceConfigurations.get(j).getName() + " ("+raceConfigurations.get(j).getCost()+") from race because it is significantly worse than the best configuration ("+bestSC.getCost()+")");
+                        pacc.log("Removing " + raceConfigurations.get(j).getName() + " ("+raceConfigurations.get(j).getCost()+") from race because it is significantly worse than the best configuration ("+bestConfiguration.getCost()+")");
                     }
                 }
                 raceConfigurations.removeAll(worseConfigurations);
