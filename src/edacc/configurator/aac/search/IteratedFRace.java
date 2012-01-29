@@ -22,7 +22,6 @@ public class IteratedFRace extends SearchMethods {
     private int iteration = 0;
     private List<SolverConfiguration> raceSurvivors;
     private ParameterGraph pspace;
-    //private Map<Parameter, Float> parameterStdDev;
     private float parameterStdDev;
     private FRace race = null;
     
@@ -32,10 +31,7 @@ public class IteratedFRace extends SearchMethods {
     public IteratedFRace(AAC pacc, API api, Random rng, Parameters parameters) throws Exception {
         super(pacc, api, rng, parameters);
         pspace = api.loadParameterGraphFromDB(parameters.getIdExperiment());
-        /*parameterStdDev = new HashMap<Parameter, Float>();
-        for (Parameter p: api.getConfigurableParameters(parameters.getIdExperiment())) {
-            parameterStdDev.put(p, 1.0f);
-        }*/
+
         String val;
         if ((val = parameters.getSearchMethodParameters().get("IteratedFRace_initialParameterStdDev")) != null)
             this.initialParameterStdDev = Double.parseDouble(val);
@@ -51,11 +47,14 @@ public class IteratedFRace extends SearchMethods {
         List<SolverConfiguration> newSC = new ArrayList<SolverConfiguration>();
         if (iteration > 0) {
             if (race == null) {
+                // Only at this point we can be sure that pacc.racing is instantiated
                 if (!(pacc.racing instanceof FRace)) throw new Exception("Iterated FRace can't be used with any other racing method than FRace");
                 race = (FRace)pacc.racing;
             }
             
             int Nlnext = race.getNumRaceConfigurations();
+            
+            // Adjust the standard deviation used for sampling new configurations
             parameterStdDev *= (float)Math.pow(1.0f/Nlnext, 1.0f/(float)api.getConfigurableParameters(parameters.getIdExperiment()).size());
             if (parameterStdDev < minStdDev) {
                 pacc.log("Parameter standard deviation reduced to " + parameterStdDev + " which is probably insignificant enough to stop here. Starting over.");
@@ -65,8 +64,15 @@ public class IteratedFRace extends SearchMethods {
             }
             
             raceSurvivors = race.getRaceSurvivors();
+            if (raceSurvivors.isEmpty()) {
+                // this means the race terminated throwing out all configurations (they all probably only produced timeouts)
+                // start over with new random configs
+                this.parameterStdDev = (float)initialParameterStdDev;
+                this.iteration = 0;
+                return generateNewSC(num, currentBestSC);
+            }
             Collections.sort(raceSurvivors);
-            Collections.reverse(raceSurvivors);
+            Collections.reverse(raceSurvivors); // lowest cost first
             int Ns = Math.min(raceSurvivors.size(), race.getNmin());
             for (int i = 0; i < Ns; i++) newSC.add(raceSurvivors.get(i));
             
@@ -74,9 +80,6 @@ public class IteratedFRace extends SearchMethods {
             for (int i = 0; i < Ns; i++) roulette.add((Ns - (i+1) + 1.0)/(Ns * (Ns + 1) / 2.0), raceSurvivors.get(i));
             
             pacc.log("Generating " + (Nlnext - Ns) + " new configurations based on the " + Ns + " elite configurations from the last race, Parameters are sampled with the stdDev " + parameterStdDev);
-            /*for (Parameter p: parameterStdDev.keySet()) {
-                pacc.log(p.getName() + ": " + parameterStdDev.get(p));
-            }*/
             for (int i = 0; i < Nlnext - Ns; i++) {
                 SolverConfiguration eliteConfig = roulette.next();
                 ParameterConfiguration paramConfig = new ParameterConfiguration(eliteConfig.getParameterConfiguration());
@@ -85,13 +88,8 @@ public class IteratedFRace extends SearchMethods {
                 newSC.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
                 pacc.log("Created " + api.getCanonicalName(parameters.getIdExperiment(), paramConfig) + " based on the elite configuration " + api.getCanonicalName(parameters.getIdExperiment(), eliteConfig.getParameterConfiguration()));
             }
-
-            /*for (Parameter p: parameterStdDev.keySet()) {
-                float sigma = parameterStdDev.get(p);
-                parameterStdDev.put(p, sigma*(float)Math.pow(1.0f/Nlnext, 1.0f/(float)parameterStdDev.size()));
-            }*/
-            
         } else {
+            // Start with random configurations
             for (int i = 0; i < num; i++) {
                 ParameterConfiguration paramConfig = pspace.getRandomConfiguration(rng);
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
@@ -106,7 +104,7 @@ public class IteratedFRace extends SearchMethods {
     public String toString() {
         return "\nIteratedFRace\n";
     }
-
+    
     @Override
     public void listParameters() {
         System.out.println("--- IteratedFRace parameters ---");

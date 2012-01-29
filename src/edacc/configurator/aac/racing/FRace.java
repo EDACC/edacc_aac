@@ -39,6 +39,7 @@ public class FRace extends RacingMethods {
     private List<SolverConfiguration> initialRaceConfigurations;
     private List<SolverConfiguration> raceSurvivors;
     private Map<Integer, Map<SolverConfiguration, Float>> courseResults;
+    private Map<SolverConfiguration, Float> lastRoundCost;
     private SolverConfiguration bestSC = null;
     private int level = 0; // current level (no. of jobs per config in the race)
     private int initialRaceRuns;
@@ -59,6 +60,7 @@ public class FRace extends RacingMethods {
         this.curFinishedConfigurations = new ArrayList<SolverConfiguration>();
         this.courseResults = new HashMap<Integer, Map<SolverConfiguration, Float>>();
         this.raceSurvivors = new ArrayList<SolverConfiguration>();
+        this.lastRoundCost = new HashMap<SolverConfiguration, Float>();
         
         String val;
         if ((val = parameters.getRacingMethodParameters().get("FRace_alpha")) != null)
@@ -105,6 +107,7 @@ public class FRace extends RacingMethods {
         if (curFinishedConfigurations.containsAll(raceConfigurations)) {
             pacc.log("c All "+raceConfigurations.size()+" currently racing configurations have finished their jobs (#Runs: " + (level + 1) + ")");
             // fill result tableau
+            boolean changedCost = false;
             for (SolverConfiguration solverConfig : raceConfigurations) {
                 int i = 0; // course entry number
                 for (ExperimentResult run : api.getRuns(parameters.getIdExperiment(), solverConfig.getIdSolverConfiguration())) {
@@ -115,6 +118,17 @@ public class FRace extends RacingMethods {
                     i += 1;
                 }
                 pacc.log(solverConfig.getName() + " - Cost: " + solverConfig.getCost());
+                if (!lastRoundCost.containsKey(solverConfig) || lastRoundCost.get(solverConfig).floatValue() != solverConfig.getCost()) {
+                    changedCost = true;
+                }
+                lastRoundCost.put(solverConfig, solverConfig.getCost());
+            }
+            
+            if (changedCost == false) {
+                pacc.log("None of the solver configurations costs changed. This probably means that all configurations always timed out. Aborting race.");
+                raceConfigurations.clear();
+                terminateRace();
+                return;
             }
 
             // calculate ranks per course entry and sum of ranks of each solver
@@ -270,10 +284,13 @@ public class FRace extends RacingMethods {
         initialRaceConfigurations.clear();
         raceConfigurations.addAll(scs);
         initialRaceConfigurations.addAll(scs);
+        lastRoundCost.clear();
         for (SolverConfiguration solverConfig : scs) {
             solverConfig.setFinished(false);
             if (solverConfig.getNumFinishedJobs() == 0) {
                 pacc.expandParcoursSC(solverConfig, initialRaceRuns);
+            } else if (solverConfig.getNumFinishedJobs() < initialRaceRuns) {
+                pacc.expandParcoursSC(solverConfig, initialRaceRuns - solverConfig.getNumFinishedJobs());
             }
             pacc.addSolverConfigurationToListNewSC(solverConfig);
             solverConfig.setName(String.valueOf(solverConfig.getIdSolverConfiguration()));
