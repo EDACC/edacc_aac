@@ -41,8 +41,10 @@ public class FRace extends RacingMethods {
     private Map<SolverConfiguration, Float> lastRoundCost;
     private SolverConfiguration bestSC = null;
     private int level = 0; // current level (no. of jobs per config in the race)
-    private int round = 0;
+    private int starts = 0;
     private int race = 0;
+    private int round = 0;
+    
     private int initialRaceRuns;
     private int Nmin;
     private int numRaceConfigurations;
@@ -246,7 +248,7 @@ public class FRace extends RacingMethods {
             }
             round += 1;
             for (SolverConfiguration solverConfig: raceConfigurations) {
-                solverConfig.setName("Race: " + race + " Round: " + round);
+                solverConfig.setName("Restart: " + starts + " Race: " + race + " Round: " + round);
             }
             curFinishedConfigurations.clear();
         }
@@ -262,13 +264,13 @@ public class FRace extends RacingMethods {
         raceConfigurations.addAll(scs);
         initialRaceConfigurations.addAll(scs);
         lastRoundCost.clear();
-        round = 1;
+        race += 1;
         boolean allNewSCs = true;
         for (SolverConfiguration solverConfig: scs) {
             allNewSCs &= solverConfig.getNumFinishedJobs() == 0;
         }
         if (allNewSCs) {
-            race += 1;
+            starts += 1;
         }
         for (SolverConfiguration solverConfig : scs) {
             solverConfig.setFinished(false);
@@ -278,7 +280,7 @@ public class FRace extends RacingMethods {
                 pacc.expandParcoursSC(solverConfig, initialRaceRuns - solverConfig.getNumFinishedJobs());
             }
             pacc.addSolverConfigurationToListNewSC(solverConfig);
-            solverConfig.setName("Race: " + race + " Round: " + round);
+            solverConfig.setName("Restart: " + starts + " Race: " + race + " Round: " + round);
         }
         level = initialRaceRuns - 1;
         pacc.log("c Starting new race with " + scs.size() + " solver configurations");
