@@ -263,7 +263,13 @@ public class FRace extends RacingMethods {
         initialRaceConfigurations.addAll(scs);
         lastRoundCost.clear();
         round = 1;
-        race += 1;
+        boolean allNewSCs = true;
+        for (SolverConfiguration solverConfig: scs) {
+            allNewSCs &= solverConfig.getNumFinishedJobs() == 0;
+        }
+        if (allNewSCs) {
+            race += 1;
+        }
         for (SolverConfiguration solverConfig : scs) {
             solverConfig.setFinished(false);
             if (solverConfig.getNumFinishedJobs() == 0) {
