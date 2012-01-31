@@ -16,7 +16,6 @@ import edacc.api.API;
 import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
-import edacc.configurator.aac.search.IteratedFRace;
 import edacc.model.ExperimentResult;
 
 /**
@@ -42,6 +41,8 @@ public class FRace extends RacingMethods {
     private Map<SolverConfiguration, Float> lastRoundCost;
     private SolverConfiguration bestSC = null;
     private int level = 0; // current level (no. of jobs per config in the race)
+    private int round = 0;
+    private int race = 0;
     private int initialRaceRuns;
     private int Nmin;
     private int numRaceConfigurations;
@@ -96,14 +97,7 @@ public class FRace extends RacingMethods {
     @Override
     public void solverConfigurationsFinished(List<SolverConfiguration> scs) throws Exception {
         curFinishedConfigurations.addAll(scs);
-        
-        /*float budgetUsed = 0.0f;
-        for (SolverConfiguration solverConfig: initialRaceConfigurations) {
-            int i = 0;
-            for (ExperimentResult run: solverConfig.getFinishedJobs()) { if (i++ > level) break;  budgetUsed += run.getResultTime(); }
-        }
-        pacc.log("CPU time used so far: " + budgetUsed);*/
-        
+
         if (curFinishedConfigurations.containsAll(raceConfigurations)) {
             pacc.log("c All "+raceConfigurations.size()+" currently racing configurations have finished their jobs (#Runs: " + (level + 1) + ")");
             // fill result tableau
@@ -147,21 +141,6 @@ public class FRace extends RacingMethods {
                     rankSums[j] += rankedData[j];
                 }
             }
-
-            /*System.out.println("results");
-            for (int i = 0; i < courseResults.size(); i++) {
-                for (SolverConfiguration sc: raceConfigurations)
-                    System.out.print(courseResults.get(i).get(sc) + "  ");
-                System.out.println();
-            }
-            System.out.println("ranks");
-            for (int i = 0; i < courseResults.size(); i++) {
-                for (int j = 0; j < raceConfigurations.size(); j++) System.out.print(ranks[i][j] + "  ");
-                System.out.println();
-            }
-            System.out.println("rank sums");
-            for (int j = 0; j < raceConfigurations.size(); j++) System.out.print(rankSums[j] + " " );
-            System.out.println();*/
 
             // calculate test statistic T
             int m = raceConfigurations.size();
@@ -239,7 +218,6 @@ public class FRace extends RacingMethods {
             }
 
             int numAvailableCores = Math.max(1, api.getComputationCoreCount(parameters.getIdExperiment())); // make sure there's at least one iteration
-            //System.out.println("numAvailableCores: " + numAvailableCores);
             boolean firstRound = true;
             boolean createdJobs = true;
             while (numAvailableCores > 0 && createdJobs) {
@@ -247,9 +225,7 @@ public class FRace extends RacingMethods {
                 createdJobs = false;
                 for (SolverConfiguration solverConfig : raceConfigurations) {
                     int numJobs = solverConfig.getJobs().size();
-                    //System.out.println("SC: " + solverConfig.getIdSolverConfiguration() + " numJobs: " + numJobs);
                     if (numJobs == level + 1 && level + 1 < parameters.getMaxParcoursExpansionFactor() * num_instances) {
-                        //System.out.println("added a job to SC " + solverConfig.getIdSolverConfiguration());
                         // this SC needs a new job
                         pacc.expandParcoursSC(solverConfig, 1);
                         numAvailableCores--;
@@ -264,12 +240,13 @@ public class FRace extends RacingMethods {
                 firstRound = false;
                 if (allConfigsEnoughJobsForLevel) {
                     level++;
-                    //System.out.println("incremented level");
                 } else {
-                    //System.out.println("not all configs have enough jobs for the level, breaking");
                     break;
                 }
-                //System.out.println("numAvailableCores left: " + numAvailableCores);
+            }
+            round += 1;
+            for (SolverConfiguration solverConfig: raceConfigurations) {
+                solverConfig.setName("Race: " + race + " Round: " + round);
             }
             curFinishedConfigurations.clear();
         }
@@ -285,6 +262,8 @@ public class FRace extends RacingMethods {
         raceConfigurations.addAll(scs);
         initialRaceConfigurations.addAll(scs);
         lastRoundCost.clear();
+        round = 1;
+        race += 1;
         for (SolverConfiguration solverConfig : scs) {
             solverConfig.setFinished(false);
             if (solverConfig.getNumFinishedJobs() == 0) {
@@ -293,7 +272,7 @@ public class FRace extends RacingMethods {
                 pacc.expandParcoursSC(solverConfig, initialRaceRuns - solverConfig.getNumFinishedJobs());
             }
             pacc.addSolverConfigurationToListNewSC(solverConfig);
-            solverConfig.setName(String.valueOf(solverConfig.getIdSolverConfiguration()));
+            solverConfig.setName("Race: " + race + " Round: " + round);
         }
         level = initialRaceRuns - 1;
         pacc.log("c Starting new race with " + scs.size() + " solver configurations");
