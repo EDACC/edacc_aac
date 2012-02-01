@@ -264,14 +264,16 @@ public class FRace extends RacingMethods {
         raceConfigurations.addAll(scs);
         initialRaceConfigurations.addAll(scs);
         lastRoundCost.clear();
-        race += 1;
         boolean allNewSCs = true;
         for (SolverConfiguration solverConfig: scs) {
             allNewSCs &= solverConfig.getNumFinishedJobs() == 0;
         }
         if (allNewSCs) {
             starts += 1;
+            race = 0;
         }
+        race += 1;
+        round = 1;
         for (SolverConfiguration solverConfig : scs) {
             solverConfig.setFinished(false);
             if (solverConfig.getNumFinishedJobs() == 0) {
