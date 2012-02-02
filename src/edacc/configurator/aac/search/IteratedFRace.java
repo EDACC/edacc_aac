@@ -65,6 +65,7 @@ public class IteratedFRace extends SearchMethods {
                         pacc.log("c Adding " + solverConfig.getName() + " ID: " + solverConfig.getIdSolverConfiguration() + " to evaluation experiment with name " + name);
                         int idSC = api.createSolverConfig(parameters.getIdExperimentEvaluation(), solverConfig.getParameterConfiguration(), name);
                         int CPUTimeLimit[] = new int[parameters.getMaxParcoursExpansionFactor() * api.getCourseLength(parameters.getIdExperimentEvaluation())];
+                        for (int i = 0; i < CPUTimeLimit.length; i++) CPUTimeLimit[i] = parameters.getJobCPUTimeLimit();
                         api.launchJob(parameters.getIdExperimentEvaluation(), idSC, CPUTimeLimit, CPUTimeLimit.length, new Random(parameters.getRacingSeed()));
                     }
                 }
