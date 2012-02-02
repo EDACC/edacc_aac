@@ -1,5 +1,6 @@
 package edacc.configurator.aac.search;
 
+import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -12,6 +13,7 @@ import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.configurator.aac.racing.FRace;
+import edacc.model.Instance;
 import edacc.parameterspace.ParameterConfiguration;
 import edacc.parameterspace.graph.ParameterGraph;
 
@@ -54,9 +56,18 @@ public class IteratedFRace extends SearchMethods {
             // Adjust the standard deviation used for sampling new configurations
             parameterStdDev *= (float)Math.pow(1.0f/Nlnext, 1.0f/(float)api.getConfigurableParameters(parameters.getIdExperiment()).size());
             if (parameterStdDev < minStdDev) {
-                pacc.log("Parameter standard deviation reduced to " + parameterStdDev + " which is probably insignificant enough to stop here. Starting over.");
+                pacc.log("Parameter standard deviation decreased to " + parameterStdDev + " which is probably insignificant enough to stop here. Starting over.");
                 this.parameterStdDev = (float)initialParameterStdDev;
                 this.iteration = 0;
+                if (parameters.getIdExperimentEvaluation() > 0) {
+                    for (SolverConfiguration solverConfig: race.getRaceSurvivors()) {
+                        String name = ("".equals(parameters.getEvaluationSolverConfigName()) ? "" : parameters.getEvaluationSolverConfigName() + " ") + solverConfig.getName() + " ID: " + solverConfig.getIdSolverConfiguration();
+                        pacc.log("c Adding " + solverConfig.getName() + " ID: " + solverConfig.getIdSolverConfiguration() + " to evaluation experiment with name " + name);
+                        int idSC = api.createSolverConfig(parameters.getIdExperimentEvaluation(), solverConfig.getParameterConfiguration(), name);
+                        int CPUTimeLimit[] = new int[parameters.getMaxParcoursExpansionFactor() * api.getCourseLength(parameters.getIdExperimentEvaluation())];
+                        api.launchJob(parameters.getIdExperimentEvaluation(), idSC, CPUTimeLimit, CPUTimeLimit.length, new Random(parameters.getRacingSeed()));
+                    }
+                }
                 return generateNewSC(num, currentBestSC);
             }
             

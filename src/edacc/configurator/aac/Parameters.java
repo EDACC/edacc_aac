@@ -303,6 +303,18 @@ public class Parameters {
 		return deleteSolverConfigs;
 	}
 	
+	public int getIdExperimentEvaluation() {
+	    return idExperimentEvaluation;
+	}
+	
+	public String getEvaluationSolverConfigName() {
+	    return evaluationSolverConfigName;
+	}
+	
+	public long getRacingSeed() {
+	    return racingSeed;
+	}
+	
 	/*public String toString() {//TODO : rewrite!!!
 		String paramsForAlgo = "";
 		for (String key : searchMethodParams.keySet()) {

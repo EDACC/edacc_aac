@@ -48,12 +48,14 @@ public class FRace extends RacingMethods {
     private int initialRaceRuns;
     private int Nmin;
     private int numRaceConfigurations;
+    
 
     // parameters
     double alpha = 0.05; // significance level alpha
     double NminFactor = 2.5;
     double initialRunsFactor = 0.05;
     double numRaceConfigurationsFactor = 10;
+    int CPUFactor = 1;
     
     public FRace(AAC pacc, Random rng, API api, Parameters parameters) throws Exception {
         super(pacc, rng, api, parameters);
@@ -74,6 +76,8 @@ public class FRace extends RacingMethods {
             this.initialRunsFactor = Double.parseDouble(val);
         if ((val = parameters.getRacingMethodParameters().get("FRace_numRaceConfigurationsFactor")) != null)
             this.numRaceConfigurationsFactor = Double.parseDouble(val);
+        if ((val = parameters.getRacingMethodParameters().get("FRace_CPUFactor")) != null)
+            this.CPUFactor = Integer.parseInt(val);
         
         this.Nmin = (int) Math.round(NminFactor * api.getConfigurableParameters(parameters.getIdExperiment()).size());
         this.initialRaceRuns = (int) Math.max(1, Math.round(initialRunsFactor * num_instances));
@@ -113,7 +117,7 @@ public class FRace extends RacingMethods {
                     courseResults.get(i).put(solverConfig, parameters.getStatistics().getCostFunction().singleCost(run));
                     i += 1;
                 }
-                pacc.log(solverConfig.getName() + " - Cost: " + solverConfig.getCost());
+                pacc.log(solverConfig.getName() + " ID: " + solverConfig.getIdSolverConfiguration()  + " - Cost: " + solverConfig.getCost());
                 if (!lastRoundCost.containsKey(solverConfig) || lastRoundCost.get(solverConfig).floatValue() != solverConfig.getCost()) {
                     changedCost = true;
                 }
@@ -219,7 +223,8 @@ public class FRace extends RacingMethods {
                 return;
             }
 
-            int numAvailableCores = Math.max(1, api.getComputationCoreCount(parameters.getIdExperiment())); // make sure there's at least one iteration
+            int numAvailableCores = Math.max(1, this.CPUFactor * api.getComputationCoreCount(parameters.getIdExperiment())); // make sure there's at least one iteration
+            pacc.log("c Using " + numAvailableCores + " cores to generate new jobs");
             boolean firstRound = true;
             boolean createdJobs = true;
             while (numAvailableCores > 0 && createdJobs) {
@@ -248,7 +253,7 @@ public class FRace extends RacingMethods {
             }
             round += 1;
             for (SolverConfiguration solverConfig: raceConfigurations) {
-                solverConfig.setName("Restart: " + starts + " Race: " + race + " Round: " + round);
+                solverConfig.setName(starts + "-" + race + "-" + round);
             }
             curFinishedConfigurations.clear();
         }
@@ -282,7 +287,7 @@ public class FRace extends RacingMethods {
                 pacc.expandParcoursSC(solverConfig, initialRaceRuns - solverConfig.getNumFinishedJobs());
             }
             pacc.addSolverConfigurationToListNewSC(solverConfig);
-            solverConfig.setName("Restart: " + starts + " Race: " + race + " Round: " + round);
+            solverConfig.setName(starts + "-" + race + "-" + round);
         }
         level = initialRaceRuns - 1;
         pacc.log("c Starting new race with " + scs.size() + " solver configurations");
@@ -301,6 +306,7 @@ public class FRace extends RacingMethods {
         System.out.println("FRace_NminFactor = " + this.NminFactor + " (#Solver configurations at most to survive a race: round(NminFactor * #configurable parameters) )");
         System.out.println("FRace_initialRunsFactor = " + this.initialRunsFactor + " (How many runs each configuration should get at the start of the race: round(initialRunsFactor * #instances) )");
         System.out.println("FRace_numRaceConfigurationsFactor = " + this.numRaceConfigurationsFactor + " (How many solver configurations should the racing method request from the search method: round(numRaceConfigurationsFactor * #parameters) )");
+        System.out.println("FRace_CPUFactor = " + this.CPUFactor + " (number of jobs to generate each round: at least 1 for each racing configuration, at most in total CPUFactor * #available cores)");
         System.out.println("-----------------------\n");
     }
 
@@ -313,7 +319,7 @@ public class FRace extends RacingMethods {
         pacc.log("The race ended with the following configurations remaining:");
         for (SolverConfiguration solverConfig: raceConfigurations) {
             solverConfig.setFinished(true);
-            pacc.log(solverConfig.getName() + " - " + solverConfig.getCost());
+            pacc.log(solverConfig.getName() + " ID: " + solverConfig.getIdSolverConfiguration() + " - " + solverConfig.getCost());
         }
         raceSurvivors.addAll(raceConfigurations);
         raceConfigurations.clear(); // this will end the race, since the next computeOptimalExpansion call will trigger the call to solverConfigurations created
