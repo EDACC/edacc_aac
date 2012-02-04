@@ -21,7 +21,7 @@ public class SingleParameter extends SearchMethods {
 	String paramName = "";
 	String paramName2 = "";
 	int param_prec = 3;
-	int param_prec2 = 3;
+	int param2_prec = 3;
 	
 	Parameter param;
 	Parameter param2;
@@ -48,8 +48,8 @@ public class SingleParameter extends SearchMethods {
 		if ((val = parameters.getSearchMethodParameters().get("SingleParameter_paramPrecision")) != null) {
 			param_prec = Integer.valueOf(val);
 		}
-		if ((val = parameters.getSearchMethodParameters().get("SingleParameter_paramPrecision2")) != null) {
-			param_prec2 = Integer.valueOf(val);
+		if ((val = parameters.getSearchMethodParameters().get("SingleParameter_param2Precision")) != null) {
+			param2_prec = Integer.valueOf(val);
 		}
 		
 		if (!graph.getParameterMap().containsKey(paramName) || (!paramName2.equals("") && !graph.getParameterMap().containsKey(paramName2))) {
@@ -98,7 +98,7 @@ public class SingleParameter extends SearchMethods {
 			System.out.println("Generating " + numScs + "x" + numScs2 + " = " + (numScs*numScs2) + " solver configs..");
 			
 			long m = Math.round(Math.pow(10, param_prec));
-			long m2 = Math.round(Math.pow(10, param_prec2));
+			long m2 = Math.round(Math.pow(10, param2_prec));
 			for (Object val : param.getDomain().getUniformDistributedValues(numScs)) {
 				if (param.getDomain() instanceof RealDomain) {
 					RealDomain rDomain = (RealDomain) param.getDomain();
