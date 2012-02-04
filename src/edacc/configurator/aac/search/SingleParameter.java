@@ -10,6 +10,7 @@ import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.parameterspace.Parameter;
 import edacc.parameterspace.ParameterConfiguration;
+import edacc.parameterspace.domain.RealDomain;
 import edacc.parameterspace.graph.ParameterGraph;
 
 public class SingleParameter extends SearchMethods {
@@ -19,6 +20,9 @@ public class SingleParameter extends SearchMethods {
 	boolean numScs2_spec;
 	String paramName = "";
 	String paramName2 = "";
+	int param_prec = 3;
+	int param_prec2 = 3;
+	
 	Parameter param;
 	Parameter param2;
 	ParameterGraph graph;
@@ -41,6 +45,13 @@ public class SingleParameter extends SearchMethods {
 			numScs2 = Integer.valueOf(val);
 			numScs2_spec = true;
 		}
+		if ((val = parameters.getSearchMethodParameters().get("SingleParameter_paramPrecision")) != null) {
+			param_prec = Integer.valueOf(val);
+		}
+		if ((val = parameters.getSearchMethodParameters().get("SingleParameter_paramPrecision2")) != null) {
+			param_prec2 = Integer.valueOf(val);
+		}
+		
 		if (!graph.getParameterMap().containsKey(paramName) || (!paramName2.equals("") && !graph.getParameterMap().containsKey(paramName2))) {
 			throw new IllegalArgumentException("Invalid parameter name " + paramName + ".");
 		}
@@ -68,7 +79,16 @@ public class SingleParameter extends SearchMethods {
 		generated_scs = true;
 		if (param2 == null) {
 			System.out.println("Generating " + numScs + " solver configs..");
+			long m = Math.round(Math.pow(10, param_prec));
 			for (Object val : param.getDomain().getUniformDistributedValues(numScs)) {
+				if (param.getDomain() instanceof RealDomain) {
+					RealDomain rDomain = (RealDomain) param.getDomain();
+					val = new Double(Math.round((Double) val * m) / (double) m);
+					if ((Double) val > rDomain.getHigh())
+						val = new Double(rDomain.getHigh());
+					if ((Double) val < rDomain.getLow())
+						val = new Double(rDomain.getLow());
+				}
 				ParameterConfiguration pConfig = new ParameterConfiguration(currentBestSC.getParameterConfiguration());
 				pConfig.setParameterValue(param, val);
 				int idSc = api.createSolverConfig(parameters.getIdExperiment(), pConfig, "Value: " + val);
@@ -76,8 +96,27 @@ public class SingleParameter extends SearchMethods {
 			}
 		} else {
 			System.out.println("Generating " + numScs + "x" + numScs2 + " = " + (numScs*numScs2) + " solver configs..");
+			
+			long m = Math.round(Math.pow(10, param_prec));
+			long m2 = Math.round(Math.pow(10, param_prec2));
 			for (Object val : param.getDomain().getUniformDistributedValues(numScs)) {
+				if (param.getDomain() instanceof RealDomain) {
+					RealDomain rDomain = (RealDomain) param.getDomain();
+					val = new Double(Math.round((Double) val * m) / (double) m);
+					if ((Double) val > rDomain.getHigh())
+						val = new Double(rDomain.getHigh());
+					if ((Double) val < rDomain.getLow())
+						val = new Double(rDomain.getLow());
+				}
 				for (Object val2 : param2.getDomain().getUniformDistributedValues(numScs2)) {
+					if (param2.getDomain() instanceof RealDomain) {
+						RealDomain rDomain = (RealDomain) param2.getDomain();
+						val2 = new Double(Math.round((Double) val2 * m2) / (double) m2);
+						if ((Double) val2 > rDomain.getHigh())
+							val2 = new Double(rDomain.getHigh());
+						if ((Double) val2 < rDomain.getLow())
+							val2 = new Double(rDomain.getLow());
+					}
 					ParameterConfiguration pConfig = new ParameterConfiguration(currentBestSC.getParameterConfiguration());
 					pConfig.setParameterValue(param, val);
 					pConfig.setParameterValue(param2, val2);
