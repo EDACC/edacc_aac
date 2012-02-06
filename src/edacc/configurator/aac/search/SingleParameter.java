@@ -76,6 +76,7 @@ public class SingleParameter extends SearchMethods {
 		if (generated_scs) {
 			return scs;
 		}
+		ParameterConfiguration base = graph.getRandomConfiguration(rng);
 		generated_scs = true;
 		if (param2 == null) {
 			System.out.println("Generating " + numScs + " solver configs..");
@@ -89,7 +90,7 @@ public class SingleParameter extends SearchMethods {
 					if ((Double) val < rDomain.getLow())
 						val = new Double(rDomain.getLow());
 				}
-				ParameterConfiguration pConfig = new ParameterConfiguration(currentBestSC.getParameterConfiguration());
+				ParameterConfiguration pConfig = new ParameterConfiguration(base);
 				pConfig.setParameterValue(param, val);
 				int idSc = api.createSolverConfig(parameters.getIdExperiment(), pConfig, "Value: " + val);
 				scs.add(new SolverConfiguration(idSc, pConfig, parameters.getStatistics()));
@@ -117,7 +118,7 @@ public class SingleParameter extends SearchMethods {
 						if ((Double) val2 < rDomain.getLow())
 							val2 = new Double(rDomain.getLow());
 					}
-					ParameterConfiguration pConfig = new ParameterConfiguration(currentBestSC.getParameterConfiguration());
+					ParameterConfiguration pConfig = new ParameterConfiguration(base);
 					pConfig.setParameterValue(param, val);
 					pConfig.setParameterValue(param2, val2);
 					int idSc = api.createSolverConfig(parameters.getIdExperiment(), pConfig, "Values: " + val + "," + val2);
