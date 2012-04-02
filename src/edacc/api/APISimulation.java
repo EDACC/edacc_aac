@@ -99,7 +99,7 @@ public class APISimulation extends APIImpl {
 		int priority;
 		public ExperimentResultWrapper(ExperimentResult er, int priority) {
 			// we have to fill run, solverconfig id, experiment id, instance id fields for equals method!
-			super(er.getRun(), 0, 0, null, 0, null, 0.f, er.getSolverConfigId(), er.getExperimentId(), er.getInstanceId(), null, 0, 0, 0, 0);
+			super(er.getRun(), 0, 0, null, 0, null, 0.f, 0.f, 0.f, er.getSolverConfigId(), er.getExperimentId(), er.getInstanceId(), null, 0, 0, 0, 0);
 			this.er = er;
 			this.status = StatusCode.NOT_STARTED;
 			this.priority = priority;
@@ -411,12 +411,12 @@ public class APISimulation extends APIImpl {
 	}
 
 	@Override
-	public synchronized int launchJob(int idExperiment, int idSolverConfig, int idInstance, BigInteger seed, int cpuTimeLimit) throws Exception {
-		return launchJob(idExperiment, idSolverConfig, idInstance, seed, cpuTimeLimit, 0);
+	public synchronized int launchJob(int idExperiment, int idSolverConfig, int idInstance, BigInteger seed, int cpuTimeLimit, int wallClockTimeLimit) throws Exception {
+		return launchJob(idExperiment, idSolverConfig, idInstance, seed, cpuTimeLimit, wallClockTimeLimit, 0);
 	}
 
 	@Override
-	public synchronized int launchJob(int idExperiment, int idSolverConfig, int idInstance, BigInteger seed, int cpuTimeLimit, int priority) throws Exception {
+	public synchronized int launchJob(int idExperiment, int idSolverConfig, int idInstance, BigInteger seed, int cpuTimeLimit, int wallClockTimeLimit, int priority) throws Exception {
 		long time = System.currentTimeMillis();
 		ExperimentResult er;
 		if (dbJobs != null) {
@@ -460,17 +460,17 @@ public class APISimulation extends APIImpl {
 	}
 
 	@Override
-	public synchronized int launchJob(int idExperiment, int idSolverConfig, int cpuTimeLimit, Random rng) throws Exception {
-		return launchJob(idExperiment, idSolverConfig, cpuTimeLimit, 0, rng);
+	public synchronized int launchJob(int idExperiment, int idSolverConfig, int cpuTimeLimit, int wallClockTimeLimit, Random rng) throws Exception {
+		return launchJob(idExperiment, idSolverConfig, cpuTimeLimit, wallClockTimeLimit, 0, rng);
 	}
 
 	@Override
-	public synchronized int launchJob(int idExperiment, int idSolverConfig, int cpuTimeLimit, int priority, Random rng) throws Exception {
+	public synchronized int launchJob(int idExperiment, int idSolverConfig, int cpuTimeLimit, int wallClockTimeLimit, int priority, Random rng) throws Exception {
 		Integer jobCount = solverConfigJobCount.get(idSolverConfig);
 		if (jobCount == null)
 			jobCount = 0;
 		InstanceSeed is = course.get(jobCount);
-		return launchJob(idExperiment, idSolverConfig, is.instance.getId(), BigInteger.valueOf(is.seed), cpuTimeLimit, priority);
+		return launchJob(idExperiment, idSolverConfig, is.instance.getId(), BigInteger.valueOf(is.seed), cpuTimeLimit, wallClockTimeLimit, priority);
 	}
 
 	@Override
@@ -479,22 +479,22 @@ public class APISimulation extends APIImpl {
 	}
 
 	@Override
-	public synchronized List<Integer> launchJob(int idExperiment, int idSolverConfig, int[] cpuTimeLimit, int numberRuns, Random rng) throws Exception {
+	public synchronized List<Integer> launchJob(int idExperiment, int idSolverConfig, int[] cpuTimeLimit, int[] wallClockTimeLimit, int numberRuns, Random rng) throws Exception {
 		int[] priority = new int[cpuTimeLimit.length];
 		for (int i = 0; i < cpuTimeLimit.length; i++) {
 			priority[i] = 0;
 		}
-		return launchJob(idExperiment, idSolverConfig, cpuTimeLimit, numberRuns, priority, rng);
+		return launchJob(idExperiment, idSolverConfig, cpuTimeLimit, wallClockTimeLimit, numberRuns, priority, rng);
 	}
 
 	@Override
-	public synchronized List<Integer> launchJob(int idExperiment, int idSolverConfig, int[] cpuTimeLimit, int numberRuns, int[] priority, Random rng) throws Exception {
-		if (cpuTimeLimit.length != priority.length || priority.length != numberRuns) {
+	public synchronized List<Integer> launchJob(int idExperiment, int idSolverConfig, int[] cpuTimeLimit, int[] wallClockTimeLimit, int numberRuns, int[] priority, Random rng) throws Exception {
+		if (cpuTimeLimit.length != priority.length || wallClockTimeLimit.length != numberRuns || priority.length != numberRuns) {
 			throw new IllegalArgumentException();
 		}
 		List<Integer> res = new LinkedList<Integer>();
 		for (int i = 0; i < cpuTimeLimit.length; i++) {
-			res.add(launchJob(idExperiment, idSolverConfig, cpuTimeLimit[i], priority[i], rng));
+			res.add(launchJob(idExperiment, idSolverConfig, cpuTimeLimit[i], wallClockTimeLimit[i], priority[i], rng));
 		}
 		return res;
 	}

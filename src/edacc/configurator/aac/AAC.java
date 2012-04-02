@@ -16,6 +16,7 @@ import java.util.Scanner;
 import edacc.api.API;
 import edacc.api.APIImpl;
 import edacc.api.APISimulation;
+import edacc.api.costfunctions.CostFunction;
 import edacc.configurator.aac.racing.RacingMethods;
 import edacc.configurator.aac.search.SearchMethods;
 import edacc.model.ConfigurationScenarioDAO;
@@ -92,7 +93,8 @@ public class AAC {
 		}
 		
 		this.graph = api.loadParameterGraphFromDB(params.idExperiment);
-		params.setStatistics(api.costFunctionByName(params.costFunc), params.minimize);
+		CostFunction costFunction = api.costFunctionByExperiment(params.idExperiment, params.costFunc);
+		params.setStatistics(costFunction, costFunction.getMinimize());
 		rngSearch = new edacc.util.MersenneTwister(params.searchSeed);
 		rngRacing = new edacc.util.MersenneTwister(params.racingSeed);
 		listNewSC = new HashMap<Integer, SolverConfiguration>();
@@ -240,13 +242,15 @@ public class AAC {
 		// z.B: 10*#instanzen
 		
 		int[] cputimelimits = new int[num];
+		int[] wallclocktimelimits = new int[num];
 		int[] priorities = new int[num];
 		for (int i = 0; i < num; i++) {
 			cputimelimits[i] = parameters.getJobCPUTimeLimit();
+			wallclocktimelimits[i] = parameters.getJobWallClockTimeLimit();
 			priorities[i] = priority;
 		}
 	
-		List<Integer> ids = api.launchJob(parameters.getIdExperiment(), sc.getIdSolverConfiguration(), cputimelimits, num, priorities, rngSearch);
+		List<Integer> ids = api.launchJob(parameters.getIdExperiment(), sc.getIdSolverConfiguration(), cputimelimits, wallclocktimelimits, num, priorities, rngSearch);
 		for (ExperimentResult er : api.getJobsByIDs(ids).values())
 			sc.putJob(er);// add the job to the solver configuration own job store
 		

@@ -18,6 +18,7 @@ public class Parameters {
 	String evaluationSolverConfigName = "";
 	boolean deleteSolverConfigsAtStart = false;
 	int jobCPUTimeLimit = 10;
+	int jobWallClockTimeLimit = -1;
 	boolean deterministicSolver = false;
 	
 	int parcoursExpansionPerStep = 1;
@@ -80,6 +81,7 @@ public class Parameters {
 		System.out.println("idExperimentEvaluation = " + this.idExperiment + (pnp?" <int> (id of evaluation experiment; best solver config will be added to it at the end)" : ""));
 		System.out.println("evaluationSolverConfigName = " + this.evaluationSolverConfigName + (pnp?" <String> (This string will be used as suffix for the solver config added to the evaluation experiment)" : ""));
 		System.out.println("jobCPUTimeLimit = " +this.jobCPUTimeLimit + (pnp?" <int>(maximum number of CPU seconds a job is allowed to run)":""));
+		System.out.println("jobWallClockTimeLimit = " +this.jobWallClockTimeLimit + (pnp?" <int>(maximum number of wall clock seconds a job is allowed to run)":""));
 		System.out.println("deterministicSolver = " + this.deterministicSolver + (pnp?" <boolean>(0 for stochastic / 1 for determinisitc)":""));
 		System.out.println("%-----------------------\n");
 		System.out.println("%---Parcours parameters---");
@@ -155,6 +157,8 @@ public class Parameters {
 				evaluationSolverConfigName = value;
 			else if ("jobCPUTimeLimit".equalsIgnoreCase(key))
 				jobCPUTimeLimit = Integer.valueOf(value);
+            else if ("jobWallClockTimeLimit".equalsIgnoreCase(key))
+                jobWallClockTimeLimit = Integer.valueOf(value);
 			else if ("deterministicSolver".equalsIgnoreCase(key))
 				deterministicSolver = Boolean.parseBoolean(value);
 			// parcours parameters
@@ -298,6 +302,10 @@ public class Parameters {
 	public int getJobCPUTimeLimit() {
 		return jobCPUTimeLimit;
 	}
+	
+    public int getJobWallClockTimeLimit() {
+        return jobWallClockTimeLimit;
+    }
 	
 	public boolean isDeleteSolverConfigs() {
 		return deleteSolverConfigs;

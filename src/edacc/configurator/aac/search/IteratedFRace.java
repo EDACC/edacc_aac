@@ -60,13 +60,21 @@ public class IteratedFRace extends SearchMethods {
                 this.parameterStdDev = (float)initialParameterStdDev;
                 this.iteration = 0;
                 if (parameters.getIdExperimentEvaluation() > 0) {
-                    for (SolverConfiguration solverConfig: race.getRaceSurvivors()) {
-                        String name = ("".equals(parameters.getEvaluationSolverConfigName()) ? "" : parameters.getEvaluationSolverConfigName() + " ") + solverConfig.getName() + " ID: " + solverConfig.getIdSolverConfiguration();
-                        pacc.log("c Adding " + solverConfig.getName() + " ID: " + solverConfig.getIdSolverConfiguration() + " to evaluation experiment with name " + name);
-                        int idSC = api.createSolverConfig(parameters.getIdExperimentEvaluation(), solverConfig.getParameterConfiguration(), name);
-                        int CPUTimeLimit[] = new int[parameters.getMaxParcoursExpansionFactor() * api.getCourseLength(parameters.getIdExperimentEvaluation())];
-                        for (int i = 0; i < CPUTimeLimit.length; i++) CPUTimeLimit[i] = parameters.getJobCPUTimeLimit();
-                        api.launchJob(parameters.getIdExperimentEvaluation(), idSC, CPUTimeLimit, CPUTimeLimit.length, new Random(parameters.getRacingSeed()));
+                    try {
+                        for (SolverConfiguration solverConfig: race.getRaceSurvivors()) {
+                            String name = ("".equals(parameters.getEvaluationSolverConfigName()) ? "" : parameters.getEvaluationSolverConfigName() + " ") + solverConfig.getName() + " ID: " + solverConfig.getIdSolverConfiguration();
+                            pacc.log("c Adding " + solverConfig.getName() + " ID: " + solverConfig.getIdSolverConfiguration() + " to evaluation experiment with name " + name);
+                            int idSC = api.createSolverConfig(parameters.getIdExperimentEvaluation(), solverConfig.getParameterConfiguration(), name);
+                            int CPUTimeLimit[] = new int[parameters.getMaxParcoursExpansionFactor() * api.getCourseLength(parameters.getIdExperimentEvaluation())];
+                            int wallClockTimeLimit[] = new int[parameters.getMaxParcoursExpansionFactor() * api.getCourseLength(parameters.getIdExperimentEvaluation())];
+                            for (int i = 0; i < CPUTimeLimit.length; i++) {
+                                CPUTimeLimit[i] = parameters.getJobCPUTimeLimit();
+                                wallClockTimeLimit[i] = parameters.getJobWallClockTimeLimit();
+                            }
+                            api.launchJob(parameters.getIdExperimentEvaluation(), idSC, CPUTimeLimit, wallClockTimeLimit, CPUTimeLimit.length, new Random(parameters.getRacingSeed()));
+                        }
+                    } catch (Exception e) {
+                        pacc.log("c Exception thrown when trying to add configuration to evaluation experiment: " + e.getMessage());
                     }
                 }
                 return generateNewSC(num, currentBestSC);
