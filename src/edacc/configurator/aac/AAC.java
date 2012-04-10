@@ -98,7 +98,9 @@ public class AAC {
 		}
 		
 		this.graph = api.loadParameterGraphFromDB(params.idExperiment);
+		System.out.println(params.costFunc + " .. " + params.idExperiment);
 		CostFunction costFunction = api.costFunctionByExperiment(params.idExperiment, params.costFunc);
+		System.out.println(costFunction);
 		params.setStatistics(costFunction, costFunction.getMinimize());
 		rngSearch = new edacc.util.MersenneTwister(params.searchSeed);
 		rngRacing = new edacc.util.MersenneTwister(params.racingSeed);
@@ -108,9 +110,6 @@ public class AAC {
 		this.parameters = params;
 		searchClass = ClassLoader.getSystemClassLoader().loadClass("edacc.configurator.aac.search." + params.searchMethod);
 		racingClass = ClassLoader.getSystemClassLoader().loadClass("edacc.configurator.aac.racing." + params.racingMethod);
-		parameters.listParameters();
-		search.listParameters();
-		racing.listParameters();
 		
 		if (params.deleteSolverConfigsAtStart) {
 			log("c Removing solver configurations..");
@@ -320,6 +319,11 @@ public class AAC {
 		search = (SearchMethods) searchClass.getDeclaredConstructors()[0].newInstance(this, api, rngSearch, parameters, firstSC);
 		racing = (RacingMethods) racingClass.getDeclaredConstructors()[0].newInstance(this, rngRacing, api, parameters, firstSC);
 
+		
+		parameters.listParameters();
+		search.listParameters();
+		racing.listParameters();
+		
 		/**
 		 * error checking for parcours. Needed? What if we don't use the
 		 * parcours?
@@ -664,7 +668,7 @@ public class AAC {
 		}
 		params.listParameters();
 		AAC configurator = new AAC(params);
-		System.out.println("c Starting the EAAC configurator with following settings: \n" + params +  configurator.racing.toString()+ configurator.search.toString());
+		System.out.println("c Starting the EAAC configurator with following settings:");
 		System.out.println("c ---------------------------------");
 		configurator.start();
 		configurator.shutdown();
