@@ -348,7 +348,7 @@ public class AAC {
 			
 			
 			for (SolverConfiguration config : racingBestSCs) {
-				if (!lastBestSCs.containsKey(config.getIdSolverConfiguration())) {
+				if (!notBestSCs.containsKey(config.getIdSolverConfiguration())) {
 					updateSolverConfigName(config, true);
 				}
 				lastBestSCs.put(config.getIdSolverConfiguration(), config);
