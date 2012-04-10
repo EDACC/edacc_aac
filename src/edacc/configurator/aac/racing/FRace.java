@@ -57,8 +57,8 @@ public class FRace extends RacingMethods {
     double numRaceConfigurationsFactor = 10;
     int CPUFactor = 1;
     
-    public FRace(AAC pacc, Random rng, API api, Parameters parameters) throws Exception {
-        super(pacc, rng, api, parameters);
+    public FRace(AAC pacc, Random rng, API api, Parameters parameters, SolverConfiguration firstSC) throws Exception {
+        super(pacc, rng, api, parameters, firstSC);
         this.num_instances = api.getCourse(parameters.getIdExperiment()).getInitialLength();
         this.raceConfigurations = new ArrayList<SolverConfiguration>();
         this.initialRaceConfigurations = new ArrayList<SolverConfiguration>();
@@ -91,13 +91,9 @@ public class FRace extends RacingMethods {
     }
 
     @Override
-    public void initFirstSC(SolverConfiguration firstSC) throws Exception {
-       // this.bestSC = firstSC;
-    }
-
-    @Override
-    public SolverConfiguration getBestSC() {
-        return bestSC;
+    public List<SolverConfiguration> getBestSolverConfigurations(Integer numSC) {
+    	// TODO: use numSC; determine best solver configurations within a race
+        return getRaceSurvivors();
     }
 
     @Override

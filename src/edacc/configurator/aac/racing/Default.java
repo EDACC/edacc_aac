@@ -1,6 +1,6 @@
 package edacc.configurator.aac.racing;
 
-import java.sql.SQLException;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
 
@@ -15,10 +15,37 @@ public class Default extends RacingMethods {
 	int incumbentNumber;
 	int num_instances;
 
-	public Default(AAC proar, Random rng, API api, Parameters parameters) throws SQLException {
-		super(proar, rng, api, parameters);
+	public Default(AAC proar, Random rng, API api, Parameters parameters, SolverConfiguration firstSC) throws Exception {
+		super(proar, rng, api, parameters, firstSC);
 		incumbentNumber = 0;
 		num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse().getInitialLength();
+	
+		this.bestSC = firstSC;
+		bestSC.setIncumbentNumber(incumbentNumber++);
+		pacc.log("i " + pacc.getWallTime() + " ," + firstSC.getCost() + ", n.A.," + bestSC.getIdSolverConfiguration() + ", n.A.," + bestSC.getParameterConfiguration().toString());
+		
+		int expansion = 0;
+		if (bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
+			expansion = Math.min(parameters.getMaxParcoursExpansionFactor() * num_instances - bestSC.getJobCount(), parameters.getInitialDefaultParcoursLength());
+			pacc.expandParcoursSC(bestSC, expansion);
+		}
+		if (expansion > 0) {
+			pacc.log("c Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration() + " by " + expansion);
+		}
+		// update the status of the jobs of bestSC and if first level wait
+		// also for jobs to finish
+		if (expansion > 0) {
+			pacc.log("c Waiting for currently best solver config " + bestSC.getIdSolverConfiguration() + " to finish " + expansion + "job(s)");
+			while (true) {
+				pacc.updateJobsStatus(bestSC);
+				if (bestSC.getNotStartedJobs().isEmpty() && bestSC.getRunningJobs().isEmpty()) {
+					break;
+				}
+				pacc.sleep(1000);
+			}
+		} else {
+			pacc.updateJobsStatus(bestSC);
+		}
 	}
 
 	public String toString(){
@@ -29,10 +56,6 @@ public class Default extends RacingMethods {
 		return sc1.compareTo(sc2);
 	}
 
-	@Override
-	public SolverConfiguration getBestSC() {
-		return bestSC;
-	}
 
 	@Override
 	public void solverConfigurationsFinished(List<SolverConfiguration> scs) throws Exception {
@@ -71,36 +94,6 @@ public class Default extends RacingMethods {
 					pacc.addSolverConfigurationToListNewSC(bestSC);
 				}
 			}
-		}
-	}
-
-	@Override
-	public void initFirstSC(SolverConfiguration firstSC) throws Exception {
-		this.bestSC = firstSC;
-		bestSC.setIncumbentNumber(incumbentNumber++);
-		pacc.log("i " + pacc.getWallTime() + " ," + firstSC.getCost() + ", n.A.," + bestSC.getIdSolverConfiguration() + ", n.A.," + bestSC.getParameterConfiguration().toString());
-		
-		int expansion = 0;
-		if (bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
-			expansion = Math.min(parameters.getMaxParcoursExpansionFactor() * num_instances - bestSC.getJobCount(), parameters.getInitialDefaultParcoursLength());
-			pacc.expandParcoursSC(bestSC, expansion);
-		}
-		if (expansion > 0) {
-			pacc.log("c Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration() + " by " + expansion);
-		}
-		// update the status of the jobs of bestSC and if first level wait
-		// also for jobs to finish
-		if (expansion > 0) {
-			pacc.log("c Waiting for currently best solver config " + bestSC.getIdSolverConfiguration() + " to finish " + expansion + "job(s)");
-			while (true) {
-				pacc.updateJobsStatus(bestSC);
-				if (bestSC.getNotStartedJobs().isEmpty() && bestSC.getRunningJobs().isEmpty()) {
-					break;
-				}
-				pacc.sleep(1000);
-			}
-		} else {
-			pacc.updateJobsStatus(bestSC);
 		}
 	}
 
@@ -146,6 +139,13 @@ public class Default extends RacingMethods {
 	public void listParameters() {
 		// TODO Auto-generated method stub
 		
+	}
+
+	@Override
+	public List<SolverConfiguration> getBestSolverConfigurations(Integer numSC) {
+		List<SolverConfiguration> res = new LinkedList<SolverConfiguration>();
+		res.add(bestSC);
+		return res;
 	}
 
 }

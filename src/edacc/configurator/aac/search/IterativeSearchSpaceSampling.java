@@ -12,7 +12,6 @@ import edacc.api.API;
 import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
-import edacc.configurator.aac.StatisticFunction;
 import edacc.parameterspace.graph.ParameterGraph;
 import edacc.parameterspace.*;
 import edacc.util.Pair;
@@ -27,8 +26,8 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 	private int iteration = 0;
 	private HashMap<ObjectArrayWrapper, SolverConfiguration> solverConfigs;
 	private LinkedList<SolverConfiguration> lastSolverConfigs;
-	public IterativeSearchSpaceSampling(AAC pacc, API api, Random rng, Parameters parameters) throws Exception {
-		super(pacc, api, rng, parameters);
+	public IterativeSearchSpaceSampling(AAC pacc, API api, Random rng, Parameters parameters, SolverConfiguration firstSC) throws Exception {
+		super(pacc, api, rng, parameters, firstSC);
 		this.graph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
 		graphParams = api.getConfigurableParameters(parameters.getIdExperiment());
 		paramValues = new LinkedList[graphParams.size()];
@@ -58,7 +57,7 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 	}
 
 	@Override
-	public List<SolverConfiguration> generateNewSC(int num, SolverConfiguration currentBestSC) throws Exception {
+	public List<SolverConfiguration> generateNewSC(int num) throws Exception {
 		boolean iterationFinished = true;
 		for (SolverConfiguration sc : lastSolverConfigs) {
 			if (!sc.isFinished()) {

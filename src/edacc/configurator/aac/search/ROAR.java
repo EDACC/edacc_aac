@@ -15,13 +15,13 @@ public class ROAR extends SearchMethods {
 
 	private ParameterGraph graph;
 
-	public ROAR(AAC pacc, API api, Random rng, Parameters parameters) throws Exception {
-		super(pacc, api, rng, parameters);
+	public ROAR(AAC pacc, API api, Random rng, Parameters parameters, SolverConfiguration firstSC) throws Exception {
+		super(pacc, api, rng, parameters, firstSC);
 		graph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
 	}
 
 	@Override
-	public List<SolverConfiguration> generateNewSC(int num, SolverConfiguration currentBestSC) throws Exception {
+	public List<SolverConfiguration> generateNewSC(int num) throws Exception {
 		List<SolverConfiguration> res = new ArrayList<SolverConfiguration>();
 		for (int i = 0; i < num; i++) {
 			ParameterConfiguration paramconfig = graph.getRandomConfiguration(rng);

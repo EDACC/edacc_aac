@@ -6,6 +6,7 @@ package edacc.configurator.aac.racing;
 import java.sql.SQLException;
 import java.text.NumberFormat;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
@@ -42,8 +43,8 @@ public class STTRace extends RacingMethods {
 	 * @param parameters
 	 * @throws SQLException
 	 */
-	public STTRace(AAC pacc, Random rng, API api, Parameters parameters) throws SQLException {
-		super(pacc, rng, api, parameters);
+	public STTRace(AAC pacc, Random rng, API api, Parameters parameters, SolverConfiguration firstSC) throws SQLException {
+		super(pacc, rng, api, parameters, firstSC);
 		this.a = 0.7;
 		this.minEB = 10;
 		incumbentNumber = 0;
@@ -199,8 +200,10 @@ public class STTRace extends RacingMethods {
 	}
 
 	@Override
-	public SolverConfiguration getBestSC() {
-		return bestSC;
+	public List<SolverConfiguration> getBestSolverConfigurations(Integer numSC) {
+		List<SolverConfiguration> res = new LinkedList<SolverConfiguration>();
+		res.add(bestSC);
+		return res;
 	}
 
 	/*

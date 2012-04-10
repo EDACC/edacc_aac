@@ -26,8 +26,8 @@ public class SingleParameter extends SearchMethods {
 	Parameter param;
 	Parameter param2;
 	ParameterGraph graph;
-	public SingleParameter(AAC pacc, API api, Random rng, Parameters parameters) throws Exception {
-		super(pacc, api, rng, parameters);
+	public SingleParameter(AAC pacc, API api, Random rng, Parameters parameters, SolverConfiguration firstSC) throws Exception {
+		super(pacc, api, rng, parameters, firstSC);
 		
 		graph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
 		numScs2_spec = false;
@@ -71,7 +71,7 @@ public class SingleParameter extends SearchMethods {
 	}
 
 	@Override
-	public List<SolverConfiguration> generateNewSC(int num, SolverConfiguration currentBestSC) throws Exception {
+	public List<SolverConfiguration> generateNewSC(int num) throws Exception {
 		LinkedList<SolverConfiguration> scs = new LinkedList<SolverConfiguration>();
 		if (generated_scs) {
 			return scs;

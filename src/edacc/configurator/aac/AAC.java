@@ -49,8 +49,13 @@ public class AAC {
 	 */
 	private Random rngRacing;
 	
+	
+	private Class<?> searchClass;
+	private Class<?> racingClass;
+	
 	/** Method used for searching within the parameter search space */
 	public SearchMethods search;
+	
 	
 	/** Method to race SC against each other */
 	public RacingMethods racing;
@@ -101,12 +106,8 @@ public class AAC {
 		this.statNumSolverConfigs = 0;
 		this.statNumJobs = 0;
 		this.parameters = params;
-		search = (SearchMethods) ClassLoader.getSystemClassLoader()
-				.loadClass("edacc.configurator.aac.search." + params.searchMethod).getDeclaredConstructors()[0]
-				.newInstance(this, api, rngSearch, parameters);
-		racing = (RacingMethods) ClassLoader.getSystemClassLoader()
-				.loadClass("edacc.configurator.aac.racing." + params.racingMethod).getDeclaredConstructors()[0]
-				.newInstance(this, rngRacing, api, parameters);
+		searchClass = ClassLoader.getSystemClassLoader().loadClass("edacc.configurator.aac.search." + params.searchMethod);
+		racingClass = ClassLoader.getSystemClassLoader().loadClass("edacc.configurator.aac.racing." + params.racingMethod);
 		parameters.listParameters();
 		search.listParameters();
 		racing.listParameters();
@@ -315,7 +316,9 @@ public class AAC {
 		firstSC.updateJobsStatus(api); // don't add best scs time to
 									// cumulatedCPUTime
 
-		racing.initFirstSC(firstSC);
+		// create search and racing instances
+		search = (SearchMethods) searchClass.getDeclaredConstructors()[0].newInstance(this, api, rngSearch, parameters, firstSC);
+		racing = (RacingMethods) racingClass.getDeclaredConstructors()[0].newInstance(this, rngRacing, api, parameters, firstSC);
 
 		/**
 		 * error checking for parcours. Needed? What if we don't use the
@@ -327,18 +330,32 @@ public class AAC {
 			log("e Error: no instances in course.");
 			return;
 		}
-		SolverConfiguration lastBest = null;
+		HashMap<Integer, SolverConfiguration> lastBestSCs = new HashMap<Integer, SolverConfiguration>();
 		while (!terminate()) {
 			// bestSC.updateJobsStatus(); das ist glaube ich doppelt gemoppelt
 			// denn im übernächsten if wird auf jeden Fall
 			// bestSC.updateJobsSatus() ausgeführt!
 			// expand the parcours of the bestSC
-			if (racing.getBestSC() != lastBest) {
-				updateSolverConfigName(racing.getBestSC(), true);
-				if (lastBest != null)
-					updateSolverConfigName(lastBest, false);
-				lastBest = racing.getBestSC();
+			
+			List<SolverConfiguration> racingBestSCs = racing.getBestSolverConfigurations(null);
+			HashMap<Integer, SolverConfiguration> notBestSCs = new HashMap<Integer, SolverConfiguration>();
+			notBestSCs.putAll(lastBestSCs);
+			lastBestSCs.clear();
+			
+			
+			for (SolverConfiguration config : racingBestSCs) {
+				if (!lastBestSCs.containsKey(config.getIdSolverConfiguration())) {
+					updateSolverConfigName(config, true);
+				}
+				lastBestSCs.put(config.getIdSolverConfiguration(), config);
+				notBestSCs.remove(config.getIdSolverConfiguration());
 			}
+			
+			for (SolverConfiguration sc : notBestSCs.values()) {
+				updateSolverConfigName(sc, false);
+			}
+			notBestSCs.clear();
+			
 			// update the cost of the configuration in the EDACC solver
 			// configuration tables
 			// api.updateSolverConfigurationCost(racing.getBestSC().getIdSolverConfiguration(),
@@ -356,9 +373,12 @@ public class AAC {
 			for (SolverConfiguration sc : getRaceSolverConfigurations()) {
 				log("c Found RACE solver configuration: " + sc.getIdSolverConfiguration() + " - " + sc.getName());
 				sc.setNumber(++statNumSolverConfigs);
-				addRandomJob(parameters.getMinRuns(), sc, racing.getBestSC(), Integer.MAX_VALUE - sc.getNumber());
+				//addRandomJob(parameters.getMinRuns(), sc, racing.getBestSC(), Integer.MAX_VALUE - sc.getNumber());
 				updateSolverConfigName(sc, false);
-				listNewSC.put(sc.getIdSolverConfiguration(), sc);
+				List<SolverConfiguration> scs = new LinkedList<SolverConfiguration>();
+				scs.add(sc);
+				racing.solverConfigurationsCreated(scs);
+				//listNewSC.put(sc.getIdSolverConfiguration(), sc);
 			}
 
 			boolean generatedSCs = false;
@@ -378,7 +398,7 @@ public class AAC {
 				List<SolverConfiguration> tmpList;
 				DatabaseConnector.getInstance().getConn().setAutoCommit(false);
 				try {
-					tmpList = search.generateNewSC(numNewSC, racing.getBestSC());
+					tmpList = search.generateNewSC(numNewSC);
 				} finally {
 					DatabaseConnector.getInstance().getConn().setAutoCommit(true);
 				}
@@ -423,11 +443,12 @@ public class AAC {
 					// api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(),
 					// sc.getCost(),
 					// parameters.getStatistics().getCostFunction());
-					if (sc == racing.getBestSC()) {
+					
+					/*if (sc == racing.getBestSC()) {
 						updateSolverConfigName(sc, true);
 					} else {
 						updateSolverConfigName(sc, false);
-					}
+					}*/
 					finishedSCs.add(sc);
 				} else {
 					/*
@@ -548,27 +569,32 @@ public class AAC {
 		log("c Jobs generated: " + statNumJobs);
 		log("c Number of comparision performed with the racing method: " + racing.getNumCompCalls());
 		log("c Total runtime of the execution system (CPU time): " + cumulatedCPUTime);
-		log("c Best Configuration found: ");
-		log("c ID :" + racing.getBestSC().getIdSolverConfiguration());
-		try {
-			log("c Canonical name: "
-					+ api.getCanonicalName(parameters.getIdExperiment(), racing.getBestSC().getParameterConfiguration()));
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		if (api instanceof APISimulation) {
-			((APISimulation) api).printStats();
-		}
+		log("c Best Configurations found: ");
 		
-		if (parameters.idExperimentEvaluation > 0) {
-			String name = ("".equals(parameters.evaluationSolverConfigName) ? "" : parameters.evaluationSolverConfigName + " ") + getSolverConfigName(racing.getBestSC(), true);
-			log("c adding " + racing.getBestSC().getIdSolverConfiguration() + " to experiment " + parameters.idExperimentEvaluation + " with name " + name);
+		for (SolverConfiguration bestSC : racing.getBestSolverConfigurations(null)) {
+			log("c ID :" + bestSC);
 			try {
-				api.createSolverConfig(parameters.idExperimentEvaluation, racing.getBestSC().getParameterConfiguration(), name);
-			} catch (Exception ex) {
-				ex.printStackTrace();
+				log("c Canonical name: "
+						+ api.getCanonicalName(parameters.getIdExperiment(), bestSC.getParameterConfiguration()));
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+			if (api instanceof APISimulation) {
+				((APISimulation) api).printStats();
+			}
+			
+			if (parameters.idExperimentEvaluation > 0) {
+				String name = ("".equals(parameters.evaluationSolverConfigName) ? "" : parameters.evaluationSolverConfigName + " ") + getSolverConfigName(bestSC, true);
+				log("c adding " + bestSC + " to experiment " + parameters.idExperimentEvaluation + " with name " + name);
+				try {
+					api.createSolverConfig(parameters.idExperimentEvaluation, bestSC.getParameterConfiguration(), name);
+				} catch (Exception ex) {
+					ex.printStackTrace();
+				}
 			}
 		}
+		
+
 		
 		log("c halt.");
 		api.disconnect();

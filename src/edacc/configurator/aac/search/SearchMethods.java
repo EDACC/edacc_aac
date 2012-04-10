@@ -13,12 +13,14 @@ public abstract class SearchMethods {
 	protected API api;
 	protected Random rng;
 	protected Parameters parameters;
+	protected SolverConfiguration firstSC;
 	
-	public SearchMethods(AAC pacc, API api, Random rng, Parameters parameters) {
+	public SearchMethods(AAC pacc, API api, Random rng, Parameters parameters, SolverConfiguration firstSC) {
 		this.api = api;
 		this.parameters = parameters;
 		this.rng = rng;
 		this.pacc = pacc;
+		this.firstSC = firstSC;
 	}
 	
 	/**
@@ -27,7 +29,7 @@ public abstract class SearchMethods {
 	 * @return a List of the new solver configurations
 	 * @throws Exception
 	 */
-	public abstract List<SolverConfiguration> generateNewSC(int num, SolverConfiguration currentBestSC) throws Exception;
+	public abstract List<SolverConfiguration> generateNewSC(int num) throws Exception;
 	
 	public abstract void listParameters();
 }

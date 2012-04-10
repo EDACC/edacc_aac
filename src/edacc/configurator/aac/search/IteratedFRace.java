@@ -1,6 +1,5 @@
 package edacc.configurator.aac.search;
 
-import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -13,7 +12,6 @@ import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.configurator.aac.racing.FRace;
-import edacc.model.Instance;
 import edacc.parameterspace.ParameterConfiguration;
 import edacc.parameterspace.graph.ParameterGraph;
 
@@ -27,8 +25,8 @@ public class IteratedFRace extends SearchMethods {
     double initialParameterStdDev = 0.3f;
     double minStdDev = 1e-6;
 
-    public IteratedFRace(AAC pacc, API api, Random rng, Parameters parameters) throws Exception {
-        super(pacc, api, rng, parameters);
+    public IteratedFRace(AAC pacc, API api, Random rng, Parameters parameters, SolverConfiguration firstSC) throws Exception {
+        super(pacc, api, rng, parameters, firstSC);
         pspace = api.loadParameterGraphFromDB(parameters.getIdExperiment());
 
         String val;
@@ -41,7 +39,7 @@ public class IteratedFRace extends SearchMethods {
     }
 
     @Override
-    public List<SolverConfiguration> generateNewSC(int num, SolverConfiguration currentBestSC) throws Exception {
+    public List<SolverConfiguration> generateNewSC(int num) throws Exception {
         pacc.log("Starting new iteration of I/F-Race");
         List<SolverConfiguration> newSC = new ArrayList<SolverConfiguration>();
         if (iteration > 0) {
@@ -77,7 +75,7 @@ public class IteratedFRace extends SearchMethods {
                         pacc.log("c Exception thrown when trying to add configuration to evaluation experiment: " + e.getMessage());
                     }
                 }
-                return generateNewSC(num, currentBestSC);
+                return generateNewSC(num);
             }
             
             raceSurvivors = race.getRaceSurvivors();
@@ -86,7 +84,7 @@ public class IteratedFRace extends SearchMethods {
                 // start over with new random configs
                 this.parameterStdDev = (float)initialParameterStdDev;
                 this.iteration = 0;
-                return generateNewSC(num, currentBestSC);
+                return generateNewSC(num);
             }
             Collections.sort(raceSurvivors);
             Collections.reverse(raceSurvivors); // lowest cost first

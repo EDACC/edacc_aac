@@ -1,6 +1,6 @@
 package edacc.configurator.aac.racing;
 
-import java.sql.SQLException;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
 
@@ -14,19 +14,11 @@ public class FullEvaluation extends RacingMethods {
 	private SolverConfiguration bestSC;
 	private int num_instances;
 	private int incNumber;
-	public FullEvaluation(AAC pacc, Random rng, API api, Parameters parameters) throws SQLException {
-		super(pacc, rng, api, parameters);
+	public FullEvaluation(AAC pacc, Random rng, API api, Parameters parameters, SolverConfiguration firstSC) throws Exception {
+		super(pacc, rng, api, parameters, firstSC);
 		num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse().getInitialLength();
 		incNumber = 0;
-	}
-
-	@Override
-	public int compareTo(SolverConfiguration sc1, SolverConfiguration sc2) {
-		return sc1.compareTo(sc2);
-	}
-
-	@Override
-	public void initFirstSC(SolverConfiguration firstSC) throws Exception {
+		
 		bestSC = firstSC;
 		if (bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
 			int expansion = parameters.getMaxParcoursExpansionFactor() * num_instances - bestSC.getJobCount();
@@ -38,8 +30,16 @@ public class FullEvaluation extends RacingMethods {
 	}
 
 	@Override
-	public SolverConfiguration getBestSC() {
-		return bestSC;
+	public int compareTo(SolverConfiguration sc1, SolverConfiguration sc2) {
+		return sc1.compareTo(sc2);
+	}
+	
+
+	@Override
+	public List<SolverConfiguration> getBestSolverConfigurations(Integer numSC) {
+		List<SolverConfiguration> res = new LinkedList<SolverConfiguration>();
+		res.add(bestSC);
+		return res;
 	}
 
 	@Override

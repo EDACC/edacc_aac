@@ -13,8 +13,8 @@ import edacc.model.SolverConfigurationDAO;
 public class Matrix extends SearchMethods {
 	private List<SolverConfiguration> solverConfigs;
 	
-	public Matrix(AAC pacc, API api, Random rng, Parameters parameters) throws Exception {
-		super(pacc, api, rng, parameters);
+	public Matrix(AAC pacc, API api, Random rng, Parameters parameters, SolverConfiguration firstSC) throws Exception {
+		super(pacc, api, rng, parameters, firstSC);
 		solverConfigs = new ArrayList<SolverConfiguration>();
 		
 		for (edacc.model.SolverConfiguration db_sc : SolverConfigurationDAO.getSolverConfigurationByExperimentId(parameters.getIdExperiment())) {
@@ -24,7 +24,7 @@ public class Matrix extends SearchMethods {
 	}
 	
 	public SolverConfiguration getFirstSC() throws Exception {
-		List<SolverConfiguration> scs = generateNewSC(1, null);
+		List<SolverConfiguration> scs = generateNewSC(1);
 		if (!scs.isEmpty()) {
 			return scs.get(0);
 		}
@@ -32,8 +32,7 @@ public class Matrix extends SearchMethods {
 	}
 
 	@Override
-	public List<SolverConfiguration> generateNewSC(int num,
-			SolverConfiguration currentBestSC) throws Exception {
+	public List<SolverConfiguration> generateNewSC(int num) throws Exception {
 		List<SolverConfiguration> scs = new ArrayList<SolverConfiguration>();
 		for (int i = 0; i < num; i++) {
 			if (solverConfigs.isEmpty())

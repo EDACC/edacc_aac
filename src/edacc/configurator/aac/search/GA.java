@@ -1,6 +1,5 @@
 package edacc.configurator.aac.search;
 
-import java.security.AccessControlContext;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -81,8 +80,8 @@ public class GA extends SearchMethods {
 	 * Incremented by (# generated solver configs) after every generateNewSC call. 
 	 */
 	private static int genSC = 0;
-	public GA(AAC pacc, API api, Random rng, Parameters parameters) throws Exception {
-		super(pacc, api, rng, parameters);
+	public GA(AAC pacc, API api, Random rng, Parameters parameters, SolverConfiguration firstSC) throws Exception {
+		super(pacc, api, rng, parameters, firstSC);
 		graph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
 		population = new ArrayList<Individual>();
 		oldIndividuals = new ArrayList<Individual>();
@@ -117,7 +116,10 @@ public class GA extends SearchMethods {
 	}
 
 	@Override
-	public List<SolverConfiguration> generateNewSC(int num, SolverConfiguration currentBestSC) throws Exception {
+	public List<SolverConfiguration> generateNewSC(int num) throws Exception {
+		List<SolverConfiguration> bestSCs = pacc.racing.getBestSolverConfigurations(1);
+		SolverConfiguration currentBestSC = (bestSCs.size() > 0 ? bestSCs.get(0) : firstSC);
+		
 		if (bestInd == null) {
 			bestInd = new Individual(currentBestSC, time);
 		} else {
