@@ -34,8 +34,6 @@ public class Parameters {
 	
 	int minE = 1;
 	
-	boolean minimize = true;
-	
 	boolean deleteSolverConfigs = false;
 
 	int minCPUCount = 0;
@@ -98,7 +96,6 @@ public class Parameters {
 		//System.out.println("<racingMethod>_<name> = " +  + (pnp?" (additionel parameters for racing method>":""));
 		System.out.println("costFunction = " + this.costFunc + (pnp?" <string>(cost function to be optimized)":""));
 		System.out.println("minEvalsNewSC = " + this.minE + (pnp?" <int>(number of evaluations for new SCs)":""));
-		System.out.println("minimize = " + this.minimize + (pnp?" <boolean>(1 for mimizing cost function / 0 for maximizing)":""));
 		System.out.println("maxTuningTime = " + this.maxTuningTime + (pnp?" <float>(maximum sum of CPU seconds for all generated jobs (-1 no limitation))":""));
 		System.out.println("minCPUCount = " + this.minCPUCount + (pnp?" <int>(minimum number of CPU that should be available before starting the configuration proccess (0 no limitation))":""));
 		System.out.println("maxCPUCount = " + this.maxCPUCount + (pnp?" <int>(maximum number of CPU that should be available before starting the configuration proccess (0 no limitation))":""));
@@ -191,9 +188,7 @@ public class Parameters {
 
 			else if ("costFunction".equalsIgnoreCase(key))
 				costFunc = value;
-			else if ("minimize".equalsIgnoreCase(key))
-				minimize = Boolean.parseBoolean(value);
-
+			
 			else if (key.equalsIgnoreCase("maxTuningTime"))
 				maxTuningTime = Integer.valueOf(value);
 			else if (key.equalsIgnoreCase("minCPUCount"))
