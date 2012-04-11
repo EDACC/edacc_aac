@@ -390,14 +390,17 @@ public class AAC {
 			if (parameters.getMaxNumSC() >= 0 && this.statNumSolverConfigs+generateNumSC > parameters.getMaxNumSC())
 				generateNumSC = parameters.getMaxNumSC() - this.statNumSolverConfigs; //then limit the number of new sc 
 			if (generateNumSC > 0) {
-				int numNewSC = 0;
+			/*	int numNewSC = 0;
 				if (generateNumSC >= 210) {
 					generateNumSC -= 210;
 					numNewSC = 210;
 				} else {
 					numNewSC = generateNumSC;
 					generateNumSC = 0;
-				}
+				}*/
+				// generate all requested solver configs (important for IteratedFRace?)
+				int numNewSC = generateNumSC;
+				generateNumSC = 0;
 
 				List<SolverConfiguration> tmpList;
 				DatabaseConnector.getInstance().getConn().setAutoCommit(false);

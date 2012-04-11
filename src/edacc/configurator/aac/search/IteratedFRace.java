@@ -20,7 +20,6 @@ public class IteratedFRace extends SearchMethods {
     private List<SolverConfiguration> raceSurvivors;
     private ParameterGraph pspace;
     private float parameterStdDev;
-    private FRace race = null;
     
     double initialParameterStdDev = 0.3f;
     double minStdDev = 1e-6;
@@ -42,14 +41,8 @@ public class IteratedFRace extends SearchMethods {
     public List<SolverConfiguration> generateNewSC(int num) throws Exception {
         pacc.log("Starting new iteration of I/F-Race");
         List<SolverConfiguration> newSC = new ArrayList<SolverConfiguration>();
-        if (iteration > 0) {
-            if (race == null) {
-                // Only at this point we can be sure that pacc.racing is instantiated
-                if (!(pacc.racing instanceof FRace)) throw new Exception("Iterated FRace can't be used with any other racing method than FRace");
-                race = (FRace)pacc.racing;
-            }
-            
-            int Nlnext = race.getNumRaceConfigurations();
+        if (iteration > 0) {            
+            int Nlnext = num;
             
             // Adjust the standard deviation used for sampling new configurations
             parameterStdDev *= (float)Math.pow(1.0f/Nlnext, 1.0f/(float)api.getConfigurableParameters(parameters.getIdExperiment()).size());
@@ -59,7 +52,7 @@ public class IteratedFRace extends SearchMethods {
                 this.iteration = 0;
                 if (parameters.getIdExperimentEvaluation() > 0) {
                     try {
-                        for (SolverConfiguration solverConfig: race.getRaceSurvivors()) {
+                        for (SolverConfiguration solverConfig: pacc.racing.getBestSolverConfigurations(null)) {
                             String name = ("".equals(parameters.getEvaluationSolverConfigName()) ? "" : parameters.getEvaluationSolverConfigName() + " ") + solverConfig.getName() + " ID: " + solverConfig.getIdSolverConfiguration();
                             pacc.log("c Adding " + solverConfig.getName() + " ID: " + solverConfig.getIdSolverConfiguration() + " to evaluation experiment with name " + name);
                             int idSC = api.createSolverConfig(parameters.getIdExperimentEvaluation(), solverConfig.getParameterConfiguration(), name);
@@ -78,7 +71,7 @@ public class IteratedFRace extends SearchMethods {
                 return generateNewSC(num);
             }
             
-            raceSurvivors = race.getRaceSurvivors();
+            raceSurvivors = pacc.racing.getBestSolverConfigurations(null);
             if (raceSurvivors.isEmpty()) {
                 // this means the race terminated throwing out all configurations (they all probably only produced timeouts)
                 // start over with new random configs
@@ -86,10 +79,8 @@ public class IteratedFRace extends SearchMethods {
                 this.iteration = 0;
                 return generateNewSC(num);
             }
-            Collections.sort(raceSurvivors);
-            Collections.reverse(raceSurvivors); // lowest cost first
-            int Ns = Math.min(raceSurvivors.size(), race.getNmin());
-            for (int i = 0; i < Ns; i++) newSC.add(raceSurvivors.get(i));
+            int Ns = raceSurvivors.size();
+            newSC.addAll(raceSurvivors);
             
             RandomCollection<SolverConfiguration> roulette = new RandomCollection<SolverConfiguration>(rng);
             for (int i = 0; i < Ns; i++) roulette.add((Ns - (i+1) + 1.0)/(Ns * (Ns + 1) / 2.0), raceSurvivors.get(i));

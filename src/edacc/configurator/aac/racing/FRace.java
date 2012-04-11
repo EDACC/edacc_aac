@@ -1,6 +1,7 @@
 package edacc.configurator.aac.racing;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -318,6 +319,12 @@ public class FRace extends RacingMethods {
             pacc.log(solverConfig.getName() + " ID: " + solverConfig.getIdSolverConfiguration() + " - " + solverConfig.getCost());
         }
         raceSurvivors.addAll(raceConfigurations);
+        
+        Collections.sort(raceSurvivors); // lowest cost last
+        
+        while (raceSurvivors.size() > Nmin)
+        	raceSurvivors.remove(0);
+        
         raceConfigurations.clear(); // this will end the race, since the next computeOptimalExpansion call will trigger the call to solverConfigurations created
     }
     
