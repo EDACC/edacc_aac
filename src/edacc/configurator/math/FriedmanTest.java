@@ -27,8 +27,8 @@ public class FriedmanTest {
      *            n x c matrix of the observed values
      */
     public FriedmanTest(int n, int c, double[][] data) {
-        double[][] ranks = new double[n][c];
-        double[] rankSums = new double[c];
+        ranks = new double[n][c];
+        rankSums = new double[c];
 
         NaturalRanking ranking = new NaturalRanking(NaNStrategy.MAXIMAL, TiesStrategy.AVERAGE);
         for (int i = 0; i < n; i++) {
@@ -118,8 +118,7 @@ public class FriedmanTest {
      * @throws MathException
      */
     public boolean isPostHocTestSignificant(double F, double alpha) throws MathException {
-        // TODO: really m - 1 degrees of freedom here?
-        TDistribution tDist = new TDistributionImpl(m - 1);
-        return F > tDist.inverseCumulativeProbability((1 - alpha / 2.0));
+        TDistribution tDist = new TDistributionImpl((m-1)*(k-1));
+        return F > tDist.inverseCumulativeProbability(1 - alpha / 2.0);
     }
 }
