@@ -588,7 +588,6 @@ public class AAC {
 					} else {
 						updateSolverConfigName(sc, false);
 					}
-					sc.nameUpdated = false;
 					sc.wasBest = currentBest;
 				}
 			}
@@ -677,6 +676,7 @@ public class AAC {
 
 	public void updateSolverConfigName(SolverConfiguration sc, boolean best) throws Exception {
 		api.updateSolverConfigurationName(sc.getIdSolverConfiguration(), getSolverConfigName(sc, best));
+		sc.nameUpdated = false;
 	}
 
 	public String getSolverConfigName(SolverConfiguration sc, boolean best) {
