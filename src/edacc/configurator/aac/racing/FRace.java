@@ -7,16 +7,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-import org.apache.commons.math.distribution.ChiSquaredDistribution;
-import org.apache.commons.math.distribution.ChiSquaredDistributionImpl;
-import org.apache.commons.math.distribution.TDistribution;
-import org.apache.commons.math.distribution.TDistributionImpl;
-import org.apache.commons.math.stat.ranking.*;
+import org.apache.commons.math3.stat.inference.WilcoxonSignedRankTest;
 
 import edacc.api.API;
 import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
+import edacc.configurator.math.FriedmanTest;
 import edacc.model.ExperimentResult;
 
 /**
@@ -127,90 +124,83 @@ public class FRace extends RacingMethods {
                 terminateRace();
                 return;
             }
-
-            // calculate ranks per course entry and sum of ranks of each solver
-            // configuration
-            double[][] ranks = new double[courseResults.size()][raceConfigurations.size()];
-            double[] rankSums = new double[raceConfigurations.size()];
-            NaturalRanking ranking = new NaturalRanking(NaNStrategy.MAXIMAL, TiesStrategy.AVERAGE);
-            for (int i = 0; i < courseResults.size(); i++) {
-                double[] data = new double[raceConfigurations.size()];
-                for (int j = 0; j < raceConfigurations.size(); j++) {
-                    data[j] = courseResults.get(i).get(raceConfigurations.get(j));
-                }
-                double[] rankedData = ranking.rank(data);
-                for (int j = 0; j < raceConfigurations.size(); j++) {
-                    ranks[i][j] = rankedData[j];
-                    rankSums[j] += rankedData[j];
-                }
-            }
-
-            // calculate test statistic T
-            int m = raceConfigurations.size();
-            int k = courseResults.size();
-            double sum = 0;
-            for (int j = 0; j < m; j++)
-                sum += (rankSums[j] - (k * (m + 1)) / 2.0) * (rankSums[j] - (k * (m + 1)) / 2.0);
-            double doublesum = 0;
-            for (int l = 0; l < k; l++)
-                for (int j = 0; j < m; j++)
-                    doublesum += ranks[l][j] * ranks[l][j];
-            double T = (m - 1) * sum / (doublesum - k * m * (m + 1) * (m + 1) / 4.0);
             
-            ChiSquaredDistribution XS = new ChiSquaredDistributionImpl(m - 1);
-            if (T > XS.inverseCumulativeProbability(1.0 - alpha)) {
-                // there is evidence that there is at least one solver
-                // configuration that is significantly different from the others
-                // find the best one, do pairwise comparisons and remove those
-                // that are significantly worse from the race
-                SolverConfiguration bestConfiguration = null;
-                for (SolverConfiguration solverConfig : raceConfigurations) {
-                    if (bestConfiguration == null || solverConfig.compareTo(bestConfiguration) == 1) {
-                        bestConfiguration = solverConfig;
-                    }
+            if (raceConfigurations.size() == 2) {
+                // if only 2 configurations remain perform a wilcoxon signed-rank test because it is more powerful
+                // than a friedman test
+                pacc.log("Only 2 configurations remaining, perform wilcoxon signed-rank test.");
+                double[] c1 = new double[courseResults.size()];
+                double[] c2 = new double[courseResults.size()];
+                for (int i = 0; i < courseResults.size(); i++) {
+                    c1[i] = courseResults.get(i).get(raceConfigurations.get(0));
+                    c2[i] = courseResults.get(i).get(raceConfigurations.get(1));
                 }
-                if (this.bestSC == null || bestConfiguration.compareTo(bestSC) == 1) {
-                    this.bestSC = bestConfiguration;
-                }
-
-                List<SolverConfiguration> worseConfigurations = new ArrayList<SolverConfiguration>();
-                int bestConfigurationIx = raceConfigurations.indexOf(bestConfiguration);
-                for (int j = 0; j < raceConfigurations.size(); j++) {
-                    if (j == bestConfigurationIx) 
-                        continue;
-
-                    // calculate Friedman post hoc test between the two solver
-                    // configuration results
-                    double F = Math.abs(rankSums[j] - rankSums[bestConfigurationIx]);
-                    double dsum = 0;
-                    for (int l = 0; l < k; l++)
-                        for (int h = 0; h < m; h++)
-                            dsum += ranks[l][h] * ranks[l][h];
-                    
-                    F /= Math.sqrt(2 * k * (1 - T / (k * (m - 1))) * (dsum - k * m * (m + 1) * (m + 1) / 4.0) / ((k - 1) * (m - 1)));
-
-                    // TODO: really m - 1 degrees of freedom here?
-                    TDistribution tDist = new TDistributionImpl(m - 1);
-                    pacc.log(raceConfigurations.get(j).getIdSolverConfiguration() + " vs. best: F = " + F + ", Quantile= " + tDist.inverseCumulativeProbability((1 - alpha / 2.0)));
-                    if (F > tDist.inverseCumulativeProbability((1 - alpha / 2.0))) {
-                        // the best and this configuration are significantly
-                        // different enough to discard this one from the race
-                        //System.out.println("Determined " + raceConfigurations.get(j) + " to be a worse configuration");
-                        worseConfigurations.add(raceConfigurations.get(j));
-                        raceConfigurations.get(j).setFinished(true);
-                        pacc.log("Removing " + raceConfigurations.get(j).getName() + " ("+raceConfigurations.get(j).getCost()+") from race because it is significantly worse than the best configuration ("+bestConfiguration.getCost()+")");
-                    }
-                }
-                raceConfigurations.removeAll(worseConfigurations);
                 
-                if (raceConfigurations.size() <= this.Nmin) {
-                    // end of race since there are less than the required amount of configurations remaining
-                    pacc.log("Terminating race because minimum number of remaining candidates was reached");
-                    terminateRace();
-                    return;
+                WilcoxonSignedRankTest wtest = new WilcoxonSignedRankTest();
+                if (wtest.wilcoxonSignedRankTest(c1, c2, false) < alpha) {
+                    if (raceConfigurations.get(0).compareTo(raceConfigurations.get(1)) == 1) {
+                        raceConfigurations.remove(1);
+                    } else {
+                        raceConfigurations.remove(0);
+                    }
+                } else {
+                    pacc.log("wilcoxon signed-rank test didn't find a significant difference between the two solver configurations");
                 }
             } else {
-                pacc.log("family-wise comparison test indicated no significant differences between the configurations (T = " + T + " < Quantile = "+ XS.inverseCumulativeProbability(1.0 - alpha) + ")");
+                double[][] data = new double[courseResults.size()][raceConfigurations.size()];
+                for (int i = 0; i < courseResults.size(); i++) {
+                    for (int j = 0; j < raceConfigurations.size(); j++) {
+                        data[i][j] = courseResults.get(i).get(raceConfigurations.get(j));
+                    }
+                }
+                
+                FriedmanTest friedmanTest = new FriedmanTest(courseResults.size(), raceConfigurations.size(), data);
+                double T = friedmanTest.familyTestStatistic();
+    
+                if (friedmanTest.isFamilyTestSignificant(T, alpha)) {
+                    // there is evidence that there is at least one solver
+                    // configuration that is significantly different from the others
+                    // find the best one, do pairwise comparisons and remove those
+                    // that are significantly worse from the race
+                    SolverConfiguration bestConfiguration = null;
+                    for (SolverConfiguration solverConfig : raceConfigurations) {
+                        if (bestConfiguration == null || solverConfig.compareTo(bestConfiguration) == 1) {
+                            bestConfiguration = solverConfig;
+                        }
+                    }
+                    if (this.bestSC == null || bestConfiguration.compareTo(bestSC) == 1) {
+                        this.bestSC = bestConfiguration;
+                    }
+    
+                    List<SolverConfiguration> worseConfigurations = new ArrayList<SolverConfiguration>();
+                    int bestConfigurationIx = raceConfigurations.indexOf(bestConfiguration);
+                    for (int j = 0; j < raceConfigurations.size(); j++) {
+                        if (j == bestConfigurationIx) 
+                            continue;
+    
+                        // calculate Friedman post hoc test between the two solver
+                        // configuration results
+                        double F = friedmanTest.postHocTestStatistic(j, bestConfigurationIx, T);
+                        if (friedmanTest.isPostHocTestSignificant(F, alpha)) {
+                            // the best and this configuration are significantly
+                            // different enough to discard this one from the race
+                            worseConfigurations.add(raceConfigurations.get(j));
+                            raceConfigurations.get(j).setFinished(true);
+                            pacc.log("Removing " + raceConfigurations.get(j).getName() + " ("+raceConfigurations.get(j).getCost()+") from race because it is significantly worse than the best configuration ("+bestConfiguration.getCost()+")");
+                        }
+                    }
+                    raceConfigurations.removeAll(worseConfigurations);
+                    
+                } else {
+                    pacc.log("family-wise comparison test indicated no significant differences between the configurations");
+                }
+            }
+            
+            if (raceConfigurations.size() <= this.Nmin) {
+                // end of race since there are less than the required amount of configurations remaining
+                pacc.log("Terminating race because minimum number of remaining candidates was reached");
+                terminateRace();
+                return;
             }
             
             if (level+1 >= parameters.getMaxParcoursExpansionFactor() * num_instances) {

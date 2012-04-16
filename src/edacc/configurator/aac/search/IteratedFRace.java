@@ -1,7 +1,6 @@
 package edacc.configurator.aac.search;
 
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.Random;
@@ -11,7 +10,6 @@ import edacc.api.API;
 import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
-import edacc.configurator.aac.racing.FRace;
 import edacc.parameterspace.ParameterConfiguration;
 import edacc.parameterspace.graph.ParameterGraph;
 
@@ -55,14 +53,14 @@ public class IteratedFRace extends SearchMethods {
                         for (SolverConfiguration solverConfig: pacc.racing.getBestSolverConfigurations(null)) {
                             String name = ("".equals(parameters.getEvaluationSolverConfigName()) ? "" : parameters.getEvaluationSolverConfigName() + " ") + solverConfig.getName() + " ID: " + solverConfig.getIdSolverConfiguration();
                             pacc.log("c Adding " + solverConfig.getName() + " ID: " + solverConfig.getIdSolverConfiguration() + " to evaluation experiment with name " + name);
-                            int idSC = api.createSolverConfig(parameters.getIdExperimentEvaluation(), solverConfig.getParameterConfiguration(), name);
-                            int CPUTimeLimit[] = new int[parameters.getMaxParcoursExpansionFactor() * api.getCourseLength(parameters.getIdExperimentEvaluation())];
+                            api.createSolverConfig(parameters.getIdExperimentEvaluation(), solverConfig.getParameterConfiguration(), name);
+                            /*int CPUTimeLimit[] = new int[parameters.getMaxParcoursExpansionFactor() * api.getCourseLength(parameters.getIdExperimentEvaluation())];
                             int wallClockTimeLimit[] = new int[parameters.getMaxParcoursExpansionFactor() * api.getCourseLength(parameters.getIdExperimentEvaluation())];
                             for (int i = 0; i < CPUTimeLimit.length; i++) {
                                 CPUTimeLimit[i] = parameters.getJobCPUTimeLimit();
                                 wallClockTimeLimit[i] = parameters.getJobWallClockTimeLimit();
                             }
-                            api.launchJob(parameters.getIdExperimentEvaluation(), idSC, CPUTimeLimit, wallClockTimeLimit, CPUTimeLimit.length, new Random(parameters.getRacingSeed()));
+                            api.launchJob(parameters.getIdExperimentEvaluation(), idSC, CPUTimeLimit, wallClockTimeLimit, CPUTimeLimit.length, new Random(parameters.getRacingSeed()));*/
                         }
                     } catch (Exception e) {
                         pacc.log("c Exception thrown when trying to add configuration to evaluation experiment: " + e.getMessage());
