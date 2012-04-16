@@ -237,7 +237,7 @@ public class GA extends SearchMethods {
 				}
 				int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), pConfig, api.getCanonicalName(parameters.getIdExperiment(), pConfig));
 				SolverConfiguration sc = new SolverConfiguration(idSolverConfig, pConfig, parameters.getStatistics());
-				sc.setName(mutationCount + " mutations");
+				sc.setNameSearch(mutationCount + " mutations");
 				res.add(sc);
 				Individual newInd = new Individual(sc, time);
 				oldIndividuals.add(newInd);
@@ -299,7 +299,7 @@ public class GA extends SearchMethods {
 			newInd.ancestors.addAll(f.ancestors);
 			newInd.ancestors.add(m);
 			newInd.ancestors.add(f);
-			firstSC.setName("crossover - child " + m.getChildCount() + "/" + f.getChildCount() + (firstMutationCount != 0 ? " " + firstMutationCount + " mutations" : "") + " - " + newInd.ancestors.size() + " ancestors");
+			firstSC.setNameSearch("crossover - child " + m.getChildCount() + "/" + f.getChildCount() + (firstMutationCount != 0 ? " " + firstMutationCount + " mutations" : "") + " - " + newInd.ancestors.size() + " ancestors");
 			oldIndividuals.add(newInd);
 			
 			idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), configs.getSecond(), api.getCanonicalName(parameters.getIdExperiment(), configs.getSecond()));
@@ -310,7 +310,7 @@ public class GA extends SearchMethods {
 			newInd.ancestors.addAll(f.ancestors);
 			newInd.ancestors.add(m);
 			newInd.ancestors.add(f);
-			secondSC.setName("crossover - child " + m.getChildCount() + "/" + f.getChildCount() + (secondMutationCount != 0 ? " " + secondMutationCount + " mutations" : "") + " - " + newInd.ancestors.size() + " ancestors");
+			secondSC.setNameSearch("crossover - child " + m.getChildCount() + "/" + f.getChildCount() + (secondMutationCount != 0 ? " " + secondMutationCount + " mutations" : "") + " - " + newInd.ancestors.size() + " ancestors");
 			oldIndividuals.add(newInd);
 		}
 		if (noPartner > 0)
@@ -365,7 +365,7 @@ public class GA extends SearchMethods {
 				newInd.ancestors.addAll(bestInd.ancestors);
 				newInd.ancestors.add(bestInd);
 			}
-			randomConfig.setName((random ? "random" : "neighbour of " + nSC.getIdSolverConfiguration()) 
+			randomConfig.setNameSearch((random ? "random" : "neighbour of " + nSC.getIdSolverConfiguration()) 
 					+ (mutationCount != 0 ? " " + mutationCount + " mutations" : "")
 					+ (newInd.ancestors.size() != 0 ? " - " + newInd.ancestors.size() + " ancestors" : ""));
 			oldIndividuals.add(newInd);

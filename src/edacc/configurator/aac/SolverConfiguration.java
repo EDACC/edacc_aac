@@ -10,6 +10,7 @@ import java.util.Random;
 import edacc.parameterspace.ParameterConfiguration;
 import edacc.api.API;
 import edacc.model.ExperimentResult;
+import edacc.model.ResultCode;
 import edacc.model.StatusCode;
 
 public class SolverConfiguration implements Comparable<SolverConfiguration> {
@@ -39,14 +40,15 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	private float totalRuntime;
 
 	/** the name of the configuration */
-	private String name;
+	private String nameRacing, nameSearch;
+	protected boolean nameUpdated, wasBest;
 
 	/** List of all jobs that a solver configuration has been executed so far */
 	private List<ExperimentResult> jobs;
 
 	private StatisticFunction statFunc;
 
-	private int numNotStartedJobs, numFinishedJobs, numSuccessfulJobs, numRunningJobs;
+	protected int numNotStartedJobs, numFinishedJobs, numSuccessfulJobs, numRunningJobs;
 
 	private boolean finished;
 	
@@ -66,7 +68,10 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 		this.pConfig = pc;
 		this.idSolverConfiguration = idSolverConfiguration;
 		this.cost = null;
-		this.name = null;
+		this.nameRacing = null;
+		this.nameSearch = null;
+		this.nameUpdated = false;
+		this.wasBest = false;
 		this.statFunc = statFunc;
 		this.incumbentNumber = -1;
 		this.finished = false;
@@ -79,7 +84,10 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 		this.pConfig = pc;
 		this.idSolverConfiguration = idSolverConfiguration;
 		this.cost = null;
-		this.name = null;
+		this.nameRacing = null;
+		this.nameSearch = null;
+		this.nameUpdated = false;
+		this.wasBest = false;
 		this.statFunc = statFunc;
 		this.incumbentNumber = -1;
 		this.finished = false;
@@ -92,7 +100,10 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 		this.pConfig = new ParameterConfiguration(sc.pConfig);
 		this.idSolverConfiguration = sc.idSolverConfiguration;
 		this.cost = sc.cost;
-		this.name = sc.name;
+		this.nameRacing = sc.nameRacing;
+		this.nameSearch = sc.nameSearch;
+		this.nameUpdated = sc.nameUpdated;
+		this.wasBest  = sc.wasBest;
 		this.statFunc = sc.statFunc;
 		this.incumbentNumber = sc.incumbentNumber;
 		this.finished = sc.finished;
@@ -152,11 +163,22 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	}
 
 	public final String getName() {
-		return this.name;
+		if (nameRacing == null) {
+			return nameSearch;
+		} else if (nameSearch == null) {
+			return nameRacing;
+		}
+		return nameSearch + " " + nameRacing;
 	}
 
-	public final void setName(String name) {
-		this.name = name;
+	public final void setNameRacing(String name) {
+		this.nameRacing = name;
+		this.nameUpdated = true;
+	}
+	
+	public final void setNameSearch(String name) {
+		this.nameSearch = name;
+		this.nameUpdated = true;
 	}
 
 	public void putJob(ExperimentResult job) {
@@ -414,5 +436,22 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 			}
 		}
 		return statFunc.compare(myJobs, otherJobs);
+	}
+
+	protected void jobResetted(ExperimentResult er) {
+		if (er.getStatus().equals(StatusCode.RUNNING)) {
+			numRunningJobs--;
+		}
+		if (!er.getStatus().equals(StatusCode.NOT_STARTED) && !er.getStatus().equals(StatusCode.RUNNING)) {
+			numFinishedJobs--;
+		}
+		if (String.valueOf(er.getResultCode().getResultCode()).startsWith("1")) {
+			numSuccessfulJobs--;
+		}
+		if (!er.getStatus().equals(StatusCode.NOT_STARTED)) {
+			numNotStartedJobs++;
+		}
+		er.setStatus(StatusCode.NOT_STARTED);
+		er.setResultCode(ResultCode.UNKNOWN);
 	}
 }

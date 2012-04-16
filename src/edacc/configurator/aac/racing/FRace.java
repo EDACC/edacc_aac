@@ -250,7 +250,7 @@ public class FRace extends RacingMethods {
             }
             round += 1;
             for (SolverConfiguration solverConfig: raceConfigurations) {
-                solverConfig.setName(starts + "-" + race + "-" + round);
+                solverConfig.setNameRacing(starts + "-" + race + "-" + round);
             }
             curFinishedConfigurations.clear();
         }
@@ -284,7 +284,7 @@ public class FRace extends RacingMethods {
                 pacc.expandParcoursSC(solverConfig, initialRaceRuns - solverConfig.getNumFinishedJobs());
             }
             pacc.addSolverConfigurationToListNewSC(solverConfig);
-            solverConfig.setName(starts + "-" + race + "-" + round);
+            solverConfig.setNameRacing(starts + "-" + race + "-" + round);
         }
         level = initialRaceRuns - 1;
         pacc.log("c Starting new race with " + scs.size() + " solver configurations");

@@ -132,7 +132,7 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 
 				int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), pconfig, "just created");
 				SolverConfiguration sc = new SolverConfiguration(idSolverConfig, pconfig, parameters.getStatistics());
-				sc.setName(api.getCanonicalName(parameters.getIdExperiment(), pconfig) + " it 0");
+				sc.setNameSearch(api.getCanonicalName(parameters.getIdExperiment(), pconfig) + " it 0");
 				newSCs.add(sc);
 				solverConfigs.put(new ObjectArrayWrapper(paramVal), sc);
 				pacc.log("[ISSS] put: " + Arrays.toString(paramVal));
@@ -216,7 +216,7 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 							}
 							int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), pconfig, "just created");
 							SolverConfiguration sc = new SolverConfiguration(idSolverConfig, pconfig, parameters.getStatistics());
-							sc.setName(api.getCanonicalName(parameters.getIdExperiment(), pconfig) + " it " + iteration);
+							sc.setNameSearch(api.getCanonicalName(parameters.getIdExperiment(), pconfig) + " it " + iteration);
 							newSCs.add(sc);
 							solverConfigs.put(new ObjectArrayWrapper(otherScPVal), sc);
 						} else {
