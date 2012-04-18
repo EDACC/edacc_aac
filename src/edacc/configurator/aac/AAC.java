@@ -141,13 +141,15 @@ public class AAC {
 	 * 
 	 * @throws Exception
 	 */
-	private SolverConfiguration initializeBest() throws Exception {
+	private List<SolverConfiguration> initializeBest() throws Exception {
 		// TODO: the best one might not match the configuration scenario
 		// graph.validateParameterConfiguration(config) should test this,
 		// but is currently not implemented and will return false.
 		if (search instanceof edacc.configurator.aac.search.Matrix) {
 			edacc.configurator.aac.search.Matrix m = (edacc.configurator.aac.search.Matrix) search;
-			return m.getFirstSC();
+			List<SolverConfiguration> res = new LinkedList<SolverConfiguration>();
+			res.add(m.getFirstSC());
+			return res;
 		}
 
 		List<Integer> solverConfigIds = api.getSolverConfigurations(parameters.getIdExperiment(), "default");
@@ -158,19 +160,10 @@ public class AAC {
 			log("c Found " + solverConfigIds.size() + " default configuration(s)");
 		}
 		List<SolverConfiguration> solverConfigs = new LinkedList<SolverConfiguration>();
-		int maxRun = -1;
 		for (int id : solverConfigIds) {
-			int runCount = api.getNumJobs(id);
-			if (runCount > maxRun) {
-				solverConfigs.clear();
-				maxRun = runCount;
-			}
-			if (runCount == maxRun) {
-				ParameterConfiguration pConfig = api.getParameterConfiguration(parameters.getIdExperiment(), id);
-				solverConfigs.add(new SolverConfiguration(id, pConfig, parameters.getStatistics()));
-			}
+			ParameterConfiguration pConfig = api.getParameterConfiguration(parameters.getIdExperiment(), id);
+			solverConfigs.add(new SolverConfiguration(id, pConfig, parameters.getStatistics()));
 		}
-		log("c " + solverConfigs.size() + " solver configs with max run");
 
 		Course c = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse();
 		for (int sc_index = solverConfigs.size() - 1; sc_index >= 0; sc_index--) {
@@ -196,22 +189,11 @@ public class AAC {
 				solverConfigs.remove(sc_index);
 			}
 		}
-
-		log("c Determining best solver configuration from " + solverConfigs.size() + " solver configurations");
-
 		if (solverConfigs.isEmpty()) {
 			// no good solver configs in db
-			log("c Generating a random solver configuration");
-
-			ParameterConfiguration config = graph.getRandomConfiguration(rngSearch);
-			int idSolverConfiguration = api.createSolverConfig(parameters.getIdExperiment(), config, "First Random Configuration " + api.getCanonicalName(parameters.getIdExperiment(), config));
-			return new SolverConfiguration(idSolverConfiguration, api.getParameterConfiguration(parameters.getIdExperiment(), idSolverConfiguration), parameters.getStatistics());
-		} else {
-			Collections.sort(solverConfigs);
-			SolverConfiguration bestSC = solverConfigs.get(solverConfigs.size() - 1);
-			log("c Best solver configuration: " + api.getSolverConfigName(bestSC.getIdSolverConfiguration()));
-			return bestSC;
+			log("c no solver configs found");
 		}
+		return solverConfigs;
 	}
 
 	/**
@@ -413,19 +395,16 @@ public class AAC {
 		// first initialize the best individual if there is a default or if
 		// there are already some solver configurations in the experiment
 		cumulatedCPUTime = 0.f;
-		SolverConfiguration firstSC = initializeBest();
+		List<SolverConfiguration> firstSCs = initializeBest();
 		
-		if (firstSC == null) {
-			throw new RuntimeException("best not initialized");
+		solverConfigs.addAll(firstSCs);
+		
+		for (SolverConfiguration sc : firstSCs) {
+			sc.updateJobsStatus(api); // don't add best scs time to cumulatedCPUTime
 		}
-		solverConfigs.add(firstSC);
-		
-		firstSC.updateJobsStatus(api); // don't add best scs time to
-										// cumulatedCPUTime
-
 		// create search and racing instances
-		search = (SearchMethods) searchClass.getDeclaredConstructors()[0].newInstance(this, api, rngSearch, parameters, firstSC);
-		racing = (RacingMethods) racingClass.getDeclaredConstructors()[0].newInstance(this, rngRacing, api, parameters, firstSC);
+		search = (SearchMethods) searchClass.getDeclaredConstructors()[0].newInstance(this, api, rngSearch, parameters, firstSCs);
+		racing = (RacingMethods) racingClass.getDeclaredConstructors()[0].newInstance(this, rngRacing, api, parameters, firstSCs);
 
 		parameters.listParameters();
 		search.listParameters();

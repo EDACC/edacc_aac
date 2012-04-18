@@ -31,8 +31,8 @@ public class ILS extends SearchMethods {
 	int sampleSize = 10;
 	
 	
-	public ILS(AAC pacc, API api, Random rng, Parameters parameters, SolverConfiguration firstSC) {
-		super(pacc, api, rng, parameters, firstSC);
+	public ILS(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs) {
+		super(pacc, api, rng, parameters, firstSCs);
 		// TODO Auto-generated constructor stub
 	}
 
@@ -42,7 +42,7 @@ public class ILS extends SearchMethods {
 	@Override
 	public List<SolverConfiguration> generateNewSC(int num) throws Exception {
 		List<SolverConfiguration> bestSCs = pacc.racing.getBestSolverConfigurations(1);
-		SolverConfiguration currentBestSC = (bestSCs.size() > 0 ? bestSCs.get(0) : firstSC);
+		SolverConfiguration currentBestSC = (bestSCs.size() > 0 ? bestSCs.get(0) : firstSCs.get(0));
 		
 		//the parameter configurations generated 
 		List<ParameterConfiguration> paramConfs = new ArrayList<ParameterConfiguration>();

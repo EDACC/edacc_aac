@@ -80,8 +80,8 @@ public class GA extends SearchMethods {
 	 * Incremented by (# generated solver configs) after every generateNewSC call. 
 	 */
 	private static int genSC = 0;
-	public GA(AAC pacc, API api, Random rng, Parameters parameters, SolverConfiguration firstSC) throws Exception {
-		super(pacc, api, rng, parameters, firstSC);
+	public GA(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs) throws Exception {
+		super(pacc, api, rng, parameters, firstSCs);
 		graph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
 		population = new ArrayList<Individual>();
 		oldIndividuals = new ArrayList<Individual>();
@@ -118,25 +118,20 @@ public class GA extends SearchMethods {
 	@Override
 	public List<SolverConfiguration> generateNewSC(int num) throws Exception {
 		List<SolverConfiguration> bestSCs = pacc.racing.getBestSolverConfigurations(1);
-		SolverConfiguration currentBestSC = (bestSCs.size() > 0 ? bestSCs.get(0) : firstSC);
-		
-		if (bestInd == null) {
-			bestInd = new Individual(currentBestSC, time);
-		} else {
-			if (bestInd.sc != currentBestSC) {
-				for (Individual ind : oldIndividuals) {
-					if (ind.sc == currentBestSC) {
-						bestInd = ind;
-						break;
+		SolverConfiguration currentBestSC = (bestSCs.size() > 0 ? bestSCs.get(0) : null);
+		if (currentBestSC != null) {
+			if (bestInd == null) {
+				bestInd = new Individual(currentBestSC, time);
+			} else {
+				if (bestInd.sc != currentBestSC) {
+					for (Individual ind : oldIndividuals) {
+						if (ind.sc == currentBestSC) {
+							bestInd = ind;
+							break;
+						}
 					}
 				}
 			}
-		}
-		
-		// debugging
-		if (bestInd == null || bestInd.sc != currentBestSC) {
-			System.out.println("[GA] BUG?? bestInd.sc != currentBestSC. created one. could be added by user.");
-			bestInd = new Individual(currentBestSC, time);
 		}
 
 		System.out.println("[GA] GA generate Solver configs: " + num);

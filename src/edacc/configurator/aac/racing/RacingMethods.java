@@ -14,15 +14,15 @@ public abstract class RacingMethods {
 	Parameters parameters;
 	protected Random rng;
 	protected int numCompCalls;
-	SolverConfiguration firstSC;
+	List<SolverConfiguration> firstSCs;
 	
-	public RacingMethods(AAC pacc, Random rng, API api, Parameters parameters, SolverConfiguration firstSC) {
+	public RacingMethods(AAC pacc, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs) {
 		this.pacc = pacc;
 		this.api = api;
 		this.parameters = parameters;
 		this.rng = rng;
 		this.numCompCalls = 0;
-		this.firstSC = firstSC;
+		this.firstSCs = firstSCs;
 	}
 	
 	/**

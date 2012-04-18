@@ -26,8 +26,8 @@ public class SingleParameter extends SearchMethods {
 	Parameter param;
 	Parameter param2;
 	ParameterGraph graph;
-	public SingleParameter(AAC pacc, API api, Random rng, Parameters parameters, SolverConfiguration firstSC) throws Exception {
-		super(pacc, api, rng, parameters, firstSC);
+	public SingleParameter(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs) throws Exception {
+		super(pacc, api, rng, parameters, firstSCs);
 		
 		graph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
 		numScs2_spec = false;

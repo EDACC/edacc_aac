@@ -12,14 +12,14 @@ import edacc.parameterspace.ParameterConfiguration;
 
 public class MB extends SearchMethods {
 
-	public MB(AAC pacc, API api, Random rng, Parameters parameters, SolverConfiguration firstSC) {
-		super(pacc, api, rng, parameters, firstSC);
+	public MB(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs) {
+		super(pacc, api, rng, parameters, firstSCs);
 	}
 
 	@Override
 	public List<SolverConfiguration> generateNewSC(int num) throws Exception {
 		List<SolverConfiguration> bestSCs = pacc.racing.getBestSolverConfigurations(1);
-		SolverConfiguration currentBestSC = (bestSCs.size() > 0 ? bestSCs.get(0) : firstSC);
+		SolverConfiguration currentBestSC = (bestSCs.size() > 0 ? bestSCs.get(0) : firstSCs.get(0));
 		
 		List<SolverConfiguration> res = new ArrayList<SolverConfiguration>();
 		ParameterConfiguration bestSCP = currentBestSC.getParameterConfiguration();

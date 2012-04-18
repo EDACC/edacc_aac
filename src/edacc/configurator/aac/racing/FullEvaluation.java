@@ -11,57 +11,31 @@ import edacc.configurator.aac.SolverConfiguration;
 import edacc.model.ConfigurationScenarioDAO;
 
 public class FullEvaluation extends RacingMethods {
-	private SolverConfiguration bestSC;
 	private int num_instances;
 	private int incNumber;
-	public FullEvaluation(AAC pacc, Random rng, API api, Parameters parameters, SolverConfiguration firstSC) throws Exception {
-		super(pacc, rng, api, parameters, firstSC);
+
+	public FullEvaluation(AAC pacc, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs) throws Exception {
+		super(pacc, rng, api, parameters, firstSCs);
 		num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse().getInitialLength();
 		incNumber = 0;
-		
-		bestSC = firstSC;
-		if (bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
-			int expansion = parameters.getMaxParcoursExpansionFactor() * num_instances - bestSC.getJobCount();
-			for (int i = 0; i < expansion; i++)
-			pacc.expandParcoursSC(bestSC, 1);
-		}
-		pacc.addSolverConfigurationToListNewSC(bestSC);
-		bestSC.setIncumbentNumber(incNumber++);
 	}
 
 	@Override
 	public int compareTo(SolverConfiguration sc1, SolverConfiguration sc2) {
 		return sc1.compareTo(sc2);
 	}
-	
 
 	@Override
 	public List<SolverConfiguration> getBestSolverConfigurations(Integer numSC) {
 		List<SolverConfiguration> res = new LinkedList<SolverConfiguration>();
-		res.add(bestSC);
 		return res;
 	}
 
 	@Override
 	public void solverConfigurationsFinished(List<SolverConfiguration> scs) throws Exception {
-		if (!bestSC.isFinished()) {
-			for (SolverConfiguration sc : scs) {
-				if (sc == bestSC) {
-					bestSC.setFinished(true);
-				} else {
-					pacc.addSolverConfigurationToListNewSC(sc);
-				}
-			}
-		} else {
-			for (SolverConfiguration sc : scs) {
-				sc.setFinished(true);
-				if (compareTo(sc, bestSC) > 0) {
-					bestSC = sc;
-					bestSC.setIncumbentNumber(incNumber++);
-				}
-			}
+		for (SolverConfiguration sc : scs) {
+			sc.setFinished(true);
 		}
-		
 	}
 
 	@Override
@@ -71,7 +45,7 @@ public class FullEvaluation extends RacingMethods {
 			pacc.expandParcoursSC(sc, expansion, Integer.MAX_VALUE - sc.getIdSolverConfiguration());
 			pacc.addSolverConfigurationToListNewSC(sc);
 		}
-		
+
 	}
 
 	@Override
@@ -88,7 +62,7 @@ public class FullEvaluation extends RacingMethods {
 	@Override
 	public void listParameters() {
 		// TODO Auto-generated method stub
-		
+
 	}
 
 }

@@ -13,14 +13,14 @@ public abstract class SearchMethods {
 	protected API api;
 	protected Random rng;
 	protected Parameters parameters;
-	protected SolverConfiguration firstSC;
+	protected List<SolverConfiguration> firstSCs;
 	
-	public SearchMethods(AAC pacc, API api, Random rng, Parameters parameters, SolverConfiguration firstSC) {
+	public SearchMethods(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs) {
 		this.api = api;
 		this.parameters = parameters;
 		this.rng = rng;
 		this.pacc = pacc;
-		this.firstSC = firstSC;
+		this.firstSCs = firstSCs;
 	}
 	
 	/**

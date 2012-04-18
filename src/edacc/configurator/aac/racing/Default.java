@@ -15,14 +15,21 @@ public class Default extends RacingMethods {
 	int incumbentNumber;
 	int num_instances;
 
-	public Default(AAC proar, Random rng, API api, Parameters parameters, SolverConfiguration firstSC) throws Exception {
-		super(proar, rng, api, parameters, firstSC);
+	public Default(AAC proar, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs) throws Exception {
+		super(proar, rng, api, parameters, firstSCs);
 		incumbentNumber = 0;
 		num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse().getInitialLength();
 	
-		this.bestSC = firstSC;
+		if (!firstSCs.isEmpty()) {
+			// TODO: ...
+			initBestSC(firstSCs.get(0));
+		}
+	}
+	
+	private void initBestSC(SolverConfiguration sc) throws Exception {
+		this.bestSC = firstSCs.get(0);
 		bestSC.setIncumbentNumber(incumbentNumber++);
-		pacc.log("i " + pacc.getWallTime() + " ," + firstSC.getCost() + ", n.A.," + bestSC.getIdSolverConfiguration() + ", n.A.," + bestSC.getParameterConfiguration().toString());
+		pacc.log("i " + pacc.getWallTime() + " ," + bestSC.getCost() + ", n.A.," + bestSC.getIdSolverConfiguration() + ", n.A.," + bestSC.getParameterConfiguration().toString());
 		
 		int expansion = 0;
 		if (bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
@@ -47,6 +54,7 @@ public class Default extends RacingMethods {
 			pacc.updateJobsStatus(bestSC);
 		}
 	}
+	
 
 	public String toString(){
 		return "This is the racing method or ROAR";
@@ -99,6 +107,14 @@ public class Default extends RacingMethods {
 
 	@Override
 	public void solverConfigurationsCreated(List<SolverConfiguration> scs) throws Exception {
+		if (scs.isEmpty())
+			return;
+		
+		if (bestSC == null) {
+			initBestSC(scs.get(0));
+			scs.remove(0);
+		}
+		
 		for (SolverConfiguration sc : scs) {
 			// add 1 random job from the best configuration with the
 			// priority corresponding to the level
@@ -144,7 +160,9 @@ public class Default extends RacingMethods {
 	@Override
 	public List<SolverConfiguration> getBestSolverConfigurations(Integer numSC) {
 		List<SolverConfiguration> res = new LinkedList<SolverConfiguration>();
-		res.add(bestSC);
+		if (bestSC != null) {
+			res.add(bestSC);
+		}
 		return res;
 	}
 

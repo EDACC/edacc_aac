@@ -22,8 +22,8 @@ public class IteratedFRace extends SearchMethods {
     double initialParameterStdDev = 0.3f;
     double minStdDev = 1e-6;
 
-    public IteratedFRace(AAC pacc, API api, Random rng, Parameters parameters, SolverConfiguration firstSC) throws Exception {
-        super(pacc, api, rng, parameters, firstSC);
+    public IteratedFRace(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs) throws Exception {
+        super(pacc, api, rng, parameters, firstSCs);
         pspace = api.loadParameterGraphFromDB(parameters.getIdExperiment());
 
         String val;

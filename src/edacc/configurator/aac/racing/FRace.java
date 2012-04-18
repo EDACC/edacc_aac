@@ -55,8 +55,8 @@ public class FRace extends RacingMethods {
     double numRaceConfigurationsFactor = 10;
     int CPUFactor = 1;
     
-    public FRace(AAC pacc, Random rng, API api, Parameters parameters, SolverConfiguration firstSC) throws Exception {
-        super(pacc, rng, api, parameters, firstSC);
+    public FRace(AAC pacc, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs) throws Exception {
+        super(pacc, rng, api, parameters, firstSCs);
         this.num_instances = api.getCourse(parameters.getIdExperiment()).getInitialLength();
         this.raceConfigurations = new ArrayList<SolverConfiguration>();
         this.initialRaceConfigurations = new ArrayList<SolverConfiguration>();
