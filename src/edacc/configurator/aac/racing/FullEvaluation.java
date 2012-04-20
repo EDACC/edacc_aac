@@ -14,8 +14,8 @@ public class FullEvaluation extends RacingMethods {
 	private int num_instances;
 	private int incNumber;
 
-	public FullEvaluation(AAC pacc, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs) throws Exception {
-		super(pacc, rng, api, parameters, firstSCs);
+	public FullEvaluation(AAC pacc, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
+		super(pacc, rng, api, parameters, firstSCs, referenceSCs);
 		num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse().getInitialLength();
 		incNumber = 0;
 	}
@@ -26,7 +26,7 @@ public class FullEvaluation extends RacingMethods {
 	}
 
 	@Override
-	public List<SolverConfiguration> getBestSolverConfigurations(Integer numSC) {
+	public List<SolverConfiguration> getBestSolverConfigurations() {
 		List<SolverConfiguration> res = new LinkedList<SolverConfiguration>();
 		return res;
 	}

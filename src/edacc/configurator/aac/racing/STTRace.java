@@ -43,8 +43,8 @@ public class STTRace extends RacingMethods {
 	 * @param parameters
 	 * @throws SQLException
 	 */
-	public STTRace(AAC pacc, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs) throws SQLException {
-		super(pacc, rng, api, parameters, firstSCs);
+	public STTRace(AAC pacc, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws SQLException {
+		super(pacc, rng, api, parameters, firstSCs, referenceSCs);
 		this.a = 0.7;
 		this.minEB = 10;
 		incumbentNumber = 0;
@@ -200,7 +200,7 @@ public class STTRace extends RacingMethods {
 	}
 
 	@Override
-	public List<SolverConfiguration> getBestSolverConfigurations(Integer numSC) {
+	public List<SolverConfiguration> getBestSolverConfigurations() {
 		List<SolverConfiguration> res = new LinkedList<SolverConfiguration>();
 		res.add(bestSC);
 		return res;

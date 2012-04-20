@@ -196,6 +196,19 @@ public class AAC {
 		return solverConfigs;
 	}
 
+	private List<SolverConfiguration> getReferenceSolverConfigs() throws Exception {
+		List<SolverConfiguration> res = new ArrayList<SolverConfiguration>();
+		List<Integer> scIds = api.getSolverConfigurations(parameters.getIdExperiment(), "reference");
+		for (Integer scId : scIds) {
+			SolverConfiguration sc = new SolverConfiguration(scId, null, parameters.getStatistics());
+			for (ExperimentResult job : api.getRuns(parameters.idExperiment, sc.getIdSolverConfiguration())) {
+				sc.putJob(job);
+			}
+			res.add(sc);
+		}
+		return res;
+	}
+	
 	/**
 	 * Determines if the termination criteria holds
 	 * 
@@ -396,15 +409,15 @@ public class AAC {
 		// there are already some solver configurations in the experiment
 		cumulatedCPUTime = 0.f;
 		List<SolverConfiguration> firstSCs = initializeBest();
-		
+		List<SolverConfiguration> referenceSCs = getReferenceSolverConfigs();
 		solverConfigs.addAll(firstSCs);
-		
-		for (SolverConfiguration sc : firstSCs) {
-			sc.updateJobsStatus(api); // don't add best scs time to cumulatedCPUTime
+		solverConfigs.addAll(referenceSCs);
+		for (SolverConfiguration sc : solverConfigs) {
+			sc.updateJobsStatus(api); // don't add existing scs time to cumulatedCPUTime
 		}
 		// create search and racing instances
 		search = (SearchMethods) searchClass.getDeclaredConstructors()[0].newInstance(this, api, rngSearch, parameters, firstSCs);
-		racing = (RacingMethods) racingClass.getDeclaredConstructors()[0].newInstance(this, rngRacing, api, parameters, firstSCs);
+		racing = (RacingMethods) racingClass.getDeclaredConstructors()[0].newInstance(this, rngRacing, api, parameters, firstSCs, referenceSCs);
 
 		parameters.listParameters();
 		search.listParameters();

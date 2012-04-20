@@ -15,8 +15,8 @@ public class Default extends RacingMethods {
 	int incumbentNumber;
 	int num_instances;
 
-	public Default(AAC proar, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs) throws Exception {
-		super(proar, rng, api, parameters, firstSCs);
+	public Default(AAC proar, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
+		super(proar, rng, api, parameters, firstSCs, referenceSCs);
 		incumbentNumber = 0;
 		num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse().getInitialLength();
 	
@@ -158,7 +158,7 @@ public class Default extends RacingMethods {
 	}
 
 	@Override
-	public List<SolverConfiguration> getBestSolverConfigurations(Integer numSC) {
+	public List<SolverConfiguration> getBestSolverConfigurations() {
 		List<SolverConfiguration> res = new LinkedList<SolverConfiguration>();
 		if (bestSC != null) {
 			res.add(bestSC);

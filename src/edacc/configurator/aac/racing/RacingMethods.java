@@ -15,14 +15,16 @@ public abstract class RacingMethods {
 	protected Random rng;
 	protected int numCompCalls;
 	List<SolverConfiguration> firstSCs;
+	List<SolverConfiguration> referenceSCs;
 	
-	public RacingMethods(AAC pacc, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs) {
+	public RacingMethods(AAC pacc, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) {
 		this.pacc = pacc;
 		this.api = api;
 		this.parameters = parameters;
 		this.rng = rng;
 		this.numCompCalls = 0;
 		this.firstSCs = firstSCs;
+		this.referenceSCs = referenceSCs;
 	}
 	
 	/**
@@ -44,8 +46,23 @@ public abstract class RacingMethods {
 	 * @param numSC
 	 * @return
 	 */
-	public abstract List<SolverConfiguration> getBestSolverConfigurations(Integer numSC);
+	public final List<SolverConfiguration> getBestSolverConfigurations(Integer numSC) {
+		List<SolverConfiguration> scs = getBestSolverConfigurations();
+		if (numSC != null) {
+			while (scs.size() > numSC) {
+				scs.remove(scs.size()-1);
+			}
+		}
+		return scs;
+	}
 	
+	/**
+	 * Returns all best solver configurations found so far.</br>
+	 * Returns an empty list if there aren't any.
+	 * @param numSC
+	 * @return
+	 */
+	public abstract List<SolverConfiguration> getBestSolverConfigurations();
 	/**
 	 * Called as soon as some solver configurations have completed their runs.
 	 * @param scs
