@@ -379,6 +379,12 @@ public class AAC {
 		}
 	}
 	
+	/**
+	 * Returns the CPU time limit for this instance.<br/>
+	 * If there is no cpu time limit set by the configurator then <code>parameters.getJobCPUTimeLimit</code> is returned.
+	 * @param instanceId
+	 * @return
+	 */
 	public int getCPUTimeLimit(int instanceId) {
 		Integer res = instanceCPUTimeLimits.get(instanceId);
 		if (res == null) {
@@ -386,7 +392,6 @@ public class AAC {
 		}
 		return res;
 	}
-	
 
 	public void start() throws Exception {
 		if (parameters.getMaxCPUCount() == 0) {
@@ -542,7 +547,11 @@ public class AAC {
 
 			List<SolverConfiguration> finishedSCs = new LinkedList<SolverConfiguration>();
 			for (SolverConfiguration sc : listNewSC.values()) {
-				cumulatedCPUTime += sc.updateJobsStatus(api);
+				float tmpCPUTime = sc.updateJobsStatus(api);
+				cumulatedCPUTime += tmpCPUTime;
+				if (tmpCPUTime > 0.f) {
+					sc.nameUpdated = true;
+				}
 				if (sc.getNumNotStartedJobs() + sc.getNumRunningJobs() == 0) {
 					finishedSCs.add(sc);
 				} else {

@@ -1,7 +1,6 @@
 package edacc.configurator.aac.search;
 
-import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -21,20 +20,11 @@ public class GA extends SearchMethods {
 	 * Cache the parameter graph, will be used often
 	 */
 	private ParameterGraph graph;
+
 	/**
-	 * This is the population which can be used for crossover. The corresponding solver config for each individual is marked as
-	 * finished by the racing method
+	 * Maps a solver config to an individual
 	 */
-	private List<Individual> population;
-	/**
-	 * Generated individuals, but currently not used. They will be used until the corresponding solver config is marked as finished
-	 * by the racing method
-	 */
-	private List<Individual> oldIndividuals;
-	/**
-	 * The currently best individual found so far, should be the corresponding individual to the best solver config from the racing method
-	 */
-	private Individual bestInd;
+	private HashMap<Integer, Individual> allIndividuals;
 	/**
 	 * Used to determine if a new solver config was already generated
 	 */
@@ -66,6 +56,10 @@ public class GA extends SearchMethods {
 	 * Every individual has its family tree. This value determines how old the youngest common ancestor must be at a minimum.
 	 */
 	private int minSameAncestorAgeDiff = 70;
+	
+	// TODO: description + this should be a parameter
+	private int numBestSCs = 10;
+	
 	/**
 	 * Will be incremented by one for every newly generated individual. Is then used as its id and influences the hash value of
 	 * the individual.
@@ -83,9 +77,7 @@ public class GA extends SearchMethods {
 	public GA(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs) throws Exception {
 		super(pacc, api, rng, parameters, firstSCs);
 		graph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
-		population = new ArrayList<Individual>();
-		oldIndividuals = new ArrayList<Individual>();
-		bestInd = null;
+		allIndividuals = new HashMap<Integer, Individual>();
 		createdParamConfigs = new HashSet<ParameterConfiguration>();
 
 		String val;
@@ -115,38 +107,38 @@ public class GA extends SearchMethods {
 		System.out.println("[GA] childCountLimit: " + childCountLimit);
 	}
 
+	
+	private Individual createIndividual(SolverConfiguration sc, int time, Individual m, Individual f) {
+		Individual newInd = new Individual(sc,time);
+		if (m != null) {
+			newInd.ancestors.addAll(m.ancestors);
+			newInd.ancestors.add(m);
+		}
+		if (f != null) {
+			newInd.ancestors.addAll(f.ancestors);
+			newInd.ancestors.add(f);
+		}
+		allIndividuals.put(sc.getIdSolverConfiguration(), newInd);
+		return newInd;
+	}
+	
 	@Override
 	public List<SolverConfiguration> generateNewSC(int num) throws Exception {
-		List<SolverConfiguration> bestSCs = pacc.racing.getBestSolverConfigurations(1);
-		SolverConfiguration currentBestSC = (bestSCs.size() > 0 ? bestSCs.get(0) : null);
-		if (currentBestSC != null) {
-			if (bestInd == null) {
-				bestInd = new Individual(currentBestSC, time);
-			} else {
-				if (bestInd.sc != currentBestSC) {
-					for (Individual ind : oldIndividuals) {
-						if (ind.sc == currentBestSC) {
-							bestInd = ind;
-							break;
-						}
-					}
-				}
-			}
-		}
-
+		
 		System.out.println("[GA] GA generate Solver configs: " + num);
-		System.out.println("[GA] Population size: " + population.size());
+		System.out.println("[GA] Population size: " + allIndividuals.size());
 		
 		// remove all individuals which died, i.e. they have enough children or the maxAge is reached.
-		for (int i = population.size()-1; i >= 0; i--) {
+		// TODO: ...
+		/*for (int i = population.size()-1; i >= 0; i--) {
 			if (population.get(i).getAge(time) > maxAge || population.get(i).getChildCount() > population.get(i).getMaxChildCount()) {
 				population.remove(i);
 			}
-		}
+		}*/
 		
 		// determine which individuals can be used from the oldIndividuals-list. The corresponding solver config must be marked as
 		// finished and they must have more than one run.
-		int index = 0;
+		/*int index = 0;
 		while (oldIndividuals.size() > index) {
 			Individual cur = oldIndividuals.get(index);
 			if (!cur.getSolverConfig().isFinished()) {
@@ -182,21 +174,31 @@ public class GA extends SearchMethods {
 
 		System.out.println("[GA] Current population contains " + population.size() + " individuals.");
 		System.out.println("[GA] Average cost is " + avg + ".");
-
+		
+		
 		LinkedList<Individual> best = new LinkedList<Individual>();
-		best.addAll(population);
+		best.addAll(population);*/
 		
 		System.out.println("[GA] Generating solver configurations");
+		LinkedList<SolverConfiguration> bestSolverConfigs = new LinkedList<SolverConfiguration>(); 
+		bestSolverConfigs.addAll(pacc.racing.getBestSolverConfigurations(numBestSCs));
+		for (SolverConfiguration sc : bestSolverConfigs) {
+			if (!allIndividuals.containsKey(sc.getIdSolverConfiguration())) {
+				createIndividual(sc, time, null, null);
+			}
+		}
+		
 		LinkedList<SolverConfiguration> res = new LinkedList<SolverConfiguration>();
 		
 		int noPartner = 0;
-		while (res.size() < Math.ceil(crossoverPercentage * num) && best.size() >= 2) {
+		while (res.size() < Math.ceil(crossoverPercentage * num) && bestSolverConfigs.size() >= 2) {
 			// use the best solver configuration and a random solver configuration for crossover
 			// constraint: minSameAncestorAgeDiff must be satisfied
-			Individual m = best.pollLast();
+			Individual m = allIndividuals.get(bestSolverConfigs.poll().getIdSolverConfiguration());
 			System.out.println("[GA] Looking for partner for " + m.getSolverConfig().getIdSolverConfiguration() + " which has " + m.getSolverConfig().getNumSuccessfulJobs() + " successful jobs..");
 			Individual f = null;
-			for (Individual ind : best) {
+			for (SolverConfiguration sc : bestSolverConfigs) {
+				Individual ind = allIndividuals.get(sc.getIdSolverConfiguration());
 				boolean goodPartner = true;
 				for (Individual anc : ind.ancestors) {
 					if (anc.getAge(time) < minSameAncestorAgeDiff && m.ancestors.contains(anc)) {
@@ -234,11 +236,11 @@ public class GA extends SearchMethods {
 				SolverConfiguration sc = new SolverConfiguration(idSolverConfig, pConfig, parameters.getStatistics());
 				sc.setNameSearch(mutationCount + " mutations");
 				res.add(sc);
-				Individual newInd = new Individual(sc, time);
-				oldIndividuals.add(newInd);
+				createIndividual(sc, time, null, null);
 				continue;
 			}
-			best.remove(f);
+			// TODO: works?
+			bestSolverConfigs.remove(f.getSolverConfig());
 			// found partner f: do crossover
 			System.out.println("[GA] Crossover: " + m.getSolverConfig().getIdSolverConfiguration() + " with " + f.getSolverConfig().getIdSolverConfiguration() + " - successful runs: " + m.getSolverConfig().getNumSuccessfulJobs() + " - " + f.getSolverConfig().getNumSuccessfulJobs());
 			Pair<ParameterConfiguration, ParameterConfiguration> configs = graph.crossover(m.getSolverConfig().getParameterConfiguration(), f.getSolverConfig().getParameterConfiguration(), rng);
@@ -289,50 +291,36 @@ public class GA extends SearchMethods {
 			SolverConfiguration firstSC = new SolverConfiguration(idSolverConfig, configs.getFirst(), parameters.getStatistics());
 			
 			res.add(firstSC);
-			Individual newInd = new Individual(firstSC,time);
-			newInd.ancestors.addAll(m.ancestors);
-			newInd.ancestors.addAll(f.ancestors);
-			newInd.ancestors.add(m);
-			newInd.ancestors.add(f);
+			Individual newInd = createIndividual(firstSC, time, m, f);
 			firstSC.setNameSearch("crossover - child " + m.getChildCount() + "/" + f.getChildCount() + (firstMutationCount != 0 ? " " + firstMutationCount + " mutations" : "") + " - " + newInd.ancestors.size() + " ancestors");
-			oldIndividuals.add(newInd);
 			
 			idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), configs.getSecond(), api.getCanonicalName(parameters.getIdExperiment(), configs.getSecond()));
 			SolverConfiguration secondSC = new SolverConfiguration(idSolverConfig, configs.getSecond(), parameters.getStatistics());
 			res.add(secondSC);
-			newInd = new Individual(secondSC, time);
-			newInd.ancestors.addAll(m.ancestors);
-			newInd.ancestors.addAll(f.ancestors);
-			newInd.ancestors.add(m);
-			newInd.ancestors.add(f);
+			newInd = createIndividual(secondSC, time, m, f);
 			secondSC.setNameSearch("crossover - child " + m.getChildCount() + "/" + f.getChildCount() + (secondMutationCount != 0 ? " " + secondMutationCount + " mutations" : "") + " - " + newInd.ancestors.size() + " ancestors");
-			oldIndividuals.add(newInd);
 		}
 		if (noPartner > 0)
 			System.out.println("[GA] Did not find a partner for " + noPartner + " individuals.");
 		
+		bestSolverConfigs.clear();
+		bestSolverConfigs.addAll(pacc.racing.getBestSolverConfigurations(Math.min(numBestSCs, num - res.size())));
+		
 		while (res.size() != num) {
 			// do random/random-neighbour search for other solver configs.
-			boolean random = true;
 			ParameterConfiguration paramconfig;
 			SolverConfiguration nSC = null;
-			if (currentBestSC != null && rng.nextFloat() < probN) {
-				random = false;
-				if (population.size() == 0 || rng.nextFloat() < 0.5) {
-					System.out.println("[GA] random neighbour of " + currentBestSC.getIdSolverConfiguration() + " (best)");
-					nSC = currentBestSC;
-				} else {
-					int nSC_index = population.size() -1;
-					
-					for (int i = population.size() - 1; i >= 0; i--) {
-						if (rng.nextFloat() < 0.25) {
-							nSC_index = i;
-							break;
-						}
+			if (!bestSolverConfigs.isEmpty() && rng.nextFloat() < probN) {
+				int r_index = 0;
+				while (r_index < bestSolverConfigs.size()-1) {
+					if (rng.nextFloat() < 0.25) {
+						break;
 					}
-					nSC = population.get(nSC_index).getSolverConfig();
-					System.out.println("[GA] random neighbour of " + nSC.getIdSolverConfiguration());
+					r_index++;
 				}
+				nSC = bestSolverConfigs.get(r_index);
+				bestSolverConfigs.remove(r_index);
+				System.out.println("[GA] random neighbour of " + nSC.getIdSolverConfiguration() + " (" + (r_index+1) + ". config in best sc list)");
 				paramconfig = graph.getRandomNeighbour(nSC.getParameterConfiguration(), rng);
 			} else {
 				System.out.println("[GA] random solver configuration");
@@ -353,17 +341,19 @@ public class GA extends SearchMethods {
 			
 			int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), paramconfig, api.getCanonicalName(parameters.getIdExperiment(), paramconfig));
 			SolverConfiguration randomConfig = new SolverConfiguration(idSolverConfig, paramconfig, parameters.getStatistics());
-			
 			res.add(randomConfig);
-			Individual newInd = new Individual(randomConfig, time);
-			if (!random) {
-				newInd.ancestors.addAll(bestInd.ancestors);
-				newInd.ancestors.add(bestInd);
+			Individual newInd;
+			if (nSC == null) {
+				// random config
+				newInd = createIndividual(randomConfig, time, null, null);
+			} else {
+				// neighbor of nsc
+				newInd = createIndividual(randomConfig, time, allIndividuals.get(nSC.getIdSolverConfiguration()), null);
 			}
-			randomConfig.setNameSearch((random ? "random" : "neighbour of " + nSC.getIdSolverConfiguration()) 
+			
+			randomConfig.setNameSearch((nSC == null ? "random" : "neighbour of " + nSC.getIdSolverConfiguration()) 
 					+ (mutationCount != 0 ? " " + mutationCount + " mutations" : "")
 					+ (newInd.ancestors.size() != 0 ? " - " + newInd.ancestors.size() + " ancestors" : ""));
-			oldIndividuals.add(newInd);
 		}
 		
 		System.out.println("[GA] done.");
