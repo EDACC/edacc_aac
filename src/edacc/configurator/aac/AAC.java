@@ -423,6 +423,8 @@ public class AAC {
 		search.listParameters();
 		racing.listParameters();
 
+		List<SolverConfiguration> racingScs = new LinkedList<SolverConfiguration>();
+		
 		/**
 		 * error checking for parcours. Needed? What if we don't use the
 		 * parcours?
@@ -466,18 +468,9 @@ public class AAC {
 			}
 
 			// determine and add race solver configurations
-			List<SolverConfiguration> racingScs = new LinkedList<SolverConfiguration>();
 			for (SolverConfiguration sc : getRaceSolverConfigurations()) {
-				log("c Found RACE solver configuration: " + sc.getIdSolverConfiguration() + " - " + sc.getName());
-				sc.setNumber(++statNumSolverConfigs);
-				updateSolverConfigName(sc, false);
-
+				log("c Found RACE solver configuration: " + sc.getIdSolverConfiguration() + " - " + sc.getName() + ", will be added later..");
 				racingScs.add(sc);
-
-			}
-			if (!racingScs.isEmpty()) {
-				solverConfigs.addAll(racingScs);
-				racing.solverConfigurationsCreated(racingScs);
 			}
 
 			boolean generatedSCs = false;
@@ -498,12 +491,22 @@ public class AAC {
 				int numNewSC = generateNumSC;
 				generateNumSC = 0;
 
-				List<SolverConfiguration> tmpList;
-				DatabaseConnector.getInstance().getConn().setAutoCommit(false);
-				try {
-					tmpList = search.generateNewSC(numNewSC);
-				} finally {
-					DatabaseConnector.getInstance().getConn().setAutoCommit(true);
+				List<SolverConfiguration> tmpList = new LinkedList<SolverConfiguration>();
+				// add (user defined) racing solver configurations first
+				while (!racingScs.isEmpty() && numNewSC > 0) {
+					log("c adding racing solver configuration");
+					tmpList.add(racingScs.get(0));
+					racingScs.remove(0);
+					numNewSC--;
+				}
+				
+				if (numNewSC > 0) {
+					DatabaseConnector.getInstance().getConn().setAutoCommit(false);
+					try {
+						tmpList.addAll(search.generateNewSC(numNewSC));
+					} finally {
+						DatabaseConnector.getInstance().getConn().setAutoCommit(true);
+					}
 				}
 				if (tmpList.size() == 0 && numNewSC == 0) {
 					log("e Error: no solver configs generated in first iteration.");
