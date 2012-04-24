@@ -240,7 +240,7 @@ public class FRace extends RacingMethods {
             }
             round += 1;
             for (SolverConfiguration solverConfig: raceConfigurations) {
-                solverConfig.setNameRacing(starts + "-" + race + "-" + round);
+                solverConfig.setNameRacing((referenceSCs.contains(solverConfig) ? "REF-":"") + starts + "-" + race + "-" + round);
             }
             curFinishedConfigurations.clear();
         }
@@ -255,10 +255,13 @@ public class FRace extends RacingMethods {
         initialRaceConfigurations.clear();
         raceConfigurations.addAll(scs);
         initialRaceConfigurations.addAll(scs);
+        raceConfigurations.addAll(referenceSCs);
+        initialRaceConfigurations.addAll(referenceSCs);
         lastRoundCost.clear();
         boolean allNewSCs = true;
         for (SolverConfiguration solverConfig: scs) {
-            allNewSCs &= solverConfig.getNumFinishedJobs() == 0;
+            // don't consider reference configs
+            allNewSCs &= !referenceSCs.contains(solverConfig) && solverConfig.getNumFinishedJobs() == 0;
         }
         if (allNewSCs) {
             starts += 1;
@@ -266,18 +269,14 @@ public class FRace extends RacingMethods {
         }
         race += 1;
         round = 1;
-        for (SolverConfiguration solverConfig : scs) {
+        for (SolverConfiguration solverConfig : raceConfigurations) {
             solverConfig.setFinished(false);
-            if (solverConfig.getNumFinishedJobs() == 0) {
-                pacc.expandParcoursSC(solverConfig, initialRaceRuns);
-            } else if (solverConfig.getNumFinishedJobs() < initialRaceRuns) {
-                pacc.expandParcoursSC(solverConfig, initialRaceRuns - solverConfig.getNumFinishedJobs());
-            }
+            pacc.expandParcoursSC(solverConfig, Math.max(0, initialRaceRuns - solverConfig.getNumFinishedJobs()));
             pacc.addSolverConfigurationToListNewSC(solverConfig);
-            solverConfig.setNameRacing(starts + "-" + race + "-" + round);
+            solverConfig.setNameRacing((referenceSCs.contains(solverConfig) ? "REF-":"") + starts + "-" + race + "-" + round);
         }
         level = initialRaceRuns - 1;
-        pacc.log("c Starting new race with " + scs.size() + " solver configurations");
+        pacc.log("c Starting new race with " + scs.size() + " solver configurations and " + referenceSCs.size() + " reference configurations");
     }
 
     @Override
@@ -319,6 +318,10 @@ public class FRace extends RacingMethods {
     }
     
     public List<SolverConfiguration> getRaceSurvivors() {
+        if (raceSurvivors.size() > 0) {
+            pacc.log("getBestSolverConfigurations() called - Removing reference solvers from race survivors");
+        }
+        raceSurvivors.removeAll(referenceSCs);
         List<SolverConfiguration> copy = new ArrayList<SolverConfiguration>();
         copy.addAll(raceSurvivors);
         return copy;
