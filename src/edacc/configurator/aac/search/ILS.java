@@ -13,6 +13,8 @@ import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.parameterspace.ParameterConfiguration;
+import edacc.parameterspace.graph.ParameterGraph;
+import java.util.HashSet;
 
 
 /**
@@ -20,20 +22,26 @@ import edacc.parameterspace.ParameterConfiguration;
  *
  */
 public class ILS extends SearchMethods {
+        private ParameterGraph paramGraph;
+        private double[] parameterCoefficients;
+        private HashSet<ParameterConfiguration> usedConfigs;
 
-	/**
-	 * @param api
-	 * @param rng
-	 * @param parameters
-	 */
-	float stdDevFactor = 0.1f;
-	boolean sampleOrdinals = true;
-	int sampleSize = 10;
+	private float stdDevFactor = 0.1f;
+	private boolean sampleOrdinals = true;
+	private int sampleSize = 10;
+        private double restartProbability = 0.001d;
+        private int pertubationSteps = 3;
+        
 	
 	
-	public ILS(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs) {
+	public ILS(AAC pacc, API api, Random rng, 
+                Parameters parameters, List<SolverConfiguration> firstSCs) throws Exception{
+                
 		super(pacc, api, rng, parameters, firstSCs);
-		// TODO Auto-generated constructor stub
+                paramGraph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
+                usedConfigs = new HashSet<ParameterConfiguration>();
+                
+                // TODO Auto-generated constructor stub
 	}
 
 	/* (non-Javadoc)
@@ -47,11 +55,16 @@ public class ILS extends SearchMethods {
 		//the parameter configurations generated 
 		List<ParameterConfiguration> paramConfs = new ArrayList<ParameterConfiguration>();
 		List<SolverConfiguration> solverConfigs = new ArrayList<SolverConfiguration>();
+                
+                paramConfs = api.loadParameterGraphFromDB(parameters.getIdExperiment()).getGaussianNeighbourhood(currentBestSC.getParameterConfiguration(), rng, stdDevFactor, sampleSize, sampleOrdinals);
 		
-		paramConfs = api.loadParameterGraphFromDB(parameters.getIdExperiment()).getGaussianNeighbourhood(currentBestSC.getParameterConfiguration(), rng, stdDevFactor, sampleSize, sampleOrdinals);
-		Collections.shuffle(paramConfs, rng);
+                
+                Collections.shuffle(paramConfs, rng);
 		int i=0;
 		for (ParameterConfiguration p: paramConfs) {
+                        if(usedConfigs.contains(p))
+                            continue;
+                        usedConfigs.add(p);
 			int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), p, api.getCanonicalName(parameters.getIdExperiment(), p));
 			solverConfigs.add(new SolverConfiguration(idSolverConfig, api.getParameterConfiguration(parameters.getIdExperiment(), idSolverConfig), parameters.getStatistics()));
 			if (i>num)
@@ -59,12 +72,24 @@ public class ILS extends SearchMethods {
 			else 
 				i++;
 		}
+                if(solverConfigs.size()<num){
+                    //TODO: think of something...
+                }
 		return solverConfigs;
 	}
 
 	public void listParameters() {
-		// TODO Auto-generated method stub
-
+            System.out.println("--- IteratedLocalSearch parameters ---");
+            System.out.println("ILS_StdDevFactor = "+this.stdDevFactor);
+            System.out.println("ILS_sampleSize = "+this.sampleSize);
+            System.out.println("ILS_sampleOrdinals = "+this.sampleOrdinals);
+            System.out.println("ILS_restartProbability = "+this.restartProbability);
+            System.out.println("ILS_pertubationSteps = "+this.pertubationSteps);
+            //TODO: complete list
+            System.out.println("--------------------------------------\n");
 	}
-
+        
+        private void updateParameterCoefficients(){
+            //TODO implement
+        }
 }
