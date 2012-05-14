@@ -74,6 +74,7 @@ public class FriedmanTest {
      */
     public boolean isFamilyTestSignificant(double T, double alpha) throws MathException {
         ChiSquaredDistribution XS = new ChiSquaredDistributionImpl(m - 1);
+        //System.out.println("T-value: " + T + " >? Quantile: " + XS.inverseCumulativeProbability(1.0 - alpha));
         return T > XS.inverseCumulativeProbability(1.0 - alpha);
     }
 

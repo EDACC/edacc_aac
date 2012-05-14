@@ -39,7 +39,7 @@ public class IteratedFRace extends SearchMethods {
     public List<SolverConfiguration> generateNewSC(int num) throws Exception {
         pacc.log("Starting new iteration of I/F-Race");
         List<SolverConfiguration> newSC = new ArrayList<SolverConfiguration>();
-        if (iteration > 0) {            
+        if (iteration > 0) {
             int Nlnext = num;
             
             // Adjust the standard deviation used for sampling new configurations
@@ -93,8 +93,15 @@ public class IteratedFRace extends SearchMethods {
                 pacc.log("Created " + api.getCanonicalName(parameters.getIdExperiment(), paramConfig) + " based on the elite configuration " + api.getCanonicalName(parameters.getIdExperiment(), eliteConfig.getParameterConfiguration()));
             }
         } else {
-            // Start with random configurations
-            for (int i = 0; i < num; i++) {
+            // Start with random configurations and firstSCs ("default"), if they don't have any runs yet
+            int numRandomConfigs = num;
+            for (SolverConfiguration defaultSC: firstSCs) {
+                if (defaultSC.getJobCount() == 0) {
+                    newSC.add(defaultSC);
+                    numRandomConfigs--;
+                }
+            }   
+            for (int i = 0; i < numRandomConfigs; i++) {
                 ParameterConfiguration paramConfig = pspace.getRandomConfiguration(rng);
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
                 newSC.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
