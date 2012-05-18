@@ -52,12 +52,32 @@ public class ILS extends SearchMethods {
                 usedConfigs = new HashSet<ParameterConfiguration>();
                 completedNeighbourhoods = new LinkedList<ILSNeighbourhood>();
                 activeNeighbourhoods = new LinkedList<ILSNeighbourhood>();
+                
+                // parameters:
+                HashMap<String, String> params = parameters.getSearchMethodParameters();
+                if(params.containsKey("ILS_stdDevFactor")){
+                    stdDevFactor = Float.parseFloat(params.get("ILS_stdDevFactor"));
+                }
+                if(params.containsKey("ILS_sampleOrdinals")){
+                    sampleOrdinals = Boolean.parseBoolean(params.get("ILS_sampleOrdinals"));
+                }
+                if(params.containsKey("ILS_sampleSize")){
+                    sampleSize = Integer.parseInt(params.get("ILS_sampleSize"));
+                }
+                if(params.containsKey("ILS_restartProbability")){
+                    restartProbability = Double.parseDouble(params.get("ILS_restartProbability"));
+                }
+                if(params.containsKey("ILS_pertubationSteps")){
+                    pertubationSteps = Integer.parseInt(params.get("ILS_pertubationSteps"));
+                }
+                
+                //first neighbourhood
                 SolverConfiguration starterConfig;
                 if(firstSCs.size()>0){
                     starterConfig = firstSCs.get(0);
                 }else{
                     //TODO: find a better way to start without default configs
-                    System.out.println("No default config found: Using random config instead!");
+                    System.out.println("ILS: No default config found: Using random config instead!");
                     starterConfig = createSolverConfig(paramGraph.getRandomConfiguration(rng));
                 }
                 currentNeighbourhood = new ILSNeighbourhood(starterConfig, this);
@@ -65,14 +85,15 @@ public class ILS extends SearchMethods {
         
         @Override
         public List<SolverConfiguration> generateNewSC(int num) throws Exception {
-            System.out.print("ILS: Fetching "+num+" new configurations: ");
+            //System.out.println("ILS: Fetching "+num+" new configurations: ");
             update(); //need to get the most recent information before we can decide on anything
             List<SolverConfiguration> newConfigs;
             int requiredConfigs = num, 
                     availableConfigs = currentNeighbourhood.getNumberOfAvailableConfigs();
+            //System.out.println("ILS: Avialable in current: "+availableConfigs);
             if(requiredConfigs <= availableConfigs){
-                requiredConfigs = 0;
                 newConfigs = currentNeighbourhood.getConfigs(requiredConfigs);
+                requiredConfigs = 0;
             }
             else{
                 requiredConfigs -= availableConfigs;
@@ -88,6 +109,7 @@ public class ILS extends SearchMethods {
                     secondaryNeighbourhood = new ILSNeighbourhood(s, this);
                 }
                 availableConfigs = secondaryNeighbourhood.getNumberOfAvailableConfigs();
+                //System.out.println("Avialable in secondary: "+availableConfigs);
                 if(requiredConfigs <= availableConfigs){
                     requiredConfigs = 0;
                     newConfigs.addAll(secondaryNeighbourhood.getConfigs(requiredConfigs));
@@ -102,13 +124,13 @@ public class ILS extends SearchMethods {
              * there is nothing to be done about this, however, as there are no more configs
              * in either neighbourhood. The racing methods can cope with it.
              */
-            if(requiredConfigs >0){
+            /*if(newConfigs.size() < num){
                 System.out.println("Primary N has "+currentNeighbourhood.getNumberOfAvailableConfigs());
                 if(secondaryNeighbourhood != null)
                     System.out.println("Secondary N has "+secondaryNeighbourhood.getNumberOfAvailableConfigs());
-            }
+            }*/
             
-            System.out.println(newConfigs.size()+" configs delivered!");
+            //System.out.println(newConfigs.size()+" configs delivered!");
             return newConfigs;
         }
         
@@ -231,7 +253,7 @@ public class ILS extends SearchMethods {
                         paramGraph.getGaussianNeighbourhood(p, rng, stdDev, sampleSize, 
                 sampleOrdinals);
             Collections.shuffle(configs);
-            System.out.println("New Neighbourhood: "+configs.size()+" configs!");
+            //System.out.println("New Neighbourhood: "+configs.size()+" configs!");
             return configs;
         }
         
