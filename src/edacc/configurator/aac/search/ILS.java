@@ -3,20 +3,13 @@
  */
 package edacc.configurator.aac.search;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Random;
-import java.util.LinkedList;
-import java.util.HashSet;
-import java.util.HashMap;
-
 import edacc.api.API;
 import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.parameterspace.ParameterConfiguration;
 import edacc.parameterspace.graph.ParameterGraph;
+import java.util.*;
 
 
 
@@ -25,6 +18,7 @@ import edacc.parameterspace.graph.ParameterGraph;
  *
  */
 public class ILS extends SearchMethods {
+        private AAC aac;
         private ParameterGraph paramGraph;
         //private double[] parameterCoefficients;   //not in use (yet)
         private HashSet<ParameterConfiguration>     //contains all configurations the
@@ -42,16 +36,22 @@ public class ILS extends SearchMethods {
         private double restartProbability = 0.001d;
         private int pertubationSteps = 3;
         
+        private SolverConfiguration currentBest;
+        private SolverConfiguration referenceSolver;
+        
 	
 	
 	public ILS(AAC pacc, API api, Random rng, 
                 Parameters parameters, List<SolverConfiguration> firstSCs) throws Exception{
                 
 		super(pacc, api, rng, parameters, firstSCs);
+                aac = pacc;
                 paramGraph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
                 usedConfigs = new HashSet<ParameterConfiguration>();
                 completedNeighbourhoods = new LinkedList<ILSNeighbourhood>();
                 activeNeighbourhoods = new LinkedList<ILSNeighbourhood>();
+                
+                //TODO: initialise referenceSolver
                 
                 // parameters:
                 HashMap<String, String> params = parameters.getSearchMethodParameters();
@@ -77,20 +77,19 @@ public class ILS extends SearchMethods {
                     starterConfig = firstSCs.get(0);
                 }else{
                     //TODO: find a better way to start without default configs
-                    System.out.println("ILS: No default config found: Using random config instead!");
+                    aac.log("ILS: No default config found: Using random config instead!");
                     starterConfig = createSolverConfig(paramGraph.getRandomConfiguration(rng));
                 }
                 currentNeighbourhood = new ILSNeighbourhood(starterConfig, this);
+                currentBest = starterConfig;
 	}
         
         @Override
         public List<SolverConfiguration> generateNewSC(int num) throws Exception {
-            //System.out.println("ILS: Fetching "+num+" new configurations: ");
             update(); //need to get the most recent information before we can decide on anything
             List<SolverConfiguration> newConfigs;
-            int requiredConfigs = num, 
-                    availableConfigs = currentNeighbourhood.getNumberOfAvailableConfigs();
-            //System.out.println("ILS: Avialable in current: "+availableConfigs);
+            int requiredConfigs = num; 
+            int availableConfigs = currentNeighbourhood.getNumberOfAvailableConfigs(requiredConfigs);
             if(requiredConfigs <= availableConfigs){
                 newConfigs = currentNeighbourhood.getConfigs(requiredConfigs);
                 requiredConfigs = 0;
@@ -99,17 +98,22 @@ public class ILS extends SearchMethods {
                 requiredConfigs -= availableConfigs;
                 newConfigs = currentNeighbourhood.getConfigs(availableConfigs);
                 if(secondaryNeighbourhood == null){
-                    //possible local minimum: trying to escape
-                    ParameterConfiguration p = 
-                            currentNeighbourhood.getStarter().getParameterConfiguration();
-                    for(int i=0; i<pertubationSteps; i++){
-                        p = paramGraph.getRandomNeighbour(p, rng);
-                    }
+                                       
+                    ParameterConfiguration p;
+                    if(rng.nextDouble() <= restartProbability){
+                        p = paramGraph.getRandomConfiguration(rng);
+                        aac.log("ILS: Possible local minimum: Trying to escape with random configuration!"); 
+                    }else{
+                        p = currentNeighbourhood.getStarter().getParameterConfiguration();
+                        for(int i=0; i<pertubationSteps; i++){
+                            p = paramGraph.getRandomNeighbour(p, rng);
+                        }
+                        aac.log("ILS: Possible local minimum: Trying to escape with "+pertubationSteps+" pertubation steps"); 
+                    }                    
                     SolverConfiguration s = createSolverConfig(p);
                     secondaryNeighbourhood = new ILSNeighbourhood(s, this);
                 }
-                availableConfigs = secondaryNeighbourhood.getNumberOfAvailableConfigs();
-                //System.out.println("Avialable in secondary: "+availableConfigs);
+                availableConfigs = secondaryNeighbourhood.getNumberOfAvailableConfigs(requiredConfigs);
                 if(requiredConfigs <= availableConfigs){
                     requiredConfigs = 0;
                     newConfigs.addAll(secondaryNeighbourhood.getConfigs(requiredConfigs));
@@ -124,13 +128,9 @@ public class ILS extends SearchMethods {
              * there is nothing to be done about this, however, as there are no more configs
              * in either neighbourhood. The racing methods can cope with it.
              */
-            /*if(newConfigs.size() < num){
-                System.out.println("Primary N has "+currentNeighbourhood.getNumberOfAvailableConfigs());
-                if(secondaryNeighbourhood != null)
-                    System.out.println("Secondary N has "+secondaryNeighbourhood.getNumberOfAvailableConfigs());
-            }*/
             
-            //System.out.println(newConfigs.size()+" configs delivered!");
+            
+            aac.log("ILS: Fetching "+num+" configs: "+newConfigs.size()+" configs delivered!");
             return newConfigs;
         }
         
@@ -155,13 +155,19 @@ public class ILS extends SearchMethods {
             //Check if the racing procedure has found new incumbents,
             //and deal with them accordingly
             if(currentNeighbourhood.hasNewIncumbent()){
-                currentNeighbourhood.kill();
+                SolverConfiguration newIncumbent = currentNeighbourhood.getNewIncumbent();
+                currentBest = compare(newIncumbent, currentBest) ? newIncumbent : currentBest;
+                //TODO: implement way to let the racing procedure decide to keep promising configs
+                currentNeighbourhood.killHard();
                 activeNeighbourhoods.add(currentNeighbourhood);
                 currentNeighbourhood = 
                         new ILSNeighbourhood(currentNeighbourhood.getNewIncumbent(), this);
+                aac.log("ILS: New incumbent found, searching new neighbourhood!");
                 if(secondaryNeighbourhood != null){
-                    secondaryNeighbourhood.kill();
+                    secondaryNeighbourhood.killHard();
                     activeNeighbourhoods.add(secondaryNeighbourhood);
+                    secondaryNeighbourhood = null;
+                    aac.log("ILS: Killing secondary neighbourhood!");
                 }
             }
             
@@ -230,7 +236,7 @@ public class ILS extends SearchMethods {
         /* turns a ParameterConfiguration into a Solverconfiguration
          * (also creates an entry in the DB for this configuration)
         */
-        public SolverConfiguration createSolverConfig(ParameterConfiguration p) throws Exception{
+        public final SolverConfiguration createSolverConfig(ParameterConfiguration p) throws Exception{
             int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), p, api.getCanonicalName(parameters.getIdExperiment(), p));
             return new SolverConfiguration(idSolverConfig, api.getParameterConfiguration(parameters.getIdExperiment(), idSolverConfig), parameters.getStatistics());
         }
@@ -244,17 +250,26 @@ public class ILS extends SearchMethods {
                                                                             int stage){
             float stdDev;
             switch(stage){
-                case 2: stdDev = 0.4f; break;
+                case 2: stdDev = (1f+stdDevFactor)/2f; break;
                 case 3: stdDev = 1f; break;
                 default: stdDev = stdDevFactor;                    
             }
-            //TODO: include paramterCoefficients
             List<ParameterConfiguration> configs =
                         paramGraph.getGaussianNeighbourhood(p, rng, stdDev, sampleSize, 
                 sampleOrdinals);
-            Collections.shuffle(configs);
+            sortParameterPriority(p, configs);
             //System.out.println("New Neighbourhood: "+configs.size()+" configs!");
             return configs;
+        }
+        
+        /* Sorts the list according to the calculated priority of parameters. This means that
+         * a neighbour that differs from the start config in a parameter deemed to be important,
+         * will end up at the start of the list, rather than at the end.
+         */
+        private void sortParameterPriority(ParameterConfiguration start, 
+                                    List<ParameterConfiguration> neighbours){
+            //TODO: Implement
+            Collections.shuffle(neighbours);
         }
         
         /* signals the racing procedure that evaluating the specified configuration
@@ -263,6 +278,41 @@ public class ILS extends SearchMethods {
         public void killConfig(SolverConfiguration s){
             //TODO: implement functionality once the racing procedures are updated
         }
+        
+        /* compares two configs
+         * works only if both configs have the "finished" flag set
+         * works for roar and completeEvaluation racing methods
+         * 
+         * @return true, if a beats b
+         */
+        public boolean compare(SolverConfiguration a, SolverConfiguration b){
+            if(a.getNumFinishedJobs()>b.getNumFinishedJobs())
+                return true;
+            if(a.getNumFinishedJobs()==b.getNumFinishedJobs())
+                if(a.getCost() < b.getCost())
+                    return true;        
+            return false;
+        }
+        
+        /* assesses the quality of the given config
+         * (this should be used to decide whether or not it is justified to enlarge a config's
+         *  neighbourhood)
+         * 
+         * @return  3, if the config can beat the reference solver
+         *          2, if the config cannot beat the reference solver, but is the best known
+         *                  config in the parameter space
+         *          1, otherwise
+         */
+        public int assessQuality(SolverConfiguration s){            
+            if(s.equals(currentBest) || compare(s, currentBest)){
+                if(referenceSolver == null || compare(s, referenceSolver))
+                    return 3;
+                return 2;
+            }
+            return 1;
+        }
+        
+       
 }
 
 
@@ -300,6 +350,7 @@ class ILSNeighbourhood {
             if(!ils.isConfigAlreadyEvaluated(p))
                 pendingConfigs.add(p);
         }
+        
     }
     
     /* takes and returns the specified number of configurations from this neighbourhood if
@@ -308,7 +359,7 @@ class ILSNeighbourhood {
      * 
      */
     public List<SolverConfiguration> getConfigs(int num) throws Exception{
-        if(num > getNumberOfAvailableConfigs())
+        if(num > getNumberOfAvailableConfigs(0))
             return null; //fail fast
         LinkedList<SolverConfiguration> configs = new LinkedList<SolverConfiguration>();
         SolverConfiguration c;
@@ -341,7 +392,7 @@ class ILSNeighbourhood {
                     currentBest = c;
                     pendingConfigs.clear();
                 }
-                else if(compare(c, currentBest))
+                else if(ils.compare(c, currentBest))
                     currentBest = c;
             }            
             else{
@@ -371,17 +422,45 @@ class ILSNeighbourhood {
         return !runningConfigs.isEmpty();
     }
     
-    /* return the number of configurations in this neighbourhood
+    /* returns the number of configurations in this neighbourhood
      * whose evaluation has not been started yet
+     * A desired number of configurations can be specified. This method will attempt to
+     * meet that number, readying more configurations if neccessary and possible. To avoid
+     * this behaviour, and just get the number of currently ready configs, desiredNumber 
+     * should be set to 0.
      */
-    public int getNumberOfAvailableConfigs(){
+    public int getNumberOfAvailableConfigs(int desiredNumber){
         LinkedList<ParameterConfiguration> toRemove= new LinkedList<ParameterConfiguration>();
         for(ParameterConfiguration p : pendingConfigs){
             if(ils.isConfigAlreadyEvaluated(p))
                 toRemove.add(p);
         }
         pendingConfigs.removeAll(toRemove);
+        while(pendingConfigs.size() < desiredNumber){
+            if(nextStage()==false);
+                break;
+        }
         return pendingConfigs.size();
+    }
+    
+    private boolean nextStage(){
+        if(stage == 3)
+            return false;
+        int quality = ils.assessQuality(starter);
+        if(quality>stage){
+            stage++;
+            List<ParameterConfiguration> neighbours = 
+                    ils.getNeighbourhood(starter.getParameterConfiguration(), stage);
+            List<ParameterConfiguration> retain = new LinkedList<ParameterConfiguration>();
+            for(ParameterConfiguration p : neighbours){
+                if(!ils.isConfigAlreadyEvaluated(p))
+                    retain.add(p);
+            }
+            pendingConfigs.removeAll(retain);   //this is done to avoid duplicates in
+            pendingConfigs.addAll(retain);      //pendingConfigs
+            return true;
+        }
+        return false;
     }
     
     public int getNeighbourhoodSize(){
@@ -407,8 +486,7 @@ class ILSNeighbourhood {
     public void killHard(){
         kill();
         for(SolverConfiguration s : runningConfigs){
-            ils.killConfig(s);
-            
+            ils.killConfig(s);            
         }
         runningConfigs.clear();
     }
@@ -427,7 +505,7 @@ class ILSNeighbourhood {
     public SolverConfiguration getNewIncumbent(){
         if(currentBest == null)
             return null;
-        return (compare(currentBest, starter)) ? currentBest : null;
+        return (ils.compare(currentBest, starter)) ? currentBest : null;
     }
     
     /* returns whether or not there is a config in this neighbourhood that was able to beat the
@@ -437,18 +515,7 @@ class ILSNeighbourhood {
         return getNewIncumbent() != null;
     }
     
-    /* compares two configs
-     * works only if both configs have the "finished" flag set
-     * works for roar and completeEvaluation racing methods
-     */
-    private boolean compare(SolverConfiguration a, SolverConfiguration b){
-        if(a.getNumFinishedJobs()>b.getNumFinishedJobs())
-            return true;
-        if(a.getNumFinishedJobs()==b.getNumFinishedJobs())
-            if(a.getCost() < b.getCost())
-                return true;        
-        return false;
-    }
+    
     
     public SolverConfiguration getStarter(){
         return starter;
