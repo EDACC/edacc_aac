@@ -347,4 +347,10 @@ public class STTRace extends RacingMethods {
 		
 	}
 
+	@Override
+	public void stopEvaluation(List<SolverConfiguration> scs) throws Exception {
+		// TODO Auto-generated method stub
+		
+	}
+
 }

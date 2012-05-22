@@ -166,4 +166,10 @@ public class Default extends RacingMethods {
 		return res;
 	}
 
+	@Override
+	public void stopEvaluation(List<SolverConfiguration> scs) throws Exception {
+		// TODO Auto-generated method stub
+		
+	}
+
 }
