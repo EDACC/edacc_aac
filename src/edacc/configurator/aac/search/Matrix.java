@@ -13,8 +13,8 @@ import edacc.model.SolverConfigurationDAO;
 public class Matrix extends SearchMethods {
 	private List<SolverConfiguration> solverConfigs;
 	
-	public Matrix(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs) throws Exception {
-		super(pacc, api, rng, parameters, firstSCs);
+	public Matrix(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
+		super(pacc, api, rng, parameters, firstSCs, referenceSCs);
 		solverConfigs = new ArrayList<SolverConfiguration>();
 		
 		for (edacc.model.SolverConfiguration db_sc : SolverConfigurationDAO.getSolverConfigurationByExperimentId(parameters.getIdExperiment())) {

@@ -74,8 +74,8 @@ public class GA extends SearchMethods {
 	 * Incremented by (# generated solver configs) after every generateNewSC call. 
 	 */
 	private static int genSC = 0;
-	public GA(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs) throws Exception {
-		super(pacc, api, rng, parameters, firstSCs);
+	public GA(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
+		super(pacc, api, rng, parameters, firstSCs, referenceSCs);
 		graph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
 		allIndividuals = new HashMap<Integer, Individual>();
 		createdParamConfigs = new HashSet<ParameterConfiguration>();

@@ -12,8 +12,8 @@ import edacc.parameterspace.ParameterConfiguration;
 
 public class MB extends SearchMethods {
 
-	public MB(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs) {
-		super(pacc, api, rng, parameters, firstSCs);
+	public MB(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) {
+		super(pacc, api, rng, parameters, firstSCs, referenceSCs);
 	}
 
 	@Override
