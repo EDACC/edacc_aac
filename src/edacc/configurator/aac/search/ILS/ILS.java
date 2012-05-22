@@ -117,11 +117,8 @@ public class ILS extends SearchMethods {
              * there is nothing to be done about this, however, as there are no more configs
              * in either neighbourhood. The racing methods can cope with it.
              */
-            if(newConfigs.isEmpty()){
-                
-            }else{
-                aac.log("ILS: Fetching "+num+" configs: "+newConfigs.size()+" configs delivered!");
-            }
+            
+            aac.log("ILS: Fetching "+num+" configs: "+newConfigs.size()+" configs delivered!");
             return newConfigs;
         }
         

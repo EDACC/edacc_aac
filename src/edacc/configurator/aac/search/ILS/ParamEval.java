@@ -4,22 +4,17 @@
  */
 package edacc.configurator.aac.search.ILS;
 
-import edacc.api.API;
-import edacc.configurator.aac.AAC;
-import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
+import edacc.parameterspace.Parameter;
 import edacc.parameterspace.ParameterConfiguration;
-import edacc.parameterspace.graph.ParameterGraph;
-import java.util.*;
-
-import edacc.parameterspace.*;
 import edacc.parameterspace.domain.*;
-import edacc.parameterspace.graph.*;
+import edacc.parameterspace.graph.ParameterGraph;
 import edacc.util.Pair;
+import java.util.*;
 
 /**
  *
- * @author fr
+ * @author mugrauer
  */
 public class ParamEval {
     private ParameterGraph graph;
