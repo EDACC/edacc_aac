@@ -1,5 +1,6 @@
 package edacc.configurator.aac.racing;
 
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
@@ -14,6 +15,7 @@ public class Default extends RacingMethods {
 	SolverConfiguration bestSC;
 	int incumbentNumber;
 	int num_instances;
+	HashSet<Integer> stopEvalSolverConfigIds = new HashSet<Integer>();
 
 	public Default(AAC proar, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
 		super(proar, rng, api, parameters, firstSCs, referenceSCs);
@@ -64,14 +66,13 @@ public class Default extends RacingMethods {
 		return sc1.compareTo(sc2);
 	}
 
-
 	@Override
 	public void solverConfigurationsFinished(List<SolverConfiguration> scs) throws Exception {
 		for (SolverConfiguration sc : scs) {
 			if (sc == bestSC) 
 				continue;
 			int comp = compareTo(sc, bestSC);
-			if (comp >= 0) {
+			if (!stopEvalSolverConfigIds.contains(sc.getIdSolverConfiguration()) && comp >= 0) {
 				if (sc.getJobCount() == bestSC.getJobCount()) {
 					sc.setFinished(true);
 					// all jobs from bestSC computed and won against
@@ -90,8 +91,10 @@ public class Default extends RacingMethods {
 					pacc.log("c Generated " + generated + " jobs for solver config id " + sc.getIdSolverConfiguration());
 					pacc.addSolverConfigurationToListNewSC(sc);
 				}
-			} else {// lost against best on part of the actual
+			} else {// lost against best on part of the actual (or should not be evaluated anymore)
 					// parcours:
+				stopEvalSolverConfigIds.remove(sc.getIdSolverConfiguration());
+				
 				sc.setFinished(true);
 				if (parameters.isDeleteSolverConfigs())
 					api.removeSolverConfig(sc.getIdSolverConfiguration());
@@ -164,6 +167,13 @@ public class Default extends RacingMethods {
 			res.add(bestSC);
 		}
 		return res;
+	}
+
+	@Override
+	public void stopEvaluation(List<SolverConfiguration> scs) throws Exception {
+		for (SolverConfiguration sc : scs) {
+			stopEvalSolverConfigIds.add(sc.getIdSolverConfiguration());
+		}
 	}
 
 }

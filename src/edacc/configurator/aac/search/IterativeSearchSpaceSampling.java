@@ -26,8 +26,8 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 	private int iteration = 0;
 	private HashMap<ObjectArrayWrapper, SolverConfiguration> solverConfigs;
 	private LinkedList<SolverConfiguration> lastSolverConfigs;
-	public IterativeSearchSpaceSampling(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs) throws Exception {
-		super(pacc, api, rng, parameters, firstSCs);
+	public IterativeSearchSpaceSampling(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
+		super(pacc, api, rng, parameters, firstSCs, referenceSCs);
 		this.graph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
 		graphParams = api.getConfigurableParameters(parameters.getIdExperiment());
 		paramValues = new LinkedList[graphParams.size()];

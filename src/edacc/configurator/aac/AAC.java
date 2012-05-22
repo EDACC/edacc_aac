@@ -414,15 +414,21 @@ public class AAC {
 		// there are already some solver configurations in the experiment
 		cumulatedCPUTime = 0.f;
 		List<SolverConfiguration> firstSCs = initializeBest();
+		
+		// reference solver config list for search method
 		List<SolverConfiguration> referenceSCs = getReferenceSolverConfigs();
+		// create a copy for racing method
+		LinkedList<SolverConfiguration> referenceSCsCopy = new LinkedList<SolverConfiguration>();
+		referenceSCsCopy.addAll(referenceSCs);
+		
 		solverConfigs.addAll(firstSCs);
 		solverConfigs.addAll(referenceSCs);
 		for (SolverConfiguration sc : solverConfigs) {
 			sc.updateJobsStatus(api); // don't add existing scs time to cumulatedCPUTime
 		}
 		// create search and racing instances
-		search = (SearchMethods) searchClass.getDeclaredConstructors()[0].newInstance(this, api, rngSearch, parameters, firstSCs);
-		racing = (RacingMethods) racingClass.getDeclaredConstructors()[0].newInstance(this, rngRacing, api, parameters, firstSCs, referenceSCs);
+		search = (SearchMethods) searchClass.getDeclaredConstructors()[0].newInstance(this, api, rngSearch, parameters, firstSCs, referenceSCs);
+		racing = (RacingMethods) racingClass.getDeclaredConstructors()[0].newInstance(this, rngRacing, api, parameters, firstSCs, referenceSCsCopy);
 
 		parameters.listParameters();
 		search.listParameters();

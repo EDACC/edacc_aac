@@ -43,9 +43,9 @@ public class ILS extends SearchMethods {
 	
 	
 	public ILS(AAC pacc, API api, Random rng, 
-                Parameters parameters, List<SolverConfiguration> firstSCs) throws Exception{
+                Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception{
                 
-		super(pacc, api, rng, parameters, firstSCs);
+		super(pacc, api, rng, parameters, firstSCs, referenceSCs);
                 aac = pacc;
                 paramGraph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
                 usedConfigs = new HashSet<ParameterConfiguration>();

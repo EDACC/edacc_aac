@@ -15,8 +15,8 @@ public class ROAR extends SearchMethods {
 
 	private ParameterGraph graph;
 
-	public ROAR(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs) throws Exception {
-		super(pacc, api, rng, parameters, firstSCs);
+	public ROAR(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
+		super(pacc, api, rng, parameters, firstSCs, referenceSCs);
 		graph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
 	}
 

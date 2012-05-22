@@ -84,6 +84,14 @@ public abstract class RacingMethods {
 	 */
 	public abstract int computeOptimalExpansion(int computationCoreCount, int computationJobCount, int listNewSCSize);
 	
+	/**
+	 * Stops the evaluation for the given solver configuration.
+	 * 
+	 * @param scs
+	 * @throws Exception
+	 */
+	public abstract void stopEvaluation(List<SolverConfiguration> scs) throws Exception;
+	
 	public abstract void listParameters();
 	public int getNumCompCalls(){
 		return this.numCompCalls;

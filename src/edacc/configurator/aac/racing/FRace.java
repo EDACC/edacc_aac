@@ -334,4 +334,10 @@ public class FRace extends RacingMethods {
     public int getNumRaceConfigurations() {
         return this.numRaceConfigurations;
     }
+
+	@Override
+	public void stopEvaluation(List<SolverConfiguration> scs) throws Exception {
+		// TODO Auto-generated method stub
+		
+	}
 }
