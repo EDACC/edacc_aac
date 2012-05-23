@@ -2,10 +2,12 @@
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
-package edacc.configurator.aac.search.ILS;
+package edacc.configurator.aac.search.ilsutils;
 
 import edacc.configurator.aac.SolverConfiguration;
+import edacc.configurator.aac.search.ILS;
 import edacc.parameterspace.ParameterConfiguration;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -13,10 +15,12 @@ import java.util.List;
  *
  * @author mugrauer
  */
-class ILSNeighbourhood {
+public class ILSNeighbourhood {
     private ILS ils;
     private SolverConfiguration starter; //this is the initial config that was used
                                             //to create this neighbourhood
+    
+    private boolean debug;
     
     private LinkedList<ParameterConfiguration> pendingConfigs; //waiting to be evaluated
     private LinkedList<SolverConfiguration>
@@ -35,12 +39,16 @@ class ILSNeighbourhood {
         currentBest = null;
         
         List<ParameterConfiguration> tmpConfigList;
-        tmpConfigList = ils.getNeighbourhood(starter.getParameterConfiguration(), 1);        
+        tmpConfigList = ils.getNeighbourhood(starter.getParameterConfiguration(), 1);
+        if(debug)
+            ils.debugLog("New neighbourhood has "+tmpConfigList.size()+" configs.");
         //remove configs that have previously been evaluated
         for(ParameterConfiguration p: tmpConfigList){
             if(!ils.isConfigAlreadyEvaluated(p))
                 pendingConfigs.add(p);
         }
+        if(debug)
+            ils.debugLog(pendingConfigs.size()+" configs left after checking for duplicates!");
         
     }
     
@@ -50,15 +58,22 @@ class ILSNeighbourhood {
      * 
      */
     public List<SolverConfiguration> getConfigs(int num) throws Exception{
-        if(num > getNumberOfAvailableConfigs(0))
-            return null; //fail fast
+        if(num > pendingConfigs.size()){
+            ils.debugLog("getConfig called with illegal argument: "+num+". Available configs: "+pendingConfigs.size());
+            return null;
+        }
+        if(ils.isDebug())
+            ils.debugLog("Trying to fetch "+num+" configs. "+pendingConfigs.size()+" config available");
         LinkedList<SolverConfiguration> configs = new LinkedList<SolverConfiguration>();
         SolverConfiguration c;
         for(int i=0; i<num; i++){
             c = ils.createSolverConfig(pendingConfigs.remove(0));
             runningConfigs.add(c);
             configs.add(c);
-        }        
+        }
+        if(ils.isDebug()){
+            ils.debugLog("Returning "+configs.size()+" configs. "+pendingConfigs.size()+" configs left!");
+        }
         return configs;
     }
     
@@ -121,16 +136,15 @@ class ILSNeighbourhood {
      * should be set to 0.
      */
     public int getNumberOfAvailableConfigs(int desiredNumber){
-        LinkedList<ParameterConfiguration> toRemove= new LinkedList<ParameterConfiguration>();
-        for(ParameterConfiguration p : pendingConfigs){
-            if(ils.isConfigAlreadyEvaluated(p))
-                toRemove.add(p);
-        }
-        pendingConfigs.removeAll(toRemove);
-        while(pendingConfigs.size() < desiredNumber){
-            if(nextStage()==false);
-                break;
-        }
+        do{
+            LinkedList<ParameterConfiguration> retain= new LinkedList<ParameterConfiguration>();
+            for(ParameterConfiguration p : pendingConfigs){
+                if(!ils.isConfigAlreadyEvaluated(p))
+                    retain.add(p);
+            }
+            pendingConfigs = retain;
+        }while(pendingConfigs.size() < desiredNumber && nextStage()==true);
+        
         return pendingConfigs.size();
     }
     
@@ -144,11 +158,9 @@ class ILSNeighbourhood {
                     ils.getNeighbourhood(starter.getParameterConfiguration(), stage);
             List<ParameterConfiguration> retain = new LinkedList<ParameterConfiguration>();
             for(ParameterConfiguration p : neighbours){
-                if(!ils.isConfigAlreadyEvaluated(p))
-                    retain.add(p);
+                if(!ils.isConfigAlreadyEvaluated(p) && !pendingConfigs.contains(p))
+                    pendingConfigs.add(p);
             }
-            pendingConfigs.removeAll(retain);   //this is done to avoid duplicates in
-            pendingConfigs.addAll(retain);      //pendingConfigs
             return true;
         }
         return false;
@@ -210,5 +222,12 @@ class ILSNeighbourhood {
     
     public SolverConfiguration getStarter(){
         return starter;
+    }
+    
+    public List<ParameterConfiguration> mergeLists(
+            List<ParameterConfiguration> target, List<ParameterConfiguration> source){
+        for(ParameterConfiguration p : source)
+            target.add(p);
+        return target;
     }
 }

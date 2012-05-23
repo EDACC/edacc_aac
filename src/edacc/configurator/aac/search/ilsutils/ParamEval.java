@@ -2,7 +2,7 @@
  * To change this template, choose Tools | Templates
  * and open the template in the editor.
  */
-package edacc.configurator.aac.search.ILS;
+package edacc.configurator.aac.search.ilsutils;
 
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.parameterspace.Parameter;

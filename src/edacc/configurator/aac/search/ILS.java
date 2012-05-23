@@ -1,13 +1,13 @@
 /**
  * 
  */
-package edacc.configurator.aac.search.ILS;
+package edacc.configurator.aac.search;
 
 import edacc.api.API;
 import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
-import edacc.configurator.aac.search.SearchMethods;
+import edacc.configurator.aac.search.ilsutils.ILSNeighbourhood;
 import edacc.parameterspace.ParameterConfiguration;
 import edacc.parameterspace.graph.ParameterGraph;
 import java.util.*;
@@ -36,9 +36,10 @@ public class ILS extends SearchMethods {
 	private int sampleSize = 40;
         private double restartProbability = 0.001d;
         private int pertubationSteps = 3;
+        private boolean debug = false; //used to generate debug log entries
         
         private SolverConfiguration currentBest;
-        private SolverConfiguration referenceSolver;
+        private SolverConfiguration referenceSolver=null;
         
 	
 	
@@ -51,6 +52,8 @@ public class ILS extends SearchMethods {
                 usedConfigs = new HashSet<ParameterConfiguration>();
                 completedNeighbourhoods = new LinkedList<ILSNeighbourhood>();
                 activeNeighbourhoods = new LinkedList<ILSNeighbourhood>();
+                if(!referenceSCs.isEmpty())
+                    referenceSolver = referenceSCs.get(0);
                 
                 //TODO: initialise referenceSolver
                 
@@ -71,6 +74,9 @@ public class ILS extends SearchMethods {
                 if(params.containsKey("ILS_pertubationSteps")){
                     pertubationSteps = Integer.parseInt(params.get("ILS_pertubationSteps"));
                 }
+                if(params.containsKey("ILS_debug")){
+                    debug = Boolean.parseBoolean(params.get("ILS_debug"));
+                }
                 
                 //first neighbourhood
                 SolverConfiguration starterConfig;
@@ -78,7 +84,7 @@ public class ILS extends SearchMethods {
                     starterConfig = firstSCs.get(0);
                 }else{
                     //TODO: find a better way to start without default configs
-                    aac.log("ILS: No default config found: Using random config instead!");
+                    log("No default config found: Using random config instead!");
                     starterConfig = createSolverConfig(paramGraph.getRandomConfiguration(rng));
                 }
                 currentNeighbourhood = new ILSNeighbourhood(starterConfig, this);
@@ -92,26 +98,39 @@ public class ILS extends SearchMethods {
             int requiredConfigs = num; 
             int availableConfigs = currentNeighbourhood.getNumberOfAvailableConfigs(requiredConfigs);
             if(requiredConfigs <= availableConfigs){
+                if(debug)
+                    debugLog("current neighbourhood could satisfy need for new configs!");
                 newConfigs = currentNeighbourhood.getConfigs(requiredConfigs);
                 requiredConfigs = 0;
             }
             else{
-                requiredConfigs -= availableConfigs;
+                requiredConfigs -= availableConfigs;                
                 newConfigs = currentNeighbourhood.getConfigs(availableConfigs);
+                if(debug){
+                    debugLog("current neighbourhood can supply "+availableConfigs
+                            +" of "+num+" configs ("+newConfigs.size()+" configs delivered. "
+                            +requiredConfigs+" more configs needed");
+                }
                 
                 if(secondaryNeighbourhood == null){ 
                     startSecondaryNeighbourhood(currentNeighbourhood.getStarter());
                 }
                 availableConfigs = secondaryNeighbourhood.getNumberOfAvailableConfigs(requiredConfigs);
-                if(requiredConfigs <= availableConfigs){
+                List<SolverConfiguration> tmpConfigs;
+                if(requiredConfigs <= availableConfigs){                    
+                    tmpConfigs = secondaryNeighbourhood.getConfigs(requiredConfigs);
+                    newConfigs = mergeLists(newConfigs, tmpConfigs);
                     requiredConfigs = 0;
-                    newConfigs.addAll(secondaryNeighbourhood.getConfigs(requiredConfigs));
                 }else{
-                     //neither current-, nor secondaryNeighbourhood have enough configs
+                     //neither current-, nor secondaryNeighbourhood have enough configs                    
+                    tmpConfigs = secondaryNeighbourhood.getConfigs(availableConfigs);
+                    newConfigs = mergeLists(newConfigs, tmpConfigs);
                     requiredConfigs -= availableConfigs;
-                    newConfigs.addAll(secondaryNeighbourhood.getConfigs(availableConfigs));
                 }
-               
+                if(debug){
+                    debugLog("secondary neighbourhood could supply "+availableConfigs
+                                    +" configs ("+tmpConfigs.size()+" configs delivered). "+newConfigs.size()+" configs in total.");
+                }
             }
             /* at this point, newConfigs might contain fewer configurations than requested
              * there is nothing to be done about this, however, as there are no more configs
@@ -140,6 +159,8 @@ public class ILS extends SearchMethods {
                 aac.log("ILS: Possible local minimum: Trying to escape with "+pertubationSteps+" pertubation steps"); 
             }
             secondaryNeighbourhood = new ILSNeighbourhood(createSolverConfig(p), this);
+            if(debug)
+                aac.log("ILS_Debug: new secondary neighbourhood has "+secondaryNeighbourhood.getNumberOfAvailableConfigs(0)+" configs available!");
         }
         
         private void update() throws Exception{
@@ -182,6 +203,9 @@ public class ILS extends SearchMethods {
                 if(secondaryNeighbourhood == null){
                     //ideally, this should never happen
                     //but if it does, it won't cause any problems (other than some wasted cpu time)
+                    if(debug){
+                        debugLog("Primary neighbourhood evaluation is complete, but no secondary neighbourhood is presen!");
+                    }
                     startSecondaryNeighbourhood(currentNeighbourhood.getStarter());
                 }
                 currentNeighbourhood = secondaryNeighbourhood;
@@ -353,5 +377,21 @@ public class ILS extends SearchMethods {
             return 1;
         }
         
-       
+        public void log(String msg){
+            aac.log("ILS: "+msg);
+        }
+        public void debugLog(String msg){
+            aac.log("ILS_debug: "+msg);
+        }
+        
+        public boolean isDebug(){
+            return debug;
+        }
+        
+        public List<SolverConfiguration> mergeLists(
+                List<SolverConfiguration> target, List<SolverConfiguration> source){
+            for(SolverConfiguration s : source)
+                target.add(s);
+            return target;
+        }
 }
