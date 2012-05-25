@@ -62,8 +62,8 @@ public class ILSNeighbourhood {
             ils.debugLog("getConfig called with illegal argument: "+num+". Available configs: "+pendingConfigs.size());
             return null;
         }
-        if(ils.isDebug())
-            ils.debugLog("Trying to fetch "+num+" configs. "+pendingConfigs.size()+" config available");
+        /*if(ils.isDebug())
+            ils.debugLog("Trying to fetch "+num+" configs. "+pendingConfigs.size()+" config available");*/
         LinkedList<SolverConfiguration> configs = new LinkedList<SolverConfiguration>();
         SolverConfiguration c;
         for(int i=0; i<num; i++){
@@ -71,9 +71,9 @@ public class ILSNeighbourhood {
             runningConfigs.add(c);
             configs.add(c);
         }
-        if(ils.isDebug()){
+        /*if(ils.isDebug()){
             ils.debugLog("Returning "+configs.size()+" configs. "+pendingConfigs.size()+" configs left!");
-        }
+        }*/
         return configs;
     }
     
@@ -117,7 +117,7 @@ public class ILSNeighbourhood {
         if(isActive())
             return false;
         else
-            return !pendingConfigs.isEmpty();
+            return pendingConfigs.isEmpty();
     }
     
     /* returns true if and only if there are configurations in this neighbourhood
@@ -229,5 +229,11 @@ public class ILSNeighbourhood {
         for(ParameterConfiguration p : source)
             target.add(p);
         return target;
+    }
+    
+    public void debugOutput(boolean secondary){
+        System.out.println((secondary) ? "Secondary Neighbourhood:" : "Primary Neighbourhood:");
+        System.out.println("Number of configs: pending_"+pendingConfigs.size()+" running_"+runningConfigs.size()+" completed_"+completedConfigs.size());
+        System.out.println("Stage: "+stage+", Incumbent found: "+hasNewIncumbent());
     }
 }

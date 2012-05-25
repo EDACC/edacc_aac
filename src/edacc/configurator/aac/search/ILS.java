@@ -96,48 +96,56 @@ public class ILS extends SearchMethods {
             update(); //need to get the most recent information before we can decide on anything
             List<SolverConfiguration> newConfigs;
             int requiredConfigs = num; 
-            int availableConfigs = currentNeighbourhood.getNumberOfAvailableConfigs(requiredConfigs);
-            if(requiredConfigs <= availableConfigs){
+            int currentAvailableConfigs = currentNeighbourhood.getNumberOfAvailableConfigs(requiredConfigs);
+            int secondaryAvailableConfigs = -1;
+            int prim = 0, sec = 0; //counts the number of delivered configs by current and secondary neighbourhood
+            if(requiredConfigs <= currentAvailableConfigs){
                 if(debug)
                     debugLog("current neighbourhood could satisfy need for new configs!");
                 newConfigs = currentNeighbourhood.getConfigs(requiredConfigs);
                 requiredConfigs = 0;
+                prim = newConfigs.size();
             }
             else{
-                requiredConfigs -= availableConfigs;                
-                newConfigs = currentNeighbourhood.getConfigs(availableConfigs);
-                if(debug){
-                    debugLog("current neighbourhood can supply "+availableConfigs
+                requiredConfigs -= currentAvailableConfigs;                
+                newConfigs = currentNeighbourhood.getConfigs(currentAvailableConfigs);    
+                prim = newConfigs.size();
+                /*if(debug){
+                    debugLog("current neighbourhood can supply "+currentAvailableConfigs
                             +" of "+num+" configs ("+newConfigs.size()+" configs delivered. "
                             +requiredConfigs+" more configs needed");
-                }
+                }*/
                 
                 if(secondaryNeighbourhood == null){ 
                     startSecondaryNeighbourhood(currentNeighbourhood.getStarter());
                 }
-                availableConfigs = secondaryNeighbourhood.getNumberOfAvailableConfigs(requiredConfigs);
+                secondaryAvailableConfigs = secondaryNeighbourhood.getNumberOfAvailableConfigs(requiredConfigs);
                 List<SolverConfiguration> tmpConfigs;
-                if(requiredConfigs <= availableConfigs){                    
+                if(requiredConfigs <= secondaryAvailableConfigs){                    
                     tmpConfigs = secondaryNeighbourhood.getConfigs(requiredConfigs);
                     newConfigs = mergeLists(newConfigs, tmpConfigs);
                     requiredConfigs = 0;
                 }else{
                      //neither current-, nor secondaryNeighbourhood have enough configs                    
-                    tmpConfigs = secondaryNeighbourhood.getConfigs(availableConfigs);
+                    tmpConfigs = secondaryNeighbourhood.getConfigs(secondaryAvailableConfigs);
                     newConfigs = mergeLists(newConfigs, tmpConfigs);
-                    requiredConfigs -= availableConfigs;
+                    requiredConfigs -= secondaryAvailableConfigs;
                 }
-                if(debug){
-                    debugLog("secondary neighbourhood could supply "+availableConfigs
+                sec = newConfigs.size()-prim;
+                /*if(debug){
+                    debugLog("secondary neighbourhood could supply "+secondaryAvailableConfigs
                                     +" configs ("+tmpConfigs.size()+" configs delivered). "+newConfigs.size()+" configs in total.");
-                }
+                }*/
             }
             /* at this point, newConfigs might contain fewer configurations than requested
              * there is nothing to be done about this, however, as there are no more configs
              * in either neighbourhood. The racing methods can cope with it.
              */
-            
-            aac.log("ILS: Fetching "+num+" configs: "+newConfigs.size()+" configs delivered!");
+            aac.log("ILS: Fetching "+num+" configs: "+newConfigs.size()+" configs delivered! ("+prim+" from primary neighbourhood, "+sec+"from secondary)");
+            if(debug && newConfigs.isEmpty()){
+                currentNeighbourhood.debugOutput(false);
+                secondaryNeighbourhood.debugOutput(true);
+            }
             return newConfigs;
         }
         
