@@ -37,7 +37,7 @@ public class ILS extends SearchMethods {
 	private int sampleSize = 40;
         private double restartProbability = 0.001d;
         private int pertubationSteps = 3;
-        private boolean useParamEval = true;
+        private boolean useParamEval = false;
         private double paramEvalUpdateFactor = 0.2;
         private boolean debug = false; //used to generate debug log entries
         
@@ -185,7 +185,8 @@ public class ILS extends SearchMethods {
         private void update() throws Exception{
             //Get the latest results on config performance calculated by the racing method
             //sort out all Neighbourhoods that have been evaluated
-            while(!activeNeighbourhoods.peek().isActive()){
+            
+            while(!activeNeighbourhoods.isEmpty() && !activeNeighbourhoods.peek().isActive()){
                 if(useParamEval)
                     updateParamCoefficients(activeNeighbourhoods.peek());
                 completedNeighbourhoods.add(activeNeighbourhoods.poll());
