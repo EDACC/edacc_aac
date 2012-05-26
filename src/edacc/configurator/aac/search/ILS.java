@@ -8,6 +8,7 @@ import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.configurator.aac.search.ilsutils.ILSNeighbourhood;
+import edacc.configurator.aac.search.ilsutils.ParamEval;
 import edacc.parameterspace.ParameterConfiguration;
 import edacc.parameterspace.graph.ParameterGraph;
 import java.util.*;
@@ -21,11 +22,11 @@ import java.util.*;
 public class ILS extends SearchMethods {
         private AAC aac;
         private ParameterGraph paramGraph;
+        private ParamEval paramEval;
         //private double[] parameterCoefficients;   //not in use (yet)
         private HashSet<ParameterConfiguration>     //contains all configurations the
                                     usedConfigs;    //search has encountered so far
-        
-        
+                
         private LinkedList<ILSNeighbourhood> completedNeighbourhoods,
                                                 activeNeighbourhoods;
         private ILSNeighbourhood currentNeighbourhood, secondaryNeighbourhood;
@@ -36,6 +37,8 @@ public class ILS extends SearchMethods {
 	private int sampleSize = 40;
         private double restartProbability = 0.001d;
         private int pertubationSteps = 3;
+        private boolean useParamEval = true;
+        private double paramEvalUpdateFactor = 0.2;
         private boolean debug = false; //used to generate debug log entries
         
         private SolverConfiguration currentBest;
@@ -48,14 +51,14 @@ public class ILS extends SearchMethods {
                 
 		super(pacc, api, rng, parameters, firstSCs, referenceSCs);
                 aac = pacc;
-                paramGraph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
+                paramGraph = api.loadParameterGraphFromDB(parameters.getIdExperiment());                
                 usedConfigs = new HashSet<ParameterConfiguration>();
                 completedNeighbourhoods = new LinkedList<ILSNeighbourhood>();
                 activeNeighbourhoods = new LinkedList<ILSNeighbourhood>();
-                if(!referenceSCs.isEmpty())
-                    referenceSolver = referenceSCs.get(0);
                 
                 //TODO: initialise referenceSolver
+                if(!referenceSCs.isEmpty())
+                    referenceSolver = referenceSCs.get(0);
                 
                 // parameters:
                 HashMap<String, String> params = parameters.getSearchMethodParameters();
@@ -74,9 +77,17 @@ public class ILS extends SearchMethods {
                 if(params.containsKey("ILS_pertubationSteps")){
                     pertubationSteps = Integer.parseInt(params.get("ILS_pertubationSteps"));
                 }
+                if(params.containsKey("ILS_useParamEval")){
+                    useParamEval = Boolean.parseBoolean(params.get("ILS_useParamEval"));
+                }
+                if(params.containsKey("ILS_paramEvalUpdateFactor")){
+                    paramEvalUpdateFactor = Double.parseDouble("ILS_paramEvalUpdateFactor");
+                }
                 if(params.containsKey("ILS_debug")){
                     debug = Boolean.parseBoolean(params.get("ILS_debug"));
                 }
+                
+                paramEval = new ParamEval(paramGraph, paramEvalUpdateFactor);
                 
                 //first neighbourhood
                 SolverConfiguration starterConfig;
@@ -174,15 +185,24 @@ public class ILS extends SearchMethods {
         private void update() throws Exception{
             //Get the latest results on config performance calculated by the racing method
             //sort out all Neighbourhoods that have been evaluated
+            while(!activeNeighbourhoods.peek().isActive()){
+                if(useParamEval)
+                    updateParamCoefficients(activeNeighbourhoods.peek());
+                completedNeighbourhoods.add(activeNeighbourhoods.poll());
+            }
+            /* OUTDATED as of 26.5.2012, implementation of ParamEval)
             LinkedList<ILSNeighbourhood> retain = new LinkedList<ILSNeighbourhood>();
             for(ILSNeighbourhood n : activeNeighbourhoods){
                 n.update();
                 if(n.isActive())
                     retain.add(n);
-                else
+                else{
                     completedNeighbourhoods.add(n);
+                }
             }
             activeNeighbourhoods = retain;
+            * 
+            */
             
             currentNeighbourhood.update();
             if(secondaryNeighbourhood != null)
@@ -243,9 +263,6 @@ public class ILS extends SearchMethods {
                     }
                 }
             }
-            
-            //use these results to update the estimated importance of each parameter
-            updateParameterCoefficients();
         }
 
 	/* (non-Javadoc)
@@ -294,8 +311,11 @@ public class ILS extends SearchMethods {
             System.out.println("--------------------------------------\n");
 	}
         
-        private void updateParameterCoefficients(){
-            //TODO implement
+        /* calculates the importance of each Parameter according to the cost-difference of 
+         * Configurations in n, and updates the global parameter coefficients accordingly
+         */
+        private void updateParamCoefficients(ILSNeighbourhood n){
+            paramEval.updateParameterCoefficients(n);
         }
         
                 
@@ -338,17 +358,22 @@ public class ILS extends SearchMethods {
         /* Sorts the list according to the calculated priority of parameters. This means that
          * a neighbour that differs from the start config in a parameter deemed to be important,
          * will end up at the start of the list, rather than at the end.
+         * 
+         * if parameter evaluation is turned off, the list will be shuffled
          */
         private void sortParameterPriority(ParameterConfiguration start, 
                                     List<ParameterConfiguration> neighbours){
-            //TODO: Implement
-            Collections.shuffle(neighbours);
+            if(useParamEval)
+                paramEval.sortAccordingToCoefficients(start, neighbours);
+            else
+                Collections.shuffle(neighbours);
         }
         
         /* signals the racing procedure that evaluating the specified configuration
          * is no longer necessary, and should be aborted to save resources.
          */
-        public void killConfig(SolverConfiguration s){
+        public void stopEvaluation(List<SolverConfiguration> configs) throws Exception{
+            aac.racing.stopEvaluation(configs);
             //TODO: implement functionality once the racing procedures are updated
         }
         

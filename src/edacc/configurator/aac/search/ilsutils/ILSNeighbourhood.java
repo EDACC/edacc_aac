@@ -185,13 +185,24 @@ public class ILSNeighbourhood {
     
     /* prevents this neighbourhood from creating new configurations and tries to abort the
      * evaluation of currently running configs
+     * will *not* kill the best config this neighbourhood has found, since it might be
+     * a new Incumbent, and thus needed to start new neighbourhoods
      */
-    public void killHard(){
+    public void killHard() throws Exception{
         kill();
+        LinkedList<SolverConfiguration> toKill = new LinkedList<SolverConfiguration>();
         for(SolverConfiguration s : runningConfigs){
-            ils.killConfig(s);            
+            if(!s.equals(currentBest))      //currentBest might be the starter configs for the
+                toKill.add(s);              //next neighbourhood, so it shouldn't be killed
+        }        
+        if(toKill.size()==runningConfigs.size()){ //read: if(!runningConfigs.contains(currentBest)
+            //currentBest is not in the list of running configs
+            runningConfigs.clear();
+        }else{
+            runningConfigs.clear();
+            runningConfigs.add(currentBest);
         }
-        runningConfigs.clear();
+        ils.stopEvaluation(toKill);
     }
     
     /* returns the best known config in this neighbourhood (drawing from the pool of configurations

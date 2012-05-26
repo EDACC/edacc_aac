@@ -125,8 +125,12 @@ public class AAC {
 		
 		if (params.deleteSolverConfigsAtStart) {
 			log("c Removing solver configurations..");
+                        HashSet<Integer> retain = new HashSet<Integer>();
+                        retain.addAll(api.getSolverConfigurations(parameters.idExperiment, "default"));                        
+                        retain.addAll(api.getSolverConfigurations(parameters.idExperiment, "reference"));
 			for (Integer id : api.getSolverConfigurations(parameters.idExperiment)) {
-				api.removeSolverConfig(id);
+                                if(!retain.contains(id))
+                                    api.removeSolverConfig(id);
 			}
 			log("c Done.");
 		}
