@@ -81,7 +81,7 @@ public class ILS extends SearchMethods {
                     useParamEval = Boolean.parseBoolean(params.get("ILS_useParamEval"));
                 }
                 if(params.containsKey("ILS_paramEvalUpdateFactor")){
-                    paramEvalUpdateFactor = Double.parseDouble("ILS_paramEvalUpdateFactor");
+                    paramEvalUpdateFactor = Double.parseDouble(params.get("ILS_paramEvalUpdateFactor"));
                 }
                 if(params.containsKey("ILS_debug")){
                     debug = Boolean.parseBoolean(params.get("ILS_debug"));

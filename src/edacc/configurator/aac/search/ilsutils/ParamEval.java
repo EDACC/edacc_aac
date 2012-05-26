@@ -172,6 +172,9 @@ public class ParamEval {
         Parameter dif=null;
         int count = 0;
         for(Parameter p : params){
+            System.out.println(p.getName()+"  |  "+p.toString());
+            if(c1.getParameterValue(p)==null || c2.getParameterValue(p)==null)
+                System.out.println("VALUE IS NULL");
             if(!c1.getParameterValue(p).equals(c2.getParameterValue(p))){
                 count++;
                 dif = p;
