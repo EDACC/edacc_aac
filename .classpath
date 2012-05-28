@@ -8,5 +8,8 @@
 	<classpathentry kind="lib" path="libs/EDACC_model.jar"/>
 	<classpathentry kind="lib" path="libs/commons-math-2.2.jar"/>
 	<classpathentry kind="lib" path="libs/commons-math3-3.0.jar"/>
+	<classpathentry kind="lib" path="libs/JRI.jar"/>
+	<classpathentry kind="lib" path="libs/JRIEngine.jar"/>
+	<classpathentry kind="lib" path="libs/REngine.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
