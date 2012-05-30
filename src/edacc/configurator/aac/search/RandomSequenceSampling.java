@@ -9,6 +9,8 @@ import edacc.api.API;
 import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
+import edacc.configurator.aac.racing.FRace;
+import edacc.configurator.aac.racing.SMFRace;
 import edacc.configurator.math.SamplingSequence;
 import edacc.parameterspace.Parameter;
 import edacc.parameterspace.ParameterConfiguration;
@@ -46,7 +48,13 @@ public class RandomSequenceSampling extends SearchMethods {
     @Override
     public List<SolverConfiguration> generateNewSC(int num) throws Exception {
         List<SolverConfiguration> solverConfigs = new LinkedList<SolverConfiguration>();
-        for (int i = 0; i < num; i++) {
+        
+        if (pacc.racing instanceof FRace || pacc.racing instanceof SMFRace) {
+            // FRace and SMFRace don't automatically use the old best configurations
+            solverConfigs.addAll(pacc.racing.getBestSolverConfigurations(num));
+        }
+        
+        for (int i = 0; i < num - solverConfigs.size(); i++) {
             ParameterConfiguration pc = mapRealTupleToParameters(sequenceValues[currentSequencePosition++]);
             int idSC = api.createSolverConfig(parameters.getIdExperiment(), pc, "SN: " + currentSequencePosition);
             solverConfigs.add(new SolverConfiguration(idSC, pc, parameters.getStatistics()));
