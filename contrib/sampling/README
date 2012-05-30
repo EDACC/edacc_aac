@@ -1,0 +1,2 @@
+Uses the GNU Scientific Library to generate quasi-random number sequences in 1 <= d <= 1229 dimensions.
+Each number is a real number from the [0, 1] interval.

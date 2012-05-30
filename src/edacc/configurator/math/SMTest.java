@@ -66,6 +66,7 @@ public class SMTest {
         long r=re.rniEval(e, 0);
         REXP x=new REXP(re, r);
         System.out.println(x.asDouble());
+       
         
         re.end();
     }
