@@ -428,4 +428,10 @@ public class ILS extends SearchMethods {
                 target.add(s);
             return target;
         }
+
+		@Override
+		public void searchFinished() {
+			// TODO Auto-generated method stub
+			
+		}
 }

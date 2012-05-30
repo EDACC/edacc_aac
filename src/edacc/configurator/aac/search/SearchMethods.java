@@ -34,4 +34,9 @@ public abstract class SearchMethods {
 	public abstract List<SolverConfiguration> generateNewSC(int num) throws Exception;
 	
 	public abstract void listParameters();
+	
+	/**
+	 * Called after termination criterion reached.
+	 */
+	public abstract void searchFinished();
 }

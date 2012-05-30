@@ -134,4 +134,10 @@ public class SingleParameter extends SearchMethods {
 	public void listParameters() {
 	}
 
+	@Override
+	public void searchFinished() {
+		// TODO Auto-generated method stub
+		
+	}
+
 }
