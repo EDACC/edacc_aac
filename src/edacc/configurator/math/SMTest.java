@@ -39,9 +39,7 @@ public class SMTest {
     public boolean isFamilyTestSignificant(double alpha) {
         rengine.assign("SMTestData", linearizedData);
         rengine.eval("SMTestData <- matrix(SMTestData, nrow=" + n + ", ncol=" + c + ", byrow=T)");
-        long e = rengine.rniParse("MS.test(SMTestData, seq("+ n + "), reps=1", 1);
-        long r = rengine.rniEval(e, 0);
-        REXP x = new REXP(rengine, r);
+        REXP x = rengine.eval("MS.test(SMTestData, seq("+ n + "), reps=1)$P");
         double p_value = x.asDouble();
         return p_value <= alpha;
         
@@ -62,10 +60,8 @@ public class SMTest {
         
         re.assign("M", new double[] {Double.NaN, 1.0, 2.0, 3.0, 4.0, 5.0});
         re.eval("M = matrix(M, 3, 2)");
-        long e=re.rniParse("MS.test(M, seq(3), reps=1)$P", 1);
-        long r=re.rniEval(e, 0);
-        REXP x=new REXP(re, r);
-        System.out.println(x.asDouble());
+        REXP e = re.eval("MS.test(M, seq(3), reps=1)$P");
+        System.out.println(e.asDouble());
        
         
         re.end();

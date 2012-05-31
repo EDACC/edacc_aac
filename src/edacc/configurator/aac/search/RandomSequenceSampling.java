@@ -27,6 +27,7 @@ public class RandomSequenceSampling extends SearchMethods {
     private SamplingSequence sequence;
     private double sequenceValues[][];
     private int currentSequencePosition = 0;
+    private int maxSamples = 100;
     
     public RandomSequenceSampling(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
         super(pacc, api, rng, parameters, firstSCs, referenceSCs);
@@ -34,6 +35,12 @@ public class RandomSequenceSampling extends SearchMethods {
         String samplingPath;
         samplingPath = parameters.getSearchMethodParameters().get("RandomSequenceSampling_samplingPath");
         
+        String val;
+        if ((val = parameters.getSearchMethodParameters().get("RandomSequenceSampling_samplingPath")) != null)
+            samplingPath = val;
+        if ((val = parameters.getSearchMethodParameters().get("RandomSequenceSampling_maxSamples")) != null)
+            this.maxSamples = Integer.valueOf(val);
+
         pspace = api.loadParameterGraphFromDB(parameters.getIdExperiment());
         params = new LinkedList<Parameter>();
         sequence = new SamplingSequence(samplingPath);
@@ -42,12 +49,13 @@ public class RandomSequenceSampling extends SearchMethods {
             params.add(p);
         }
         
-        sequenceValues = sequence.getSequence(params.size(), 100000);
+        sequenceValues = sequence.getSequence(params.size(), maxSamples);
     }
 
     @Override
     public List<SolverConfiguration> generateNewSC(int num) throws Exception {
         List<SolverConfiguration> solverConfigs = new LinkedList<SolverConfiguration>();
+        if (currentSequencePosition + 1 > maxSamples) return solverConfigs;
         
         if (pacc.racing instanceof FRace || pacc.racing instanceof SMFRace) {
             // FRace and SMFRace don't automatically use the old best configurations
@@ -55,6 +63,7 @@ public class RandomSequenceSampling extends SearchMethods {
         }
         
         for (int i = 0; i < num - solverConfigs.size(); i++) {
+            if (currentSequencePosition + 1 > maxSamples) break;
             ParameterConfiguration pc = mapRealTupleToParameters(sequenceValues[currentSequencePosition++]);
             int idSC = api.createSolverConfig(parameters.getIdExperiment(), pc, "SN: " + currentSequencePosition);
             solverConfigs.add(new SolverConfiguration(idSC, pc, parameters.getStatistics()));
@@ -64,12 +73,15 @@ public class RandomSequenceSampling extends SearchMethods {
 
     @Override
     public void listParameters() {
-        // TODO Auto-generated method stub
+        System.out.println("--- RandomSequenceSampling parameters ---");
+        System.out.println("RandomSequenceSampling_samplingPath = <REQUIRED> (Path to the external sequence generating program)");
+        System.out.println("RandomSequenceSampling_maxSamples = "+this.maxSamples+ " (How many configurations should be evaluated at most)");
+        System.out.println("-----------------------\n");
         
     }
     
     private ParameterConfiguration mapRealTupleToParameters(double[] values) {
-        ParameterConfiguration pc = new ParameterConfiguration(pspace.getRandomConfiguration(rng));
+        ParameterConfiguration pc = pspace.getRandomConfiguration(rng);
         int i = 0;
         for (Parameter p: params) {
             double v = values[i++];
