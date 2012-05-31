@@ -26,6 +26,7 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 	private int iteration = 0;
 	private HashMap<ObjectArrayWrapper, SolverConfiguration> solverConfigs;
 	private LinkedList<SolverConfiguration> lastSolverConfigs;
+	@SuppressWarnings("unchecked")
 	public IterativeSearchSpaceSampling(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
 		super(pacc, api, rng, parameters, firstSCs, referenceSCs);
 		this.graph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
@@ -163,6 +164,7 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 			for (SolverConfiguration goodSC : goodSolverConfigs) {
 				
 				Object[] paramVal = new Object[graphParams.size()];
+				@SuppressWarnings("unchecked")
 				Pair<Object, Object>[] paramValPrevNext = new Pair[graphParams.size()];
 				for (int i = 0; i < graphParams.size(); i++) {
 					paramVal[i] = goodSC.getParameterConfiguration().getParameterValue(graphParams.get(i));
@@ -297,5 +299,11 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 				return false;
 			return true;
 		}
+	}
+
+	@Override
+	public void searchFinished() {
+		// TODO Auto-generated method stub
+		
 	}
 }

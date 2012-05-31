@@ -49,4 +49,10 @@ public class Matrix extends SearchMethods {
 		// TODO Auto-generated method stub
 		
 	}
+
+	@Override
+	public void searchFinished() {
+		// TODO Auto-generated method stub
+		
+	}
 }

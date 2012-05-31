@@ -114,4 +114,10 @@ public class RandomSequenceSampling extends SearchMethods {
         return pc;
     }
 
+	@Override
+	public void searchFinished() {
+		// TODO Auto-generated method stub
+		
+	}
+
 }

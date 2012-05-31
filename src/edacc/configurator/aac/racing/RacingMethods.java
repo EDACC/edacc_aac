@@ -96,4 +96,9 @@ public abstract class RacingMethods {
 	public int getNumCompCalls(){
 		return this.numCompCalls;
 	}
+	
+	/**
+	 * Called after termination criterion reached.
+	 */
+	public abstract void raceFinished();
 }

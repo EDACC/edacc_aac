@@ -176,4 +176,10 @@ public class Default extends RacingMethods {
 		}
 	}
 
+	@Override
+	public void raceFinished() {
+		// TODO Auto-generated method stub
+		
+	}
+
 }

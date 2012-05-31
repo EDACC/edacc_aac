@@ -353,4 +353,10 @@ public class STTRace extends RacingMethods {
 		
 	}
 
+	@Override
+	public void raceFinished() {
+		// TODO Auto-generated method stub
+		
+	}
+
 }

@@ -12,12 +12,10 @@ import edacc.model.ConfigurationScenarioDAO;
 
 public class FullEvaluation extends RacingMethods {
 	private int num_instances;
-	private int incNumber;
 
 	public FullEvaluation(AAC pacc, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
 		super(pacc, rng, api, parameters, firstSCs, referenceSCs);
 		num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse().getInitialLength();
-		incNumber = 0;
 	}
 
 	@Override
@@ -67,6 +65,12 @@ public class FullEvaluation extends RacingMethods {
 
 	@Override
 	public void stopEvaluation(List<SolverConfiguration> scs) throws Exception {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void raceFinished() {
 		// TODO Auto-generated method stub
 		
 	}

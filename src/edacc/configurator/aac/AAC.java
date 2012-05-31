@@ -606,7 +606,8 @@ public class AAC {
 				}
 			}
 		}
-
+		search.searchFinished();
+		racing.raceFinished();
 	}
 
 	public void addSolverConfigurationToListNewSC(SolverConfiguration sc) {

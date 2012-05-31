@@ -39,4 +39,10 @@ public class MB extends SearchMethods {
 		
 	}
 
+	@Override
+	public void searchFinished() {
+		// TODO Auto-generated method stub
+		
+	}
+
 }
