@@ -421,4 +421,10 @@ public class SMFRace extends RacingMethods {
 	    }
 	}
 
+    @Override
+    public void raceFinished() {
+        // TODO Auto-generated method stub
+        
+    }
+
 }
