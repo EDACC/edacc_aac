@@ -112,8 +112,6 @@ public class SMFRace extends RacingMethods {
         this.Nmin = (int) Math.round(NminFactor * api.getConfigurableParameters(parameters.getIdExperiment()).size());
         this.initialRaceRuns = (int) Math.max(1, Math.round(initialRunsFactor * num_instances));
         this.numRaceConfigurations = (int) Math.max(1, Math.round(numRaceConfigurationsFactor * api.getConfigurableParameters(parameters.getIdExperiment()).size()));
-        
-        throw new Exception("TODO: not implemented yet");
     }
 
     @Override
@@ -172,6 +170,7 @@ public class SMFRace extends RacingMethods {
                 pacc.log("wilcoxon signed-rank test didn't find a significant difference between the two solver configurations");
             }
         } else {
+            
             Double[][] data = new Double[courseResults.size()][raceConfigurations.size()];
             for (int i = 0; i < courseResults.size(); i++) {
                 for (int j = 0; j < raceConfigurations.size(); j++) {
@@ -183,7 +182,10 @@ public class SMFRace extends RacingMethods {
             }
             
             SMTest smTest = new SMTest(courseResults.size(), raceConfigurations.size(), data, rengine);
-            if (smTest.isFamilyTestSignificant(alpha)) {
+            double pValue = smTest.pValue();
+            pacc.log("Performing SM-test, p-value: " + pValue);
+            if (pValue < alpha) {
+                pacc.log("SM-Test indicates significant differences between some solver configurations");
                 // there is evidence that there is at least one solver
                 // configuration that is significantly different from the others
                 // find the best one, do pairwise comparisons and remove those
@@ -202,14 +204,19 @@ public class SMFRace extends RacingMethods {
                 int bestConfigurationIx = raceConfigurations.indexOf(bestConfiguration);
                 Map<SolverConfiguration, Double> pValueByConfiguration = new HashMap<SolverConfiguration, Double>(); 
                 
+                pacc.log("Best solver configuration: " + bestConfiguration.getName() + "("+bestConfiguration.getIdSolverConfiguration()+")");
+                
                 Double[] x = new Double[courseResults.size()];
                 boolean[] x_censored = new boolean[courseResults.size()];
                 for (int i = 0; i < courseResults.size(); i++) {
-                    if (courseResults.get(i).get(bestConfiguration) == null)
+                    if (courseResults.get(i).get(bestConfiguration) == null) {
                         x[i] = null;
-                    else 
+                        x_censored[i] = false;
+                    }
+                    else {
                         x[i] = Double.valueOf(parameters.getStatistics().getCostFunction().singleCost(courseResults.get(i).get(bestConfiguration)));
-                    x_censored[i] = !courseResults.get(i).get(bestConfiguration).getResultCode().isCorrect();
+                        x_censored[i] = !courseResults.get(i).get(bestConfiguration).getResultCode().isCorrect();
+                    }
                 }
                 
                 for (int j = 0; j < raceConfigurations.size(); j++) {
@@ -223,24 +230,28 @@ public class SMFRace extends RacingMethods {
                     boolean[] y_censored = new boolean[courseResults.size()];
                     
                     for (int i = 0; i < courseResults.size(); i++) {
-                        if (courseResults.get(i).get(raceConfigurations.get(j)) == null)
+                        if (courseResults.get(i).get(raceConfigurations.get(j)) == null) {
                             y[i] = null;
-                        else 
+                            y_censored[i] = false;
+                        }
+                        else { 
                             y[i] = Double.valueOf(parameters.getStatistics().getCostFunction().singleCost(courseResults.get(i).get(raceConfigurations.get(j))));
-                        
-                        y_censored[i] = !courseResults.get(i).get(raceConfigurations.get(j)).getResultCode().isCorrect();
+                            y_censored[i] = !courseResults.get(i).get(raceConfigurations.get(j)).getResultCode().isCorrect();
+                        }                        
                     }
                     
                     LogrankTest lr = new LogrankTest(rengine);
-                    pValueByConfiguration.put(raceConfigurations.get(j), lr.pValue(x, y, x_censored, y_censored));
+                    double lr_pvalue = lr.pValue(x, y, x_censored, y_censored);
+                    pValueByConfiguration.put(raceConfigurations.get(j), lr_pvalue);
                 }
                 
-                TreeMap<SolverConfiguration, Double> sortedpValueByConfiguration = new TreeMap<SolverConfiguration, Double>(new ValueComparator(pValueByConfiguration));
-
+                
+                Map<SolverConfiguration, Double> sortedpValueByConfiguration = sortByValue(pValueByConfiguration);
                 // Holm-Bonferroni method
                 int k = raceConfigurations.size() - 1;
                 for (SolverConfiguration sc: sortedpValueByConfiguration.keySet()) {
-                    if (sortedpValueByConfiguration.get(sc) < alpha / (float)k) {
+                    if (sortedpValueByConfiguration.get(sc).doubleValue() < alpha / (float)k) {
+                        pacc.log("Removing configuration " + sc.getIdSolverConfiguration() + " from race, Cost: " + sc.getCost() + " vs. best Cost: " + bestConfiguration.getCost());
                         raceConfigurations.remove(sc);
                         k--;
                     } else {
@@ -403,23 +414,27 @@ public class SMFRace extends RacingMethods {
 		
 	}
 	
-	class ValueComparator<T, V> implements Comparator<V> {
-	    Map<T, V> base;
+    private static <K, V extends Comparable<? super V>> Map<K, V> 
+        sortByValue( Map<K, V> map )
+    {
+        List<Map.Entry<K, V>> list =
+            new LinkedList<Map.Entry<K, V>>( map.entrySet() );
+        Collections.sort( list, new Comparator<Map.Entry<K, V>>()
+        {
+            public int compare( Map.Entry<K, V> o1, Map.Entry<K, V> o2 )
+            {
+                return (o1.getValue()).compareTo( o2.getValue() );
+            }
+        } );
 
-	    public ValueComparator(Map<T, V> base) {
-	        this.base = base;
-	    }
+        Map<K, V> result = new LinkedHashMap<K, V>();
+        for (Map.Entry<K, V> entry : list)
+        {
+            result.put( entry.getKey(), entry.getValue() );
+        }
+        return result;
+    }
 
-	    public int compare(V a, V b) {
-	        if ((Double) base.get(a) < (Double) base.get(b)) {
-	            return -1;
-	        } else if ((Double) base.get(a) == (Double) base.get(b)) {
-	            return 0;
-	        } else {
-	            return 1;
-	        }
-	    }
-	}
 
     @Override
     public void raceFinished() {

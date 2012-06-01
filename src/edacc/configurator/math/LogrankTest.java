@@ -37,7 +37,8 @@ public class LogrankTest {
         rengine.assign("group", group);
         rengine.assign("combinedCensored", combinedCensored);
         REXP res = rengine.eval("1 - pchisq(survdiff(Surv(combinedData, combinedCensored) ~ group)$chisq, 1)");
-
+        
+        if (res == null) return 1.0;
         return res.asDouble();
     }
 

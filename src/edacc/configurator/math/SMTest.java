@@ -31,17 +31,19 @@ public class SMTest {
         int ix = 0;
         for (int i = 0; i < n; i++) {
             for (int j = 0; j < c; j++) {
-                linearizedData[ix++] = data[i][c] == null ? Double.NaN : data[i][c]; 
+                linearizedData[ix++] = data[i][j] == null ? Double.NaN : data[i][j]; 
             }
         }
     }
     
-    public boolean isFamilyTestSignificant(double alpha) {
+    public double pValue() {
         rengine.assign("SMTestData", linearizedData);
-        rengine.eval("SMTestData <- matrix(SMTestData, nrow=" + n + ", ncol=" + c + ", byrow=T)");
-        REXP x = rengine.eval("MS.test(SMTestData, seq("+ n + "), reps=1)$P");
-        double p_value = x.asDouble();
-        return p_value <= alpha;
+        rengine.eval("SMTestData <- data.frame(matrix(SMTestData, nrow=" + n + ", ncol=" + c + ", byrow=T))");
+        // throw out columns with less than 2 observations
+        rengine.eval("SMTestData <- SMTestData[, apply(SMTestData, 2, function(x) sum(!is.na(x)) > (length(x) / 2))]");
+        REXP x = rengine.eval("if (ncol(SMTestData) == 0) 1.0 else MS.test(SMTestData, seq("+ n + "), reps=1)$P");
+        if (x == null) return 1.0;
+        return x.asDouble();
         
     }
     
@@ -62,7 +64,9 @@ public class SMTest {
         re.eval("M = matrix(M, 3, 2)");
         REXP e = re.eval("MS.test(M, seq(3), reps=1)$P");
         System.out.println(e.asDouble());
-       
+        
+        SMTest t = new SMTest(3, 3, new Double[][] {{1.0,2.0,3.0}, {2.0, 2.0, null}, {3.0, null, null}}, re);
+        System.out.println(t.pValue());
         
         re.end();
     }
