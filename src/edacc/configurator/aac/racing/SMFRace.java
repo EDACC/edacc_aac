@@ -251,7 +251,7 @@ public class SMFRace extends RacingMethods {
                 int k = raceConfigurations.size() - 1;
                 for (SolverConfiguration sc: sortedpValueByConfiguration.keySet()) {
                     if (sortedpValueByConfiguration.get(sc).doubleValue() < alpha / (float)k) {
-                        pacc.log("Removing configuration " + sc.getIdSolverConfiguration() + " from race, Cost: " + sc.getCost() + " vs. best Cost: " + bestConfiguration.getCost());
+                        pacc.log("Removing configuration " + sc.getIdSolverConfiguration() + " from race, Cost: " + sc.getCost() + " vs. best Cost: " + bestConfiguration.getCost() + " p-value: " + sortedpValueByConfiguration.get(sc).doubleValue());
                         raceConfigurations.remove(sc);
                         k--;
                     } else {
@@ -292,7 +292,7 @@ public class SMFRace extends RacingMethods {
                     int numJobs = solverConfig.getJobs().size();
                     if (numJobs == level + 1 && level + 1 < parameters.getMaxParcoursExpansionFactor() * num_instances) {
                         // this SC needs a new job
-                        pacc.expandParcoursSC(solverConfig, 1);
+                        pacc.expandParcoursSC(solverConfig, 1, parameters.getMaxParcoursExpansionFactor() * num_instances - level);
                         numAvailableCores--;
                         createdJobs = true;
                     }
@@ -344,7 +344,7 @@ public class SMFRace extends RacingMethods {
         round = 1;
         for (SolverConfiguration solverConfig : raceConfigurations) {
             solverConfig.setFinished(false);
-            pacc.expandParcoursSC(solverConfig, Math.max(0, initialRaceRuns - solverConfig.getNumFinishedJobs()));
+            pacc.expandParcoursSC(solverConfig, Math.max(0, initialRaceRuns - solverConfig.getNumFinishedJobs()), parameters.getMaxParcoursExpansionFactor() * num_instances);
             pacc.addSolverConfigurationToListNewSC(solverConfig);
             solverConfig.setNameRacing((referenceSCs.contains(solverConfig) ? "REF-":"") + starts + "-" + race + "-" + round);
         }
