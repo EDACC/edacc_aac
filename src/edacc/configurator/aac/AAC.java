@@ -709,6 +709,15 @@ public class AAC {
 	public boolean listNewSCContains(SolverConfiguration sc) {
 		return listNewSC.containsKey(sc.getIdSolverConfiguration());
 	}
+	
+	/**
+	 * information about all recent solver configurations with running jobs or jobs waiting for execution
+	 * 
+	 * @return a map where the solver configuration ID references the related solver configuration
+	 */
+	public HashMap<Integer, SolverConfiguration> returnListNewSC() {
+		return listNewSC;
+	}
 
 	/**
 	 * Parses the configuration file and starts the configurator.
