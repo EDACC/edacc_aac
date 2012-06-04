@@ -1,5 +1,6 @@
 package edacc.configurator.math;
 
+import org.apache.commons.math.MathException;
 import org.rosuda.JRI.REXP;
 import org.rosuda.JRI.Rengine;
 
@@ -39,6 +40,7 @@ public class SMTest {
     public double pValue() {
         rengine.assign("SMTestData", linearizedData);
         rengine.eval("SMTestData <- data.frame(matrix(SMTestData, nrow=" + n + ", ncol=" + c + ", byrow=T))");
+        
         // throw out columns with less than 2 observations
         rengine.eval("SMTestData <- SMTestData[, apply(SMTestData, 2, function(x) sum(!is.na(x)) > (length(x) / 2))]");
         REXP x = rengine.eval("if (ncol(SMTestData) == 0) 1.0 else MS.test(SMTestData, seq("+ n + "), reps=1)$P");

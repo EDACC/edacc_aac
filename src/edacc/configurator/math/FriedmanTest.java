@@ -1,5 +1,7 @@
 package edacc.configurator.math;
 
+import java.util.List;
+
 import org.apache.commons.math.MathException;
 import org.apache.commons.math.distribution.ChiSquaredDistribution;
 import org.apache.commons.math.distribution.ChiSquaredDistributionImpl;
@@ -9,7 +11,15 @@ import org.apache.commons.math.stat.ranking.NaNStrategy;
 import org.apache.commons.math.stat.ranking.NaturalRanking;
 import org.apache.commons.math.stat.ranking.TiesStrategy;
 
-public class FriedmanTest {
+import edacc.configurator.aac.SolverConfiguration;
+
+/**
+ * Friedman family-wise test for significant differences.
+ * 
+ * @author daniel
+ *
+ */
+public class FriedmanTest implements FamilyTest {
     private double[][] ranks;
     private double[] rankSums;
     private int m, k;
@@ -27,20 +37,50 @@ public class FriedmanTest {
      *            n x c matrix of the observed values
      */
     public FriedmanTest(int n, int c, double[][] data) {
-        ranks = new double[n][c];
+        boolean[] missingRow = new boolean[n];
+        int numMissingRows = 0;
+        for (int j = 0; j < n; j++) missingRow[j] = false; 
+        
+        for (int j = 0; j < n; j++) {
+            for (int i = 0; i < c; i++) {
+                if (Double.isNaN(data[j][i])) {
+                    missingRow[j] = true; 
+                    numMissingRows++;
+                    break;
+                }
+            }
+        }
+        
+        ranks = new double[n - numMissingRows][c];
         rankSums = new double[c];
 
         NaturalRanking ranking = new NaturalRanking(NaNStrategy.MAXIMAL, TiesStrategy.AVERAGE);
+        int row = 0;
         for (int i = 0; i < n; i++) {
+            if (missingRow[i]) continue;
             double[] rankedData = ranking.rank(data[i]);
             for (int j = 0; j < c; j++) {
-                ranks[i][j] = rankedData[j];
+                ranks[row][j] = rankedData[j];
                 rankSums[j] += rankedData[j];
             }
+            
+            row++;
         }
+        
+
+        /*System.out.println("Friedman test will be calculated on:");
+        StringBuilder out = new StringBuilder();
+        out.append("\n");
+        for (int i = 0; i < ranks.length; i++) {
+            for (int j = 0; j < ranks[i].length; j++) {
+                out.append(String.format("%5.4f ", ranks[i][j]));
+            }
+            out.append("\n");
+        }
+        System.out.println(out.toString());*/
 
         m = c;
-        k = n;
+        k = n - numMissingRows;
     }
 
     /**
@@ -49,6 +89,8 @@ public class FriedmanTest {
      * @return
      */
     public double familyTestStatistic() {
+        if (k == 0 || m == 0) return 0;
+        
         double sum = 0;
         for (int j = 0; j < m; j++)
             sum += (rankSums[j] - (k * (m + 1)) / 2.0) * (rankSums[j] - (k * (m + 1)) / 2.0);
@@ -76,6 +118,11 @@ public class FriedmanTest {
         ChiSquaredDistribution XS = new ChiSquaredDistributionImpl(m - 1);
         //System.out.println("T-value: " + T + " >? Quantile: " + XS.inverseCumulativeProbability(1.0 - alpha));
         return T > XS.inverseCumulativeProbability(1.0 - alpha);
+    }
+    
+    public double criticalValue(double alpha) throws MathException {
+        ChiSquaredDistribution XS = new ChiSquaredDistributionImpl(m - 1);
+        return XS.inverseCumulativeProbability(1.0 - alpha);
     }
 
     /**
