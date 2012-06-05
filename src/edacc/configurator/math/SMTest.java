@@ -67,7 +67,7 @@ public class SMTest {
         REXP e = re.eval("MS.test(M, seq(3), reps=1)$P");
         System.out.println(e.asDouble());
         
-        SMTest t = new SMTest(3, 3, new Double[][] {{1.0,2.0,3.0}, {2.0, 2.0, null}, {3.0, null, null}}, re);
+        SMTest t = new SMTest(3, 3, new Double[][] {{1.0,2.0,3.0}, {2.0, 2.0, 4.0}, {3.0, 3.0, 1.0}}, re);
         System.out.println(t.pValue());
         
         re.end();
