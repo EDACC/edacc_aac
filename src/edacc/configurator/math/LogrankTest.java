@@ -16,7 +16,7 @@ public class LogrankTest {
         this.rengine = rengine;
     }
 
-    public double pValue(Double[] x, Double[] y, boolean[] x_censored, boolean[] y_censored) {
+    public double pValue(double[] x, double[] y, boolean[] x_censored, boolean[] y_censored) {
         if (x.length != y.length) {
             throw new IllegalArgumentException("x and y have to be of the same length.");
         }
@@ -25,8 +25,8 @@ public class LogrankTest {
         int[] combinedCensored = new int[x.length + y.length];
 
         for (int i = 0; i < x.length; i++) {
-            combinedData[i] = x[i] == null ? Double.NaN : x[i];
-            combinedData[x.length + i] = y[i] == null ? Double.NaN : y[i];
+            combinedData[i] = x[i];
+            combinedData[x.length + i] = y[i];
             group[i] = 1;
             group[x.length + i] = 2;
             combinedCensored[i] = x_censored[i] ? 0 : 1;
@@ -55,7 +55,7 @@ public class LogrankTest {
         }
 
         LogrankTest lr = new LogrankTest(rengine);
-        System.out.println(lr.pValue(new Double[] { 1.01, 2.01, 3.0, null, 2.0 }, new Double[] { 10.0, 7.0, null,
+        System.out.println(lr.pValue(new double[] { 1.01, 2.01, 3.0, Double.NaN, 2.0 }, new double[] { 10.0, 7.0, Double.NaN,
                 6.0, 10.0 }, new boolean[] { false, false, false, false, false },
                 new boolean[] { true, false, false, false, true }));
 

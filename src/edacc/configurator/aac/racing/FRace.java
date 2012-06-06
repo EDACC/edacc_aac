@@ -156,7 +156,6 @@ public class FRace extends RacingMethods {
                 
                 FriedmanTest friedmanTest = new FriedmanTest(courseResults.size(), raceConfigurations.size(), data);
                 double T = friedmanTest.familyTestStatistic();
-    
                 if (friedmanTest.isFamilyTestSignificant(T, alpha)) {
                     // there is evidence that there is at least one solver
                     // configuration that is significantly different from the others
@@ -257,6 +256,11 @@ public class FRace extends RacingMethods {
         initialRaceConfigurations.addAll(scs);
         raceConfigurations.addAll(referenceSCs);
         initialRaceConfigurations.addAll(referenceSCs);
+        if (race == 0) {
+            raceConfigurations.addAll(firstSCs);
+            initialRaceConfigurations.addAll(firstSCs);
+        }
+        
         lastRoundCost.clear();
         boolean allNewSCs = true;
         for (SolverConfiguration solverConfig: scs) {

@@ -4,13 +4,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
-import java.util.TreeMap;
 
 import org.apache.commons.math3.stat.inference.WilcoxonSignedRankTest;
 import org.rosuda.JRI.Rengine;
@@ -19,29 +17,31 @@ import edacc.api.API;
 import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
+import edacc.configurator.math.FamilyTest;
 import edacc.configurator.math.FriedmanTest;
 import edacc.configurator.math.LogrankTest;
-import edacc.configurator.math.SMTest;
+import edacc.configurator.math.RankTransformationTest;
 import edacc.model.ExperimentResult;
-
+import edacc.model.StatusCode;
 
 /**
- * SMFRace configuration racing method.
- * See
+ * SMFRace configuration racing method. See
  * "On the use of a Friedman-type statistic in balanced and unbalanced block designs. by Skillings JH, Mack GA."
- * and 
- * "F-Race and iterated F-Race: An overview" by Birattari, Yuan, Balaprakash and Stützle.
+ * and "F-Race and iterated F-Race: An overview" by Birattari, Yuan, Balaprakash
+ * and Stützle.
  * 
- * Each configuration in the race is evaluated on the same course of instances. As soon as
- * a family-wise Skillings-Mack test indicates that at least one configuration is significantly different
- * from at least one other, every configuration that is determined to be worse in a pairwise comparison
- * with the currently best configuration is removed from the race. All surviving configurations are
- * further evaluated until <code>min_survive</code> configurations remain at which point the race is over.
+ * Each configuration in the race is evaluated on the same course of instances.
+ * As soon as a family-wise Skillings-Mack test indicates that at least one
+ * configuration is significantly different from at least one other, every
+ * configuration that is determined to be worse in a pairwise comparison with
+ * the currently best configuration is removed from the race. All surviving
+ * configurations are further evaluated until <code>min_survive</code>
+ * configurations remain at which point the race is over.
  * 
  * TODO: make it work
  * 
  * @author daniel
- *
+ * 
  */
 public class SMFRace extends RacingMethods {
     private int num_instances;
@@ -49,6 +49,7 @@ public class SMFRace extends RacingMethods {
     private List<SolverConfiguration> curFinishedConfigurations;
     private List<SolverConfiguration> initialRaceConfigurations;
     private List<SolverConfiguration> raceSurvivors;
+    private List<SolverConfiguration> incumbents;
     private Map<Integer, Map<SolverConfiguration, ExperimentResult>> courseResults;
     private Map<SolverConfiguration, Float> lastRoundCost;
     private SolverConfiguration bestSC = null;
@@ -56,13 +57,12 @@ public class SMFRace extends RacingMethods {
     private int starts = 0;
     private int race = 0;
     private int round = 0;
-    
+
     private Rengine rengine;
-    
+
     private int initialRaceRuns;
     private int Nmin;
     private int numRaceConfigurations;
-    
 
     // parameters
     double alpha = 0.05; // significance level alpha
@@ -70,33 +70,35 @@ public class SMFRace extends RacingMethods {
     double initialRunsFactor = 0.05;
     double numRaceConfigurationsFactor = 10;
     int CPUFactor = 1;
-    
-    public SMFRace(AAC pacc, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
+
+    public SMFRace(AAC pacc, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs,
+            List<SolverConfiguration> referenceSCs) throws Exception {
         super(pacc, rng, api, parameters, firstSCs, referenceSCs);
         this.num_instances = api.getCourse(parameters.getIdExperiment()).getInitialLength();
         this.raceConfigurations = new ArrayList<SolverConfiguration>();
         this.initialRaceConfigurations = new ArrayList<SolverConfiguration>();
         this.curFinishedConfigurations = new ArrayList<SolverConfiguration>();
+        this.incumbents = new ArrayList<SolverConfiguration>();
         this.courseResults = new HashMap<Integer, Map<SolverConfiguration, ExperimentResult>>();
         this.raceSurvivors = new ArrayList<SolverConfiguration>();
         this.lastRoundCost = new HashMap<SolverConfiguration, Float>();
-        
-        rengine = new Rengine(new String[]{"--vanilla"}, false, null);
-        
+
+        rengine = new Rengine(new String[] { "--vanilla" }, false, null);
+
         if (!rengine.waitForR()) {
             throw new Exception("Could not initialize Rengine");
         }
-        
+
         if (rengine.eval("library(asbio)") == null) {
             rengine.end();
             throw new Exception("Did not find R library asbio (try running install.packages(\"asbio\")).");
         }
-        
+
         if (rengine.eval("library(survival)") == null) {
             rengine.end();
             throw new Exception("Did not find R library survival (should come with R though).");
         }
-        
+
         String val;
         if ((val = parameters.getRacingMethodParameters().get("SMFRace_alpha")) != null)
             this.alpha = Double.parseDouble(val);
@@ -108,57 +110,64 @@ public class SMFRace extends RacingMethods {
             this.numRaceConfigurationsFactor = Double.parseDouble(val);
         if ((val = parameters.getRacingMethodParameters().get("SMFRace_CPUFactor")) != null)
             this.CPUFactor = Integer.parseInt(val);
-        
+
         this.Nmin = (int) Math.round(NminFactor * api.getConfigurableParameters(parameters.getIdExperiment()).size());
         this.initialRaceRuns = (int) Math.max(1, Math.round(initialRunsFactor * num_instances));
-        this.numRaceConfigurations = (int) Math.max(1, Math.round(numRaceConfigurationsFactor * api.getConfigurableParameters(parameters.getIdExperiment()).size()));
+        this.numRaceConfigurations = (int) Math.max(1,
+                Math.round(numRaceConfigurationsFactor * api.getConfigurableParameters(parameters.getIdExperiment()).size()));
     }
 
     @Override
     public int compareTo(SolverConfiguration sc1, SolverConfiguration sc2) {
         this.numCompCalls++;
-        return sc1.compareTo(sc2); // this isn't actually used within FRace but let's provide it for other search procedures
+        return sc1.compareTo(sc2); // this isn't actually used within FRace but
+                                   // let's provide it for other search
+                                   // procedures
     }
 
     @Override
     public List<SolverConfiguration> getBestSolverConfigurations() {
-    	// TODO: sort solver configs
+        // TODO: sort solver configs
         return getRaceSurvivors();
     }
 
     @Override
     public void solverConfigurationsFinished(List<SolverConfiguration> scs) throws Exception {
         curFinishedConfigurations.addAll(scs);
-        
+
         for (SolverConfiguration solverConfig : raceConfigurations) {
             int i = 0; // course entry number
             for (ExperimentResult run : api.getRuns(parameters.getIdExperiment(), solverConfig.getIdSolverConfiguration())) {
-                if (i > level) break; // only consider runs up until the current level (already existing configurations might have more)
+                if (i > level)
+                    break; // only consider runs up until the current level
+                           // (already existing configurations might have more)
                 if (!courseResults.containsKey(i)) {
                     courseResults.put(i, new HashMap<SolverConfiguration, ExperimentResult>());
                 }
                 if (run.getStatus().getStatusCode() >= 1) {
                     courseResults.get(i).put(solverConfig, run);
-                }
-                else {
+                } else {
                     // missing values are null
                     courseResults.get(i).put(solverConfig, null);
                 }
                 i += 1;
             }
         }
-        
+
         if (curFinishedConfigurations.containsAll(raceConfigurations) && raceConfigurations.size() == 2) {
-            // if only 2 configurations remain perform a wilcoxon signed-rank test because it is more powerful
+            // if only 2 configurations remain perform a wilcoxon signed-rank
+            // test because it is more powerful
             // than a friedman test
             pacc.log("Only 2 configurations remaining, perform wilcoxon signed-rank test.");
             double[] c1 = new double[courseResults.size()];
             double[] c2 = new double[courseResults.size()];
             for (int i = 0; i < courseResults.size(); i++) {
-                c1[i] = parameters.getStatistics().getCostFunction().singleCost(courseResults.get(i).get(raceConfigurations.get(0)));
-                c2[i] = parameters.getStatistics().getCostFunction().singleCost(courseResults.get(i).get(raceConfigurations.get(1)));
+                c1[i] = parameters.getStatistics().getCostFunction()
+                        .singleCost(courseResults.get(i).get(raceConfigurations.get(0)));
+                c2[i] = parameters.getStatistics().getCostFunction()
+                        .singleCost(courseResults.get(i).get(raceConfigurations.get(1)));
             }
-            
+
             WilcoxonSignedRankTest wtest = new WilcoxonSignedRankTest();
             if (wtest.wilcoxonSignedRankTest(c1, c2, false) < alpha) {
                 if (raceConfigurations.get(0).compareTo(raceConfigurations.get(1)) == 1) {
@@ -170,22 +179,32 @@ public class SMFRace extends RacingMethods {
                 pacc.log("wilcoxon signed-rank test didn't find a significant difference between the two solver configurations");
             }
         } else {
-            
-            Double[][] data = new Double[courseResults.size()][raceConfigurations.size()];
+
+            boolean[][] censored = new boolean[courseResults.size()][raceConfigurations.size()];
+            double[][] data = new double[courseResults.size()][raceConfigurations.size()];
             for (int i = 0; i < courseResults.size(); i++) {
                 for (int j = 0; j < raceConfigurations.size(); j++) {
                     if (courseResults.get(i).get(raceConfigurations.get(j)) == null)
-                        data[i][j] = null;
-                    else 
-                        data[i][j] = Double.valueOf(parameters.getStatistics().getCostFunction().singleCost(courseResults.get(i).get(raceConfigurations.get(j))));
+                        data[i][j] = Double.NaN;
+                    else {
+                        data[i][j] = Double.valueOf(parameters.getStatistics().getCostFunction()
+                                .singleCost(courseResults.get(i).get(raceConfigurations.get(j))));
+                        censored[i][j] = courseResults.get(i).get(raceConfigurations.get(j)).getStatus()
+                                .equals(StatusCode.TIMELIMIT);
+                    }
                 }
             }
-            
-            SMTest smTest = new SMTest(courseResults.size(), raceConfigurations.size(), data, rengine);
-            double pValue = smTest.pValue();
-            pacc.log("Performing SM-test, p-value: " + pValue);
-            if (pValue < alpha) {
-                pacc.log("SM-Test indicates significant differences between some solver configurations");
+
+            pacc.log("Performing F-Test based on:");
+            logDataMatrix(raceConfigurations, data);
+
+            FamilyTest fmt = new RankTransformationTest(courseResults.size(), raceConfigurations.size(), data, censored);
+            // SMTest smTest = new SMTest(courseResults.size(),
+            // raceConfigurations.size(), data, rengine);
+            // double pValue = smTest.pValue();
+            // pacc.log("Performing SM-test, p-value: " + pValue);
+            pacc.log("Statistic: " + fmt.familyTestStatistic() + ", critical Value: " + fmt.criticalValue(alpha));
+            if (fmt.isFamilyTestSignificant(fmt.familyTestStatistic(), alpha)) {
                 // there is evidence that there is at least one solver
                 // configuration that is significantly different from the others
                 // find the best one, do pairwise comparisons and remove those
@@ -200,58 +219,98 @@ public class SMFRace extends RacingMethods {
                     this.bestSC = bestConfiguration;
                 }
 
-                
                 int bestConfigurationIx = raceConfigurations.indexOf(bestConfiguration);
-                Map<SolverConfiguration, Double> pValueByConfiguration = new HashMap<SolverConfiguration, Double>(); 
-                
-                pacc.log("Best solver configuration: " + bestConfiguration.getName() + "("+bestConfiguration.getIdSolverConfiguration()+")");
-                
-                Double[] x = new Double[courseResults.size()];
+                Map<SolverConfiguration, Double> pValueByConfiguration = new HashMap<SolverConfiguration, Double>();
+
+                pacc.log("Best solver configuration in current race: " + bestConfiguration.getIdSolverConfiguration()
+                        + " with cost: " + bestConfiguration.getCost());
+
+                int bestConfigEvaluations = bestConfiguration.getJobCount();
+                boolean expandBest = false;
+
+                double[] x = new double[courseResults.size()];
                 boolean[] x_censored = new boolean[courseResults.size()];
                 for (int i = 0; i < courseResults.size(); i++) {
                     if (courseResults.get(i).get(bestConfiguration) == null) {
-                        x[i] = null;
+                        x[i] = Double.NaN;
                         x_censored[i] = false;
-                    }
-                    else {
-                        x[i] = Double.valueOf(parameters.getStatistics().getCostFunction().singleCost(courseResults.get(i).get(bestConfiguration)));
+                    } else {
+                        x[i] = Double.valueOf(parameters.getStatistics().getCostFunction()
+                                .singleCost(courseResults.get(i).get(bestConfiguration)));
                         x_censored[i] = !courseResults.get(i).get(bestConfiguration).getResultCode().isCorrect();
                     }
                 }
-                
+
+                List<SolverConfiguration> worseConfigs = new LinkedList<SolverConfiguration>();
+
                 for (int j = 0; j < raceConfigurations.size(); j++) {
-                    if (j == bestConfigurationIx) 
+                    if (j == bestConfigurationIx)
                         continue;
 
-                    // calculate post hoc test between the two solver
-                    // configuration results
+                    /*if (fmt.isPostHocTestSignificant(fmt.postHocTestStatistic(bestConfigurationIx, j, fmt.familyTestStatistic()),
+                            alpha)) {
+                        SolverConfiguration worseConfig = raceConfigurations.get(j);
+                        if (incumbents.contains(worseConfig)) {
+                            // worseConfig is an incumbent. Protect it from
+                            // early elimination, if it has more jobs than the
+                            // bestConfiguration
+                            System.out.println("Comparing best configuration against an incumbent "
+                                    + worseConfig.getIdSolverConfiguration());
+                            if (bestConfigEvaluations < worseConfig.getJobCount()) {
+                                expandBest = true;
+                                pacc.log("Post hoc test indicates significant differences but the loser configuration is an incumbent with more evaluations so it stays in the race.");
+                                continue;
+                            }
+                        }
+                        System.out.println("Post hoc test indicates " + (incumbents.contains(worseConfig) ? "INCUMBENT" : "")
+                                + " configuration " + worseConfig.getIdSolverConfiguration() + " is sig. worse, cost: "
+                                + worseConfig.getCost());
+                        worseConfig.setFinished(true);
+                        for (ExperimentResult run : worseConfig.getJobs()) {
+                            // (try to) prevent evaluation of unnecessary runs
+                            if (run.getStatus().equals(StatusCode.NOT_STARTED))
+                                api.setJobPriority(run.getId(), -1);
+                        }
+                        worseConfigs.add(worseConfig);
+                    }*/
 
-                    Double[] y = new Double[courseResults.size()];
+                    double[] y = new double[courseResults.size()];
                     boolean[] y_censored = new boolean[courseResults.size()];
-                    
+
                     for (int i = 0; i < courseResults.size(); i++) {
                         if (courseResults.get(i).get(raceConfigurations.get(j)) == null) {
-                            y[i] = null;
+                            y[i] = Double.NaN;
                             y_censored[i] = false;
-                        }
-                        else { 
-                            y[i] = Double.valueOf(parameters.getStatistics().getCostFunction().singleCost(courseResults.get(i).get(raceConfigurations.get(j))));
+                        } else {
+                            y[i] = Double.valueOf(parameters.getStatistics().getCostFunction()
+                                    .singleCost(courseResults.get(i).get(raceConfigurations.get(j))));
                             y_censored[i] = !courseResults.get(i).get(raceConfigurations.get(j)).getResultCode().isCorrect();
-                        }                        
+                        }
                     }
-                    
+
                     LogrankTest lr = new LogrankTest(rengine);
                     double lr_pvalue = lr.pValue(x, y, x_censored, y_censored);
                     pValueByConfiguration.put(raceConfigurations.get(j), lr_pvalue);
+
                 }
-                
-                
+
                 Map<SolverConfiguration, Double> sortedpValueByConfiguration = sortByValue(pValueByConfiguration);
-                // Holm-Bonferroni method
                 int k = raceConfigurations.size() - 1;
-                for (SolverConfiguration sc: sortedpValueByConfiguration.keySet()) {
-                    if (sortedpValueByConfiguration.get(sc).doubleValue() < alpha / (float)k) {
-                        pacc.log("Removing configuration " + sc.getIdSolverConfiguration() + " from race, Cost: " + sc.getCost() + " vs. best Cost: " + bestConfiguration.getCost() + " p-value: " + sortedpValueByConfiguration.get(sc).doubleValue());
+                for (SolverConfiguration sc : sortedpValueByConfiguration.keySet()) {
+                    if (sortedpValueByConfiguration.get(sc).doubleValue() < alpha / (float) k) {
+                        SolverConfiguration worseConfig = sc;
+                        if (incumbents.contains(worseConfig)) {
+                            System.out.println("Comparing best configuration against an incumbent "
+                                    + worseConfig.getIdSolverConfiguration());
+                            if (bestConfigEvaluations < worseConfig.getJobCount()) {
+                                expandBest = true;
+                                pacc.log("Post hoc test indicates significant differences but the loser configuration is an incumbent with more evaluations so it stays in the race.");
+                                continue;
+                            }
+                        }
+                        
+                        pacc.log("Removing configuration " + sc.getIdSolverConfiguration() + " from race, Cost: " + sc.getCost()
+                                + ", p-value: " + sortedpValueByConfiguration.get(sc).doubleValue());
                         raceConfigurations.remove(sc);
                         k--;
                     } else {
@@ -259,20 +318,33 @@ public class SMFRace extends RacingMethods {
                     }
                 }
 
-                
+                if (expandBest) {
+                    int maxIncumbentEvaluations = 0;
+                    for (SolverConfiguration sc : raceConfigurations) {
+                        if (incumbents.contains(sc)) {
+                            maxIncumbentEvaluations = Math.max(maxIncumbentEvaluations, sc.getJobCount());
+                        }
+                    }
+                    pacc.expandParcoursSC(bestConfiguration,
+                            Math.min(2 * bestConfiguration.getJobCount(), maxIncumbentEvaluations));
+                }
+
+                raceConfigurations.removeAll(worseConfigs);
+                incumbents.removeAll(worseConfigs);
             } else {
                 pacc.log("family-wise comparison test indicated no significant differences between the configurations");
             }
-            
+
             if (raceConfigurations.size() <= this.Nmin) {
-                // end of race since there are less than the required amount of configurations remaining
+                // end of race since there are less than the required amount of
+                // configurations remaining
                 pacc.log("Terminating race because minimum number of remaining candidates was reached");
                 terminateRace();
                 return;
             }
         }
-        
-        if (level+1 >= parameters.getMaxParcoursExpansionFactor() * num_instances) {
+
+        if (level + 1 >= parameters.getMaxParcoursExpansionFactor() * num_instances) {
             // only terminate when all jobs are finished
             pacc.log("Exceeded maximum number of runs per solver config");
             terminateRace();
@@ -281,7 +353,7 @@ public class SMFRace extends RacingMethods {
 
         if (api.getComputationJobCount(parameters.getIdExperiment()) < api.getComputationCoreCount(parameters.getIdExperiment())) {
             // if there are free cores we add more jobs
-            int numAvailableCores = Math.max(1, this.CPUFactor * api.getComputationCoreCount(parameters.getIdExperiment())); // make sure there's at least one iteration
+            int numAvailableCores = Math.max(1, this.CPUFactor * api.getComputationCoreCount(parameters.getIdExperiment()));
             pacc.log("c Using " + numAvailableCores + " cores to generate new jobs");
             boolean firstRound = true;
             boolean createdJobs = true;
@@ -292,7 +364,8 @@ public class SMFRace extends RacingMethods {
                     int numJobs = solverConfig.getJobs().size();
                     if (numJobs == level + 1 && level + 1 < parameters.getMaxParcoursExpansionFactor() * num_instances) {
                         // this SC needs a new job
-                        pacc.expandParcoursSC(solverConfig, 1, parameters.getMaxParcoursExpansionFactor() * num_instances - level);
+                        pacc.expandParcoursSC(solverConfig, 1, parameters.getMaxParcoursExpansionFactor() * num_instances
+                                - solverConfig.getJobCount());
                         numAvailableCores--;
                         createdJobs = true;
                     }
@@ -310,8 +383,9 @@ public class SMFRace extends RacingMethods {
                 }
             }
             round += 1;
-            for (SolverConfiguration solverConfig: raceConfigurations) {
-                solverConfig.setNameRacing((referenceSCs.contains(solverConfig) ? "REF-":"") + starts + "-" + race + "-" + round);
+            for (SolverConfiguration solverConfig : raceConfigurations) {
+                solverConfig.setNameRacing((referenceSCs.contains(solverConfig) ? "REF-" : "")
+                        + (incumbents.contains(solverConfig) ? "INC-" : "") + +starts + "-" + race + "-" + round);
             }
         }
         if (curFinishedConfigurations.containsAll(raceConfigurations)) {
@@ -329,12 +403,22 @@ public class SMFRace extends RacingMethods {
         raceConfigurations.addAll(scs);
         initialRaceConfigurations.addAll(scs);
         raceConfigurations.addAll(referenceSCs);
+        incumbents.clear();
         initialRaceConfigurations.addAll(referenceSCs);
+        if (race == 0) {
+            raceConfigurations.addAll(firstSCs);
+            initialRaceConfigurations.addAll(firstSCs);
+        }
         lastRoundCost.clear();
         boolean allNewSCs = true;
-        for (SolverConfiguration solverConfig: scs) {
+        for (SolverConfiguration solverConfig : scs) {
             // don't consider reference configs
             allNewSCs &= !referenceSCs.contains(solverConfig) && solverConfig.getNumFinishedJobs() == 0;
+            // all configurations that were already evaluated in previous races
+            // are considered to be incumbents
+            if (!referenceSCs.contains(solverConfig) && solverConfig.getNumFinishedJobs() > 0) {
+                incumbents.add(solverConfig);
+            }
         }
         if (allNewSCs) {
             starts += 1;
@@ -344,28 +428,43 @@ public class SMFRace extends RacingMethods {
         round = 1;
         for (SolverConfiguration solverConfig : raceConfigurations) {
             solverConfig.setFinished(false);
-            pacc.expandParcoursSC(solverConfig, Math.max(0, initialRaceRuns - solverConfig.getNumFinishedJobs()), parameters.getMaxParcoursExpansionFactor() * num_instances);
+            pacc.expandParcoursSC(solverConfig, initialRaceRuns, parameters.getMaxParcoursExpansionFactor() * num_instances);
             pacc.addSolverConfigurationToListNewSC(solverConfig);
-            solverConfig.setNameRacing((referenceSCs.contains(solverConfig) ? "REF-":"") + starts + "-" + race + "-" + round);
+            solverConfig.setNameRacing((referenceSCs.contains(solverConfig) ? "REF-" : "")
+                    + (incumbents.contains(solverConfig) ? "INC-" : "") + starts + "-" + race + "-" + round);
         }
         level = initialRaceRuns - 1;
-        pacc.log("c Starting new race with " + scs.size() + " solver configurations and " + referenceSCs.size() + " reference configurations");
+        pacc.log("c Starting new race with " + scs.size() + " solver configurations and " + referenceSCs.size()
+                + " reference configurations");
     }
 
     @Override
     public int computeOptimalExpansion(int computationCoreCount, int computationJobCount, int listNewSCSize) {
-        if (raceConfigurations.isEmpty()) return this.numRaceConfigurations;
-        else return 0; // race ongoing, don't create any new
+        if (raceConfigurations.isEmpty())
+            return this.numRaceConfigurations;
+        else
+            return 0; // race ongoing, don't create any new
     }
 
     @Override
     public void listParameters() {
         System.out.println("--- SMFRace parameters ---");
-        System.out.println("SMFRace_alpha = "+this.alpha+ " (Significance level alpha used in the statistical hypothesis tests)");
-        System.out.println("SMFRace_NminFactor = " + this.NminFactor + " (#Solver configurations at most to survive a race: round(NminFactor * #configurable parameters) )");
-        System.out.println("SMFRace_initialRunsFactor = " + this.initialRunsFactor + " (How many runs each configuration should get at the start of the race: round(initialRunsFactor * #instances) )");
-        System.out.println("SMFRace_numRaceConfigurationsFactor = " + this.numRaceConfigurationsFactor + " (How many solver configurations should the racing method request from the search method: round(numRaceConfigurationsFactor * #parameters) )");
-        System.out.println("SMFRace_CPUFactor = " + this.CPUFactor + " (number of jobs to generate each round: at least 1 for each racing configuration, at most in total CPUFactor * #available cores)");
+        System.out.println("SMFRace_alpha = " + this.alpha
+                + " (Significance level alpha used in the statistical hypothesis tests)");
+        System.out.println("SMFRace_NminFactor = " + this.NminFactor
+                + " (#Solver configurations at most to survive a race: round(NminFactor * #configurable parameters) )");
+        System.out
+                .println("SMFRace_initialRunsFactor = "
+                        + this.initialRunsFactor
+                        + " (How many runs each configuration should get at the start of the race: round(initialRunsFactor * #instances) )");
+        System.out
+                .println("SMFRace_numRaceConfigurationsFactor = "
+                        + this.numRaceConfigurationsFactor
+                        + " (How many solver configurations should the racing method request from the search method: round(numRaceConfigurationsFactor * #parameters) )");
+        System.out
+                .println("SMFRace_CPUFactor = "
+                        + this.CPUFactor
+                        + " (number of jobs to generate each round: at least 1 for each racing configuration, at most in total CPUFactor * #available cores)");
         System.out.println("-----------------------\n");
     }
 
@@ -373,23 +472,25 @@ public class SMFRace extends RacingMethods {
     public String toString() {
         return "\nSMFRace racing method\n";
     }
-    
+
     private void terminateRace() {
         pacc.log("The race ended with the following configurations remaining:");
-        for (SolverConfiguration solverConfig: raceConfigurations) {
+        for (SolverConfiguration solverConfig : raceConfigurations) {
             solverConfig.setFinished(true);
             pacc.log(solverConfig.getName() + " ID: " + solverConfig.getIdSolverConfiguration() + " - " + solverConfig.getCost());
         }
         raceSurvivors.addAll(raceConfigurations);
-        
+
         Collections.sort(raceSurvivors); // lowest cost last
-        
+
         while (raceSurvivors.size() > Nmin)
-        	raceSurvivors.remove(0);
-        
-        raceConfigurations.clear(); // this will end the race, since the next computeOptimalExpansion call will trigger the call to solverConfigurations created
+            raceSurvivors.remove(0);
+
+        raceConfigurations.clear(); // this will end the race, since the next
+                                    // computeOptimalExpansion call will trigger
+                                    // the call to solverConfigurations created
     }
-    
+
     public List<SolverConfiguration> getRaceSurvivors() {
         if (raceSurvivors.size() > 0) {
             pacc.log("getBestSolverConfigurations() called - Removing reference solvers from race survivors");
@@ -403,43 +504,50 @@ public class SMFRace extends RacingMethods {
     public int getNmin() {
         return this.Nmin;
     }
-    
+
     public int getNumRaceConfigurations() {
         return this.numRaceConfigurations;
     }
 
-	@Override
-	public void stopEvaluation(List<SolverConfiguration> scs) throws Exception {
-		// TODO Auto-generated method stub
-		
-	}
-	
-    private static <K, V extends Comparable<? super V>> Map<K, V> 
-        sortByValue( Map<K, V> map )
-    {
-        List<Map.Entry<K, V>> list =
-            new LinkedList<Map.Entry<K, V>>( map.entrySet() );
-        Collections.sort( list, new Comparator<Map.Entry<K, V>>()
-        {
-            public int compare( Map.Entry<K, V> o1, Map.Entry<K, V> o2 )
-            {
-                return (o1.getValue()).compareTo( o2.getValue() );
+    @Override
+    public void stopEvaluation(List<SolverConfiguration> scs) throws Exception {
+        // TODO Auto-generated method stub
+
+    }
+
+    private static <K, V extends Comparable<? super V>> Map<K, V> sortByValue(Map<K, V> map) {
+        List<Map.Entry<K, V>> list = new LinkedList<Map.Entry<K, V>>(map.entrySet());
+        Collections.sort(list, new Comparator<Map.Entry<K, V>>() {
+            public int compare(Map.Entry<K, V> o1, Map.Entry<K, V> o2) {
+                return (o1.getValue()).compareTo(o2.getValue());
             }
-        } );
+        });
 
         Map<K, V> result = new LinkedHashMap<K, V>();
-        for (Map.Entry<K, V> entry : list)
-        {
-            result.put( entry.getKey(), entry.getValue() );
+        for (Map.Entry<K, V> entry : list) {
+            result.put(entry.getKey(), entry.getValue());
         }
         return result;
     }
 
+    private void logDataMatrix(List<SolverConfiguration> scs, double[][] data) {
+        StringBuilder out = new StringBuilder();
+        // for (SolverConfiguration sc: scs)
+        // out.append(sc.getIdSolverConfiguration() + "    ");
+        out.append("\n");
+        for (int i = 0; i < data.length; i++) {
+            for (int j = 0; j < data[i].length; j++) {
+                out.append(String.format("%5.4f ", data[i][j]));
+            }
+            out.append("\n");
+        }
+        pacc.log(out.toString());
+    }
 
     @Override
     public void raceFinished() {
         // TODO Auto-generated method stub
-        
+
     }
 
 }
