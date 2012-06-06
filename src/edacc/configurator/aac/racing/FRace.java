@@ -3,6 +3,7 @@ package edacc.configurator.aac.racing;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -290,14 +291,16 @@ public class FRace extends RacingMethods {
     }
 
     @Override
-    public void listParameters() {
-        System.out.println("--- FRace parameters ---");
-        System.out.println("FRace_alpha = "+this.alpha+ " (Significance level alpha used in the statistical hypothesis tests)");
-        System.out.println("FRace_NminFactor = " + this.NminFactor + " (#Solver configurations at most to survive a race: round(NminFactor * #configurable parameters) )");
-        System.out.println("FRace_initialRunsFactor = " + this.initialRunsFactor + " (How many runs each configuration should get at the start of the race: round(initialRunsFactor * #instances) )");
-        System.out.println("FRace_numRaceConfigurationsFactor = " + this.numRaceConfigurationsFactor + " (How many solver configurations should the racing method request from the search method: round(numRaceConfigurationsFactor * #parameters) )");
-        System.out.println("FRace_CPUFactor = " + this.CPUFactor + " (number of jobs to generate each round: at least 1 for each racing configuration, at most in total CPUFactor * #available cores)");
-        System.out.println("-----------------------\n");
+    public List<String> getParameters() {
+    	List<String> p = new LinkedList<String>();
+        p.add("% --- FRace parameters ---");
+        p.add("FRace_alpha = "+this.alpha+ " (Significance level alpha used in the statistical hypothesis tests)");
+        p.add("FRace_NminFactor = " + this.NminFactor + " (#Solver configurations at most to survive a race: round(NminFactor * #configurable parameters) )");
+        p.add("FRace_initialRunsFactor = " + this.initialRunsFactor + " (How many runs each configuration should get at the start of the race: round(initialRunsFactor * #instances) )");
+        p.add("FRace_numRaceConfigurationsFactor = " + this.numRaceConfigurationsFactor + " (How many solver configurations should the racing method request from the search method: round(numRaceConfigurationsFactor * #parameters) )");
+        p.add("FRace_CPUFactor = " + this.CPUFactor + " (number of jobs to generate each round: at least 1 for each racing configuration, at most in total CPUFactor * #available cores)");
+        p.add("% -----------------------");
+        return p;
     }
 
     @Override

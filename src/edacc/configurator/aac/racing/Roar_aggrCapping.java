@@ -233,8 +233,9 @@ public class Roar_aggrCapping extends RacingMethods {
 	}
 	
 	@Override
-	public void listParameters() {
-		// There are no relevant parameters	
+	public List<String> getParameters() {
+		List<String> p = new LinkedList<String>();
+		return p;
 	}
 
 	@Override

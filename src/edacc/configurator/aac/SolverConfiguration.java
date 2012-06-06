@@ -307,14 +307,14 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	 * @throws Exception
 	 */
 
-	protected float updateJobsStatus(API api) throws Exception {
+	protected List<ExperimentResult> updateJobsStatus(API api) throws Exception {
+		List<ExperimentResult> res = new LinkedList<ExperimentResult>();
 		LinkedList<Integer> ids = new LinkedList<Integer>();
 		ArrayList<ExperimentResult> tmp = new ArrayList<ExperimentResult>();
 		numRunningJobs = 0;
 		numFinishedJobs = 0;
 		numSuccessfulJobs = 0;
 		numNotStartedJobs = 0;
-		float tmpTotalRuntime = totalRuntime;
 		totalRuntime = 0.f;
 		for (ExperimentResult j : jobs) {
 			if (!j.getStatus().equals(StatusCode.NOT_STARTED) && !j.getStatus().equals(StatusCode.RUNNING)) {
@@ -339,6 +339,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 					numRunningJobs++;
 				}
 				if (!j.getStatus().equals(StatusCode.NOT_STARTED) && !j.getStatus().equals(StatusCode.RUNNING)) {
+					res.add(j);
 					numFinishedJobs++;
 				}
 				if (String.valueOf(j.getResultCode().getResultCode()).startsWith("1")) {
@@ -349,11 +350,9 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 				}
 			}
 			jobs.addAll(tmp);
-			return totalRuntime - tmpTotalRuntime;
-		} else {
-			return 0.f;
-		}
-
+			
+		} 
+		return res;
 	}
 
 	/**

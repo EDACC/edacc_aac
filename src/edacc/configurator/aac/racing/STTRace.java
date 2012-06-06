@@ -337,14 +337,14 @@ public class STTRace extends RacingMethods {
 	}
 
 	@Override
-	public void listParameters() {
-		System.out.println("---STTRace parameters---");
-		System.out.println("STTRace_a= "+this.a+ "(constant to compute the threshold for passing the t-test = 2*a/n)");
-		System.out.println("STTRace_randJob = " + this.randJob + "(wheater to pick random jobs from best for new configs)");
-		System.out.println("STTRace_minEB = " + this.minEB + "(minimum number of jobs to beat best; only valid when randJob=false)");
-		System.out.println("-----------------------\n");
-		
-		
+	public List<String> getParameters() {
+		List<String> p = new LinkedList<String>();
+		p.add("% ---STTRace parameters---");
+		p.add("STTRace_a= "+this.a+ "(constant to compute the threshold for passing the t-test = 2*a/n)");
+		p.add("STTRace_randJob = " + this.randJob + "(wheater to pick random jobs from best for new configs)");
+		p.add("STTRace_minEB = " + this.minEB + "(minimum number of jobs to beat best; only valid when randJob=false)");
+		p.add("% -----------------------");
+		return p;
 	}
 
 	@Override

@@ -155,9 +155,9 @@ public class Default extends RacingMethods {
 	}
 
 	@Override
-	public void listParameters() {
-		// TODO Auto-generated method stub
-		
+	public List<String> getParameters() {
+		List<String> p = new LinkedList<String>();
+		return p;
 	}
 
 	@Override

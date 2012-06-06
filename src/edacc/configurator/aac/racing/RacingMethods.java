@@ -92,7 +92,12 @@ public abstract class RacingMethods {
 	 */
 	public abstract void stopEvaluation(List<SolverConfiguration> scs) throws Exception;
 	
-	public abstract void listParameters();
+	/**
+	 * Returns the parameters in a config like style as ordered list
+	 * @return
+	 */
+	public abstract List<String> getParameters();
+	
 	public int getNumCompCalls(){
 		return this.numCompCalls;
 	}

@@ -1,6 +1,7 @@
 package edacc.configurator.aac.search;
 
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.Random;
@@ -110,11 +111,13 @@ public class IteratedFRace extends SearchMethods {
     }
     
     @Override
-    public void listParameters() {
-        System.out.println("--- IteratedFRace parameters ---");
-        System.out.println("IteratedFRace_initialParameterStdDev = "+this.initialParameterStdDev+ " (Initial normalized standard deviation used to sample the second generation of configurations based on the elite configurations obtained from the race)");
-        System.out.println("IteratedFRace_minStdDev = "+this.minStdDev+ " (Down to which value should the standard deviation be reduced before the search terminates)");
-        System.out.println("-----------------------\n");
+    public List<String> getParameters() {
+    	List<String> p = new LinkedList<String>();
+    	p.add("% --- IteratedFRace parameters ---");
+    	p.add("IteratedFRace_initialParameterStdDev = "+this.initialParameterStdDev+ " % (Initial normalized standard deviation used to sample the second generation of configurations based on the elite configurations obtained from the race)");
+    	p.add("IteratedFRace_minStdDev = "+this.minStdDev+ " % (Down to which value should the standard deviation be reduced before the search terminates)");
+    	p.add("% -----------------------\n");
+        return p;
 
     }
     

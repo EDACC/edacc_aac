@@ -498,31 +498,33 @@ public class Challenge extends RacingMethods {
 	}
 
 	@Override
-	public void listParameters() {
-		System.out.println("% initial sc parameters");
-		System.out.println("Challenge_initialRunsInstanceSolvedPercentage = " + initialRunsInstanceSolvedPercentage);
-		System.out.println("Challenge_instanceSolvedThresholdPercentage = " + instanceSolvedThresholdPercentage);
-		System.out.println("Challenge_scInitialPoints = " + scInitialPoints);
-		System.out.println("Challenge_minInitialSolvedPerc = " + minInitialSolvedPerc);
-		System.out.println("% tournament parameters");
-		System.out.println("Challenge_tournamentSCCount = " + tournamentSCCount);
-		System.out.println("Challenge_scTournamentWinnerPoints = " + scTournamentWinnerPoints);
-		System.out.println("Challenge_scTournamentLoserPoints = " + scTournamentLoserPoints);
-		System.out.println("Challenge_numTournamentWinnerInstances = " + numTournamentWinnerInstances);
-		System.out.println("Challenge_numChallengeInstancesTournament = " + numChallengeInstancesTournament);
-		System.out.println("% qualification parameters");
-		System.out.println("Challenge_qualificationSCCount = " + qualificationSCCount);
-		System.out.println("Challenge_scQualificationWinnerPoints = " + scQualificationWinnerPoints);
-		System.out.println("Challenge_scQualificationLoserPoints = " + scQualificationLoserPoints);
-		System.out.println("Challenge_minQualificationWinners = " + minQualificationWinners);
-		System.out.println("Challenge_numChallengeInstancesQualification = " + numChallengeInstancesQualification);
-		System.out.println("% adaptive instance timeout parameters");
-		System.out.println("Challenge_useAdaptiveInstanceTimeouts = " + useAdaptiveInstanceTimeouts);
-		System.out.println("Challenge_limitCPUTimeFactor = " + limitCPUTimeFactor);
-		System.out.println("Challenge_limitCPUTimeMaxCPUTime = " + limitCPUTimeMaxCPUTime);
-		System.out.println("Challenge_limitCPUTimeMinRuns = " + limitCPUTimeMinRuns);
-		System.out.println("% misc parameters");
-		System.out.println("Challenge_minBestSCs = " + minBestSCs);
+	public List<String> getParameters() {
+		List<String> p = new LinkedList<String>();
+		p.add("% initial sc parameters");
+		p.add("Challenge_initialRunsInstanceSolvedPercentage = " + initialRunsInstanceSolvedPercentage);
+		p.add("Challenge_instanceSolvedThresholdPercentage = " + instanceSolvedThresholdPercentage);
+		p.add("Challenge_scInitialPoints = " + scInitialPoints);
+		p.add("Challenge_minInitialSolvedPerc = " + minInitialSolvedPerc);
+		p.add("% tournament parameters");
+		p.add("Challenge_tournamentSCCount = " + tournamentSCCount);
+		p.add("Challenge_scTournamentWinnerPoints = " + scTournamentWinnerPoints);
+		p.add("Challenge_scTournamentLoserPoints = " + scTournamentLoserPoints);
+		p.add("Challenge_numTournamentWinnerInstances = " + numTournamentWinnerInstances);
+		p.add("Challenge_numChallengeInstancesTournament = " + numChallengeInstancesTournament);
+		p.add("% qualification parameters");
+		p.add("Challenge_qualificationSCCount = " + qualificationSCCount);
+		p.add("Challenge_scQualificationWinnerPoints = " + scQualificationWinnerPoints);
+		p.add("Challenge_scQualificationLoserPoints = " + scQualificationLoserPoints);
+		p.add("Challenge_minQualificationWinners = " + minQualificationWinners);
+		p.add("Challenge_numChallengeInstancesQualification = " + numChallengeInstancesQualification);
+		p.add("% adaptive instance timeout parameters");
+		p.add("Challenge_useAdaptiveInstanceTimeouts = " + useAdaptiveInstanceTimeouts);
+		p.add("Challenge_limitCPUTimeFactor = " + limitCPUTimeFactor);
+		p.add("Challenge_limitCPUTimeMaxCPUTime = " + limitCPUTimeMaxCPUTime);
+		p.add("Challenge_limitCPUTimeMinRuns = " + limitCPUTimeMinRuns);
+		p.add("% misc parameters");
+		p.add("Challenge_minBestSCs = " + minBestSCs);
+		return p;
 	}
 
 	private static int qidCounter = 0;

@@ -131,7 +131,8 @@ public class SingleParameter extends SearchMethods {
 	}
 
 	@Override
-	public void listParameters() {
+	public List<String> getParameters() {
+		return new LinkedList<String>();
 	}
 
 	@Override

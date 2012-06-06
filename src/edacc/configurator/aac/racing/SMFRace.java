@@ -447,25 +447,24 @@ public class SMFRace extends RacingMethods {
     }
 
     @Override
-    public void listParameters() {
-        System.out.println("--- SMFRace parameters ---");
-        System.out.println("SMFRace_alpha = " + this.alpha
-                + " (Significance level alpha used in the statistical hypothesis tests)");
-        System.out.println("SMFRace_NminFactor = " + this.NminFactor
-                + " (#Solver configurations at most to survive a race: round(NminFactor * #configurable parameters) )");
-        System.out
-                .println("SMFRace_initialRunsFactor = "
+    public List<String> getParameters() {
+    	List<String> p = new LinkedList<String>();
+        p.add("% --- SMFRace parameters ---");
+        p.add("SMFRace_alpha = " + this.alpha
+                + " % (Significance level alpha used in the statistical hypothesis tests)");
+        p.add("SMFRace_NminFactor = " + this.NminFactor
+                + " % (#Solver configurations at most to survive a race: round(NminFactor * #configurable parameters) )");
+        p.add("SMFRace_initialRunsFactor = "
                         + this.initialRunsFactor
-                        + " (How many runs each configuration should get at the start of the race: round(initialRunsFactor * #instances) )");
-        System.out
-                .println("SMFRace_numRaceConfigurationsFactor = "
+                        + " % (How many runs each configuration should get at the start of the race: round(initialRunsFactor * #instances) )");
+        p.add("SMFRace_numRaceConfigurationsFactor = "
                         + this.numRaceConfigurationsFactor
-                        + " (How many solver configurations should the racing method request from the search method: round(numRaceConfigurationsFactor * #parameters) )");
-        System.out
-                .println("SMFRace_CPUFactor = "
+                        + " % (How many solver configurations should the racing method request from the search method: round(numRaceConfigurationsFactor * #parameters) )");
+        p.add("SMFRace_CPUFactor = "
                         + this.CPUFactor
-                        + " (number of jobs to generate each round: at least 1 for each racing configuration, at most in total CPUFactor * #available cores)");
-        System.out.println("-----------------------\n");
+                        + " % (number of jobs to generate each round: at least 1 for each racing configuration, at most in total CPUFactor * #available cores)");
+        p.add("% -----------------------");
+        return p;
     }
 
     @Override
