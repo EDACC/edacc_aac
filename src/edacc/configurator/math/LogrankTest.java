@@ -41,25 +41,4 @@ public class LogrankTest {
         if (res == null) return 1.0;
         return res.asDouble();
     }
-
-    public static void main(String... args) throws Exception {
-        Rengine rengine = new Rengine(new String[] { "--vanilla" }, false, null);
-
-        if (!rengine.waitForR()) {
-            throw new Exception("Could not initialize Rengine");
-        }
-
-        if (rengine.eval("library(survival)") == null) {
-            rengine.end();
-            throw new Exception("Did not find R library survival (should come with R though).");
-        }
-
-        LogrankTest lr = new LogrankTest(rengine);
-        System.out.println(lr.pValue(new double[] { 1.01, 2.01, 3.0, Double.NaN, 2.0 }, new double[] { 10.0, 7.0, Double.NaN,
-                6.0, 10.0 }, new boolean[] { false, false, false, false, false },
-                new boolean[] { true, false, false, false, true }));
-
-        rengine.end();
-    }
-
 }

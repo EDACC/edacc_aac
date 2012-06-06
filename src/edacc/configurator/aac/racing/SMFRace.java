@@ -326,7 +326,8 @@ public class SMFRace extends RacingMethods {
                         }
                     }
                     pacc.expandParcoursSC(bestConfiguration,
-                            Math.min(2 * bestConfiguration.getJobCount(), maxIncumbentEvaluations));
+                            Math.max(parameters.getMaxParcoursExpansionFactor() * num_instances - bestConfiguration.getJobCount(),
+                                    Math.min(2 * bestConfiguration.getJobCount(), maxIncumbentEvaluations)));
                 }
 
                 raceConfigurations.removeAll(worseConfigs);

@@ -111,28 +111,4 @@ public class FriedmanCensoredTest implements FamilyTest {
         ChiSquaredDistribution XS = new ChiSquaredDistributionImpl(k - 1);
         return S > XS.inverseCumulativeProbability(1.0 - alpha);
     }
-
-    public static void main(String... args) throws Exception {
-        double[][] data = new double[][] {
-                { 1.0, 3.0, 2.0},
-                { 1.0, 3.0, 2.0},
-                { 1.0, 2.0, 3.0},
-                { 1.0, 3.0, 2.0},
-                { 1.0, 3.0, 2.0},
-                { 1.0, 3.0, 2.0},
-                { 10.0, 10.0, 3.0},
-                };
-        FamilyTest f = new FriedmanCensoredTest(data.length, data[0].length, data);
-        FamilyTest ft = new FriedmanTest(data.length, data[0].length, data);
-        
-        System.out.println("Critical value: " + ft.criticalValue(0.05));
-        System.out.println("Censoring-aware:");
-        System.out.println(f.familyTestStatistic());
-        System.out.println(f.isFamilyTestSignificant(f.familyTestStatistic(), 0.05));
-        
-        System.out.println("Original:");
-        System.out.println(ft.familyTestStatistic());
-        System.out.println(ft.isFamilyTestSignificant(ft.familyTestStatistic(), 0.05));
-    }
-
 }
