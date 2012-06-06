@@ -155,31 +155,34 @@ public class SMFRace extends RacingMethods {
         }
 
         if (curFinishedConfigurations.containsAll(raceConfigurations) && raceConfigurations.size() == 2) {
-            // if only 2 configurations remain perform a wilcoxon signed-rank
-            // test because it is more powerful
-            // than a friedman test
-            pacc.log("Only 2 configurations remaining, perform wilcoxon signed-rank test.");
+            // If only 2 configurations remain we use a 2-sample test
+            pacc.log("Only 2 configurations remaining, performing 2-sample test");
             double[] c1 = new double[courseResults.size()];
             double[] c2 = new double[courseResults.size()];
+            boolean[] x1_censored = new boolean[courseResults.size()];
+            boolean[] x2_censored = new boolean[courseResults.size()];
             for (int i = 0; i < courseResults.size(); i++) {
                 c1[i] = parameters.getStatistics().getCostFunction()
                         .singleCost(courseResults.get(i).get(raceConfigurations.get(0)));
+                x1_censored[i] = courseResults.get(i).get(raceConfigurations.get(0)).getStatus()
+                        .equals(StatusCode.TIMELIMIT);
                 c2[i] = parameters.getStatistics().getCostFunction()
                         .singleCost(courseResults.get(i).get(raceConfigurations.get(1)));
+                x2_censored[i] = courseResults.get(i).get(raceConfigurations.get(1)).getStatus()
+                        .equals(StatusCode.TIMELIMIT);
             }
 
-            WilcoxonSignedRankTest wtest = new WilcoxonSignedRankTest();
-            if (wtest.wilcoxonSignedRankTest(c1, c2, false) < alpha) {
+            LogrankTest lr = new LogrankTest(rengine);
+            if (lr.pValue(c1, c2, x1_censored, x2_censored) < alpha) {
                 if (raceConfigurations.get(0).compareTo(raceConfigurations.get(1)) == 1) {
                     raceConfigurations.remove(1);
                 } else {
                     raceConfigurations.remove(0);
                 }
             } else {
-                pacc.log("wilcoxon signed-rank test didn't find a significant difference between the two solver configurations");
+                pacc.log("Test didn't find a significant difference between the two solver configurations");
             }
         } else {
-
             boolean[][] censored = new boolean[courseResults.size()][raceConfigurations.size()];
             double[][] data = new double[courseResults.size()][raceConfigurations.size()];
             for (int i = 0; i < courseResults.size(); i++) {
@@ -195,39 +198,29 @@ public class SMFRace extends RacingMethods {
                 }
             }
 
-            pacc.log("Performing F-Test based on:");
+            pacc.log("Performing family hyopthesis test based on:");
             logDataMatrix(raceConfigurations, data);
 
             FamilyTest fmt = new RankTransformationTest(courseResults.size(), raceConfigurations.size(), data, censored);
-            // SMTest smTest = new SMTest(courseResults.size(),
-            // raceConfigurations.size(), data, rengine);
-            // double pValue = smTest.pValue();
-            // pacc.log("Performing SM-test, p-value: " + pValue);
             pacc.log("Statistic: " + fmt.familyTestStatistic() + ", critical Value: " + fmt.criticalValue(alpha));
             if (fmt.isFamilyTestSignificant(fmt.familyTestStatistic(), alpha)) {
-                // there is evidence that there is at least one solver
-                // configuration that is significantly different from the others
-                // find the best one, do pairwise comparisons and remove those
-                // that are significantly worse from the race
+                // There is evidence that at least one configuration is significantly different from the others
                 SolverConfiguration bestConfiguration = null;
                 for (SolverConfiguration solverConfig : raceConfigurations) {
                     if (bestConfiguration == null || solverConfig.compareTo(bestConfiguration) == 1) {
                         bestConfiguration = solverConfig;
                     }
                 }
-                if (this.bestSC == null || bestConfiguration.compareTo(bestSC) == 1) {
-                    this.bestSC = bestConfiguration;
-                }
-
-                int bestConfigurationIx = raceConfigurations.indexOf(bestConfiguration);
-                Map<SolverConfiguration, Double> pValueByConfiguration = new HashMap<SolverConfiguration, Double>();
-
+                if (this.bestSC == null || bestConfiguration.compareTo(bestSC) == 1) this.bestSC = bestConfiguration;
+                
                 pacc.log("Best solver configuration in current race: " + bestConfiguration.getIdSolverConfiguration()
                         + " with cost: " + bestConfiguration.getCost());
 
-                int bestConfigEvaluations = bestConfiguration.getJobCount();
+                int bestConfigurationIx = raceConfigurations.indexOf(bestConfiguration);
+                int bestConfigEvaluations = bestConfiguration.getNumFinishedJobs();
                 boolean expandBest = false;
 
+                // Prepare the data of the best configuration
                 double[] x = new double[courseResults.size()];
                 boolean[] x_censored = new boolean[courseResults.size()];
                 for (int i = 0; i < courseResults.size(); i++) {
@@ -241,38 +234,11 @@ public class SMFRace extends RacingMethods {
                     }
                 }
 
-                List<SolverConfiguration> worseConfigs = new LinkedList<SolverConfiguration>();
-
+                // Compare (calculate p-values) each other configuration with the best configuration
+                Map<SolverConfiguration, Double> pValueByConfiguration = new HashMap<SolverConfiguration, Double>();
                 for (int j = 0; j < raceConfigurations.size(); j++) {
                     if (j == bestConfigurationIx)
                         continue;
-
-                    /*if (fmt.isPostHocTestSignificant(fmt.postHocTestStatistic(bestConfigurationIx, j, fmt.familyTestStatistic()),
-                            alpha)) {
-                        SolverConfiguration worseConfig = raceConfigurations.get(j);
-                        if (incumbents.contains(worseConfig)) {
-                            // worseConfig is an incumbent. Protect it from
-                            // early elimination, if it has more jobs than the
-                            // bestConfiguration
-                            System.out.println("Comparing best configuration against an incumbent "
-                                    + worseConfig.getIdSolverConfiguration());
-                            if (bestConfigEvaluations < worseConfig.getJobCount()) {
-                                expandBest = true;
-                                pacc.log("Post hoc test indicates significant differences but the loser configuration is an incumbent with more evaluations so it stays in the race.");
-                                continue;
-                            }
-                        }
-                        System.out.println("Post hoc test indicates " + (incumbents.contains(worseConfig) ? "INCUMBENT" : "")
-                                + " configuration " + worseConfig.getIdSolverConfiguration() + " is sig. worse, cost: "
-                                + worseConfig.getCost());
-                        worseConfig.setFinished(true);
-                        for (ExperimentResult run : worseConfig.getJobs()) {
-                            // (try to) prevent evaluation of unnecessary runs
-                            if (run.getStatus().equals(StatusCode.NOT_STARTED))
-                                api.setJobPriority(run.getId(), -1);
-                        }
-                        worseConfigs.add(worseConfig);
-                    }*/
 
                     double[] y = new double[courseResults.size()];
                     boolean[] y_censored = new boolean[courseResults.size()];
@@ -294,15 +260,18 @@ public class SMFRace extends RacingMethods {
 
                 }
 
+                // Holm-Bonferroni method rejecting as many null-hypothesis as the significance level allows
                 Map<SolverConfiguration, Double> sortedpValueByConfiguration = sortByValue(pValueByConfiguration);
                 int k = raceConfigurations.size() - 1;
                 for (SolverConfiguration sc : sortedpValueByConfiguration.keySet()) {
                     if (sortedpValueByConfiguration.get(sc).doubleValue() < alpha / (float) k) {
                         SolverConfiguration worseConfig = sc;
                         if (incumbents.contains(worseConfig)) {
+                            // The worse configuration is one of the current incumbents.
+                            // Protect the incumbent if the best configuration does not have as many evaluations.
                             System.out.println("Comparing best configuration against an incumbent "
                                     + worseConfig.getIdSolverConfiguration());
-                            if (bestConfigEvaluations < worseConfig.getJobCount()) {
+                            if (bestConfigEvaluations < worseConfig.getNumFinishedJobs()) {
                                 expandBest = true;
                                 pacc.log("Post hoc test indicates significant differences but the loser configuration is an incumbent with more evaluations so it stays in the race.");
                                 continue;
@@ -311,7 +280,15 @@ public class SMFRace extends RacingMethods {
                         
                         pacc.log("Removing configuration " + sc.getIdSolverConfiguration() + " from race, Cost: " + sc.getCost()
                                 + ", p-value: " + sortedpValueByConfiguration.get(sc).doubleValue());
-                        raceConfigurations.remove(sc);
+                        raceConfigurations.remove(worseConfig);
+                        incumbents.remove(worseConfig);
+                        
+                        for (ExperimentResult run: worseConfig.getJobs()) {
+                            // try to prevent execution of unneeded runs
+                            if (run.getStatus().equals(StatusCode.NOT_STARTED)) api.setJobPriority(run.getId(), -1);
+                        }
+                        
+                        
                         k--;
                     } else {
                         break;
@@ -319,6 +296,9 @@ public class SMFRace extends RacingMethods {
                 }
 
                 if (expandBest) {
+                    // One of the incumbents was protected against elimination of the best
+                    // configuration. This means the current best configuration
+                    // should get more jobs.
                     int maxIncumbentEvaluations = 0;
                     for (SolverConfiguration sc : raceConfigurations) {
                         if (incumbents.contains(sc)) {
@@ -330,8 +310,6 @@ public class SMFRace extends RacingMethods {
                                     Math.min(2 * bestConfiguration.getJobCount(), maxIncumbentEvaluations)));
                 }
 
-                raceConfigurations.removeAll(worseConfigs);
-                incumbents.removeAll(worseConfigs);
             } else {
                 pacc.log("family-wise comparison test indicated no significant differences between the configurations");
             }
