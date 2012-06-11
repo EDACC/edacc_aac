@@ -158,7 +158,6 @@ public class Clustering {
 	 */
 	public HashMap<Integer, List<Integer>> getClustering(boolean removeSmallClusters) {
 		updateData();
-		
 		HashMap<Integer, List<Integer>> res = new HashMap<Integer, List<Integer>>();
 		for (int instanceid : I.keySet()) {
 			float max = 0.f;
@@ -178,6 +177,7 @@ public class Clustering {
 				}
 				instanceids.add(instanceid);
 			}
+			
 		}
 		if (removeSmallClusters) {
 			boolean found = false;

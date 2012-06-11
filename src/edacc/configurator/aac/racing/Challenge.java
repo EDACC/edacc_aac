@@ -13,15 +13,17 @@ import edacc.api.API;
 import edacc.api.costfunctions.CostFunction;
 import edacc.api.costfunctions.Median;
 import edacc.configurator.aac.AAC;
+import edacc.configurator.aac.JobListener;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
+import edacc.configurator.aac.racing.challenge.Clustering;
 import edacc.model.Experiment;
 import edacc.model.ExperimentResult;
 import edacc.model.Instance;
 import edacc.model.InstanceDAO;
 import edacc.util.Pair;
 
-public class Challenge extends RacingMethods {
+public class Challenge extends RacingMethods implements JobListener {
 	private ArrayList<SolverConfiguration> solverConfigsReadyForQualification;
 	private ArrayList<SolverConfiguration> solverConfigsReadyForTournament;
 	private ArrayList<Integer> instances;
@@ -33,6 +35,8 @@ public class Challenge extends RacingMethods {
 	private List<SolverConfiguration> bestSolverConfigs;
 
 	private HashSet<Integer> instancesSolved;
+	
+	private Clustering clustering;
 	
 	// parameters	
 	private float initialRunsInstanceSolvedPercentage = 1.f;
@@ -83,6 +87,7 @@ public class Challenge extends RacingMethods {
 	
 	public Challenge(AAC pacc, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
 		super(pacc, rng, api, parameters, firstSCs, referenceSCs);
+		pacc.addJobListener(this);
 		
 		String val;
 		if ((val = parameters.getRacingMethodParameters().get("Challenge_initialRunsInstanceSolvedPercentage")) != null)
@@ -147,6 +152,7 @@ public class Challenge extends RacingMethods {
 			addInitialRuns(sc);
 		}
 
+		clustering = new Clustering(instances);
 	}
 	
 	private void updateBestSolverConfigs() {
@@ -232,13 +238,28 @@ public class Challenge extends RacingMethods {
 	
 	private void addInitialRuns(SolverConfiguration sc) throws Exception { 		
 		HashSet<Integer> instanceIds = new HashSet<Integer>();
-		if (instancesSolved.size() > instances.size()*instanceSolvedThresholdPercentage) {
+		/*if (instancesSolved.size() > instances.size()*instanceSolvedThresholdPercentage) {
 			ArrayList<Integer> instancesSolvedList = new ArrayList<Integer>();
 			instancesSolvedList.addAll(instancesSolved);
 			while (instanceIds.size() < parameters.getMinRuns() * initialRunsInstanceSolvedPercentage && instanceIds.size() < instancesSolved.size() && instanceIds.size() < parameters.getMinRuns()) {
 				instanceIds.add(instancesSolvedList.get(rng.nextInt(instancesSolvedList.size())));
 			}
-		}		
+		}*/
+		HashMap<Integer, List<Integer>> c = clustering.getClustering(false);
+		List<Integer> unsolved = null;
+		do {
+			for (List<Integer> l : c.values()) {
+				instanceIds.add(l.get(rng.nextInt(l.size())));
+				if (instanceIds.size() >= parameters.getMinRuns()) {
+					break;
+				}
+			}
+			if (unsolved == null) {
+				unsolved = new LinkedList<Integer>();
+				unsolved.addAll(clustering.getNotUsedInstances());
+			}
+			instanceIds.add(unsolved.get(rng.nextInt(unsolved.size())));
+		} while (instanceIds.size() < parameters.getMinRuns());
 		
 		while (instanceIds.size() < parameters.getMinRuns()) {
 			instanceIds.add(instances.get(rng.nextInt(instances.size())));
@@ -689,6 +710,7 @@ public class Challenge extends RacingMethods {
 		}
 		// remove the solver config
 		allSolverConfigs.remove(scId);
+		clustering.remove(scId);
 	}
 	
 	private List<Integer> getChallengeInstances(SolverConfiguration sc, int num) {
@@ -1008,5 +1030,25 @@ public class Challenge extends RacingMethods {
 	public void raceFinished() {
 		// TODO Auto-generated method stub
 		
+	}
+
+	@Override
+	public void jobFinished(ExperimentResult result) {
+		SolverConfigurationMetaData sc = allSolverConfigs.get(result.getSolverConfigId());
+		if (sc == null) {
+			return;
+		}
+		List<ExperimentResult> results = new LinkedList<ExperimentResult>(); 
+		boolean hasCost = false;
+		for (ExperimentResult r : sc.solverConfig.getJobs()) {
+			if (r.getInstanceId() == result.getInstanceId()) {
+				results.add(r);
+				if (r.getResultCode().isCorrect()) {
+					hasCost = true;
+				}
+			}
+		}
+		float cost = hasCost ? parameters.getStatistics().getCostFunction().calculateCost(results) : Float.POSITIVE_INFINITY;
+		clustering.update(result.getSolverConfigId(), result.getInstanceId(), cost);
 	}
 }
