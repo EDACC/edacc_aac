@@ -1,6 +1,7 @@
 package edacc.configurator.aac.racing.challenge;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -30,6 +31,9 @@ public class Clustering {
 	//HashMap<Integer, Float> W; // relative weight of sc
 	private float[] K; // K_i = sum over solver configs for instance row i (ith instance)
 	
+	// cache for data to be updated before using matrix M
+	private HashSet<Integer> update_columns;
+	
 	/**
 	 * Creates new Clustering object with the given instance ids. Instance ids cannot be changed later.
 	 * @param instanceIds the instance ids to be clustered
@@ -48,6 +52,9 @@ public class Clustering {
 		C = new HashMap<Integer, float[]>();
 		//W = new HashMap<Integer, Float>();
 		
+		// initialize data to be updated
+		update_columns = new HashSet<Integer>();
+		
 		// initialize K
 		K = new float[n];
 		for (int i = 0; i < n; i++) {
@@ -55,9 +62,53 @@ public class Clustering {
 		}
 	}
 	
+	private void updateData() {
+		for (int column : update_columns) {
+			// Update M entry
+			{
+				int scs = 0;
+				float sum = 0.f;
+				float max = 0.f;
+				for (float[] tmp : C.values()) {
+					if (!Float.isInfinite(tmp[column])) {
+						sum += tmp[column];
+						scs++;
+						if (tmp[column] > max) {
+							max = tmp[column];
+						}
+					}
+				}
+
+				for (int tmp_scid : M.keySet()) {
+					float[] tmp_c = C.get(tmp_scid);
+					float[] tmp_m = M.get(tmp_scid);
+					if (Float.isInfinite(tmp_c[column])) {
+						tmp_m[column] = 0.f;
+					} else {
+						// TODO: eps
+						if (scs * max - sum > 0.001f) {
+							// TODO: multiplicator
+							tmp_m[column] = (max * 1.05f - tmp_c[column]) / (scs * max * 1.05f - sum);
+						} else {
+							tmp_m[column] = 1.f / scs;
+						}
+						// TODO: maximize: tmp_c[column] / sum
+					}
+				}
+			}
+
+			// Update K entry
+			float sum = 0.f;
+			for (float[] tmp : M.values()) {
+				sum += tmp[column];
+			}
+			K[column] = sum;
+		}
+		update_columns.clear();
+	}
+
 	/**
-	 * Updates the cost of the given solver configuration on the given instance. <br />
-	 * This method needs O(#instances + #solver configurations)
+	 * Updates the cost of the given solver configuration on the given instance.
 	 * @param scid the id of the solver configuration
 	 * @param instanceid the id of the instance
 	 * @param cost the cost, can be FLOAT.POSITIVE_INFINITY, but must be greater or equal zero.
@@ -65,12 +116,13 @@ public class Clustering {
 	public void update(int scid, int instanceid, float cost) {
 		if (!M.containsKey(scid)) {
 			// new solver configuration, first cost
-			// initial M row and C row is empty
+			// initial M row is empty for all instances
 			float[] f = new float[n];
 			for (int i = 0; i < n; i++) {
 				f[i] = 0.f;
 			}
 			M.put(scid, f);
+			// initial C row is infinity for all instances
 			f = new float[n];
 			for (int i = 0; i < n; i++) {
 				f[i] = Float.POSITIVE_INFINITY;
@@ -86,47 +138,17 @@ public class Clustering {
 		// Update C entry
 		c[column] = cost;
 		
-		// Update M entry
-		{
-			int scs = 0;
-			float sum = 0.f;
-			float max = 0.f;
-			for (float[] tmp : C.values()) {
-				if (!Float.isInfinite(tmp[column])) {
-					sum += tmp[column];
-					scs++;
-					if (tmp[column] > max) {
-						max = tmp[column];
-					}
-				}
-			}
-			
-			for (int tmp_scid : M.keySet()) {
-				float[] tmp_c = C.get(tmp_scid);
-				float[] tmp_m = M.get(tmp_scid);
-				if (Float.isInfinite(tmp_c[column])) {
-					tmp_m[column] = 0.f;
-				} else {
-					// TODO: eps
-					if (scs*max - sum > 0.001f) {
-						// TODO: multiplicator
-						tmp_m[column] = (max*1.05f - tmp_c[column]) / (scs*max*1.05f - sum);
-					} else {
-						tmp_m[column] = 1.f / scs;
-					}	
-					// TODO: maximize:  tmp_c[column] / sum
-				}
-			}
-		}
-		// Update W entry
-		//sum = 0.f;
-		
-		// Update K entry
-		float sum = 0.f;
-		for (float[] tmp : M.values()) {
-			sum += tmp[column];
-		}
-		K[column] = sum;
+		// Add to data to be updated, invalidates the column of matrix M
+		update_columns.add(column);
+	}
+	
+	/**
+	 * Removes the specified solver configuration.
+	 * @param scid
+	 */
+	public void remove(int scid) {
+		M.remove(scid);
+		C.remove(scid);
 	}
 	
 	/**
@@ -135,6 +157,8 @@ public class Clustering {
 	 * @return
 	 */
 	public HashMap<Integer, List<Integer>> getClustering(boolean removeSmallClusters) {
+		updateData();
+		
 		HashMap<Integer, List<Integer>> res = new HashMap<Integer, List<Integer>>();
 		for (int instanceid : I.keySet()) {
 			float max = 0.f;
@@ -228,9 +252,27 @@ public class Clustering {
 	}
 	
 	/**
+	 * Returns a list of instance ids where costs are infinity for all solver configurations to be considered.
+	 * @return
+	 */
+	public HashSet<Integer> getNotUsedInstances() {
+		updateData();
+		HashSet<Integer> res = new HashSet<Integer>();
+		for (int instanceid: I.keySet()) {
+			int column = I.get(instanceid);
+			// K[column] is in {0,1}
+			if (K[column] < 0.5f) {
+				res.add(instanceid);
+			}
+		}
+		return res;
+	}
+	
+	/**
 	 * Prints the membership matrix in a formatted way.
 	 */
 	public void printM() {
+		updateData();
 		System.out.println("Membership Matrix M: " + M.size() + " rows (scs) / " + n + " columns (instances)");
 		System.out.println();
 		HashMap<Integer, Integer> tmp = new HashMap<Integer, Integer>();
@@ -265,7 +307,7 @@ public class Clustering {
 	 */
 	public static void main(String[] args) throws Exception {
 		API api = new APIImpl();
-		api.connect("edacc3.informatik.uni-ulm.de", 3306, "ssd", "edacc", "", true);
+		api.connect("edacc3.informatik.uni-ulm.de", 3306, "ssd", "edacc", "edaccteam", true);
 		int expid = 356;
 		
 		LinkedList<Instance> instances = InstanceDAO.getAllByExperimentId(expid);
@@ -318,6 +360,9 @@ public class Clustering {
 		for (List<Integer> i : c.values()) {
 			System.out.println(i);
 		}
+		C.printM();
+		
+		System.out.println("# instances not used: " + C.getNotUsedInstances().size());
 		
 		/*
 		List<Integer> instanceIds2 = new LinkedList<Integer>();
