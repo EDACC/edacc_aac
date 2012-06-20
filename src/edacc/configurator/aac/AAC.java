@@ -66,6 +66,7 @@ public class AAC {
 	 * walltime).
 	 */
 	private long startTime;
+	private long lastStats;
 
 	/**
 	 * Total cumulated CPU-Time of all jobs the configurator has finished so far
@@ -86,6 +87,10 @@ public class AAC {
 	
 	private List<SolverConfiguration> solverConfigs;
 	
+	
+	// listeners
+	private List<JobListener> jobListeners;
+	
 	// statistics
 	private int statNumSolverConfigs;
 	private int statNumJobs;
@@ -95,7 +100,9 @@ public class AAC {
 	private ParameterGraph graph;
 
 	public AAC(Parameters params) throws Exception {
-
+		startTime = System.currentTimeMillis();
+		lastStats = 0;
+		
 		if (params.simulation) {
 			Random rng = new edacc.util.MersenneTwister(params.simulationSeed);
 			log("Simulation flag set, using simulation api.");
@@ -108,6 +115,8 @@ public class AAC {
 			api.connect(params.hostname, params.port, params.database, params.user, params.password);
 		}
 
+		jobListeners = new LinkedList<JobListener>();
+		
 		this.graph = api.loadParameterGraphFromDB(params.idExperiment);
 		System.out.println(params.costFunc + " .. " + params.idExperiment);
 		CostFunction costFunction = api.costFunctionByExperiment(params.idExperiment, params.costFunc);
@@ -138,14 +147,11 @@ public class AAC {
 	}
 
 	/**
-	 * Checks if there are solver configurations in the experiment that would
-	 * match the configuration scenario if there are more than one such
-	 * configuration it will pick the best one as the best configuration found
-	 * so far
-	 * 
+	 * Returns a list of solver configuration with default solver configurations or the best solver configurations in the db.
+	 * @return
 	 * @throws Exception
 	 */
-	private List<SolverConfiguration> initializeBest() throws Exception {
+	private List<SolverConfiguration> initializeFirstSCs() throws Exception {
 		// TODO: the best one might not match the configuration scenario
 		// graph.validateParameterConfiguration(config) should test this,
 		// but is currently not implemented and will return false.
@@ -211,6 +217,14 @@ public class AAC {
 			res.add(sc);
 		}
 		return res;
+	}
+	
+	public void addJobListener(JobListener listener) {
+		jobListeners.add(listener);
+	}
+	
+	public void removeJobListener(JobListener listener) {
+		jobListeners.remove(listener);
 	}
 	
 	/**
@@ -396,8 +410,17 @@ public class AAC {
 		}
 		return res;
 	}
+	
+	private float getResultTime(List<ExperimentResult> results) {
+		float sum = 0.f;
+		for (ExperimentResult res : results) 
+			sum += res.getResultTime();
+		return sum;
+	}
 
 	public void start() throws Exception {
+		api.setOutput(parameters.idExperiment, "");
+		log_db("AAC started.");
 		if (parameters.getMaxCPUCount() == 0) {
 			parameters.maxCPUCount = Integer.MAX_VALUE;
 		}
@@ -410,34 +433,48 @@ public class AAC {
 			log("c Waiting for #cores to satisfy: " + parameters.getMinCPUCount() + " <= #cores <= " + parameters.getMaxCPUCount());
 			Thread.sleep(10000);
 		}
-		log("c Starting AAC.");
 		startTime = System.currentTimeMillis();
-		// this.experimentName =
-		// ExperimentDAO.getById(parameters.getIdExperiment()).getName();
-		// first initialize the best individual if there is a default or if
-		// there are already some solver configurations in the experiment
-		cumulatedCPUTime = 0.f;
-		List<SolverConfiguration> firstSCs = initializeBest();
+		lastStats = 0;
 		
-		// reference solver config list for search method
+		log("c Starting AAC.");
+		cumulatedCPUTime = 0.f;
+		
+		// determine first solver configurations (defaults)
+		List<SolverConfiguration> firstSCs = initializeFirstSCs();
+		// determine reference solver configurations for search method
 		List<SolverConfiguration> referenceSCs = getReferenceSolverConfigs();
 		// create a copy for racing method
 		LinkedList<SolverConfiguration> referenceSCsCopy = new LinkedList<SolverConfiguration>();
 		referenceSCsCopy.addAll(referenceSCs);
 		
+		// add solver configurations to global solver configuration list
 		solverConfigs.addAll(firstSCs);
 		solverConfigs.addAll(referenceSCs);
+		
+		// update the solver configuration status without adding time to cumulatedCPUTime
 		for (SolverConfiguration sc : solverConfigs) {
-			sc.updateJobsStatus(api); // don't add existing scs time to cumulatedCPUTime
+			sc.updateJobsStatus(api);
 		}
+		
 		// create search and racing instances
 		search = (SearchMethods) searchClass.getDeclaredConstructors()[0].newInstance(this, api, rngSearch, parameters, firstSCs, referenceSCs);
 		racing = (RacingMethods) racingClass.getDeclaredConstructors()[0].newInstance(this, rngRacing, api, parameters, firstSCs, referenceSCsCopy);
 
-		parameters.listParameters();
-		search.listParameters();
-		racing.listParameters();
+		// print parameters
+		log("c Starting the EAAC configurator with following settings:");
+		log("c ---------------------------------");
+		List<String> params = parameters.getParameters();
+		params.add("%");
+		params.addAll(search.getParameters());
+		params.add("%");
+		params.addAll(racing.getParameters());
+		params.add("%");
+		for (String p : params) {
+			log("c " + p);
+			log_db(p);
+		}
 
+		// user specified racing solver configurations
 		List<SolverConfiguration> racingScs = new LinkedList<SolverConfiguration>();
 		
 		/**
@@ -451,6 +488,8 @@ public class AAC {
 		}
 		HashMap<Integer, SolverConfiguration> lastBestSCs = new HashMap<Integer, SolverConfiguration>();
 		while (!terminate()) {
+			// retrieve best solver configurations from racing method and update the solver configuration names
+			// of old best scs and new best scs
 			List<SolverConfiguration> racingBestSCs = racing.getBestSolverConfigurations(null);
 			HashMap<Integer, SolverConfiguration> notBestSCs = new HashMap<Integer, SolverConfiguration>();
 			notBestSCs.putAll(lastBestSCs);
@@ -469,15 +508,10 @@ public class AAC {
 			}
 			notBestSCs.clear();
 
-			// update the cost of the configuration in the EDACC solver
-			// configuration tables
-			// api.updateSolverConfigurationCost(racing.getBestSC().getIdSolverConfiguration(),
-			// racing.getBestSC().getCost(),
-			// parameters.getStatistics().getCostFunction());
-
-			int generateNumSC = 0;
+			
 			// ----INCREASE PARALLELISM----
 			// compute the number of new solver configs that should be generated
+			int generateNumSC = 0;
 			if (!terminate()) {
 				generateNumSC = racing.computeOptimalExpansion(api.getComputationCoreCount(parameters.getIdExperiment()), api.getComputationJobCount(parameters.getIdExperiment()), listNewSC.size());
 			}
@@ -497,33 +531,24 @@ public class AAC {
 			}
 			
 			if (generateNumSC > 0) {
-				/*
-				 * int numNewSC = 0; if (generateNumSC >= 210) { generateNumSC
-				 * -= 210; numNewSC = 210; } else { numNewSC = generateNumSC;
-				 * generateNumSC = 0; }
-				 */
-				// generate all requested solver configs (important for IteratedFRace?)
-				int numNewSC = generateNumSC;
-				generateNumSC = 0;
-
 				List<SolverConfiguration> tmpList = new LinkedList<SolverConfiguration>();
 				// add (user defined) racing solver configurations first
-				while (!racingScs.isEmpty() && numNewSC > 0) {
+				while (!racingScs.isEmpty() && generateNumSC > 0) {
 					log("c adding racing solver configuration");
 					tmpList.add(racingScs.get(0));
 					racingScs.remove(0);
-					numNewSC--;
+					generateNumSC--;
 				}
 				
-				if (numNewSC > 0) {
+				if (generateNumSC > 0) {
 					DatabaseConnector.getInstance().getConn().setAutoCommit(false);
 					try {
-						tmpList.addAll(search.generateNewSC(numNewSC));
+						tmpList.addAll(search.generateNewSC(generateNumSC));
 					} finally {
 						DatabaseConnector.getInstance().getConn().setAutoCommit(true);
 					}
 				}
-				if (tmpList.size() == 0 && numNewSC == 0) {
+				if (tmpList.size() == 0 && generateNumSC == 0) {
 					log("e Error: no solver configs generated in first iteration.");
 					return;
 				}
@@ -555,12 +580,14 @@ public class AAC {
 				break;
 			}
 
+			List<ExperimentResult> finishedJobs = new LinkedList<ExperimentResult>();
 			List<SolverConfiguration> finishedSCs = new LinkedList<SolverConfiguration>();
 			for (SolverConfiguration sc : listNewSC.values()) {
-				float tmpCPUTime = sc.updateJobsStatus(api);
-				cumulatedCPUTime += tmpCPUTime;
-				if (tmpCPUTime > 0.f) {
+				List<ExperimentResult> scFinishedJobs = sc.updateJobsStatus(api);
+				
+				if (!scFinishedJobs.isEmpty()) {
 					sc.nameUpdated = true;
+					finishedJobs.addAll(scFinishedJobs);
 				}
 				if (sc.getNumNotStartedJobs() + sc.getNumRunningJobs() == 0) {
 					finishedSCs.add(sc);
@@ -590,10 +617,21 @@ public class AAC {
 				}
 
 			}
+			// update cumulated cpu time
+			cumulatedCPUTime += getResultTime(finishedJobs);
+			
+			// notify job listeners
+			notifyJobListeners(finishedJobs);
+			
+			// remove finished solver configurations
 			for (SolverConfiguration sc : finishedSCs) {
 				listNewSC.remove(sc.getIdSolverConfiguration());
 			}
+			
+			// notify racing method
 			racing.solverConfigurationsFinished(finishedSCs);
+			
+			// update solver configuration names
 			for (SolverConfiguration sc : solverConfigs) {
 				boolean currentBest = lastBestSCs.containsKey(sc.getIdSolverConfiguration());
 				if (sc.nameUpdated || currentBest != sc.wasBest) {
@@ -606,6 +644,7 @@ public class AAC {
 				}
 			}
 		}
+		// aac main procedure finished, notify search and racing methods
 		search.searchFinished();
 		racing.raceFinished();
 	}
@@ -615,7 +654,17 @@ public class AAC {
 	}
 
 	public void updateJobsStatus(SolverConfiguration sc) throws Exception {
-		cumulatedCPUTime += sc.updateJobsStatus(api);
+		List<ExperimentResult> finishedJobs = sc.updateJobsStatus(api);
+		cumulatedCPUTime += getResultTime(finishedJobs);
+		notifyJobListeners(finishedJobs);
+	}
+	
+	private void notifyJobListeners(List<ExperimentResult> jobs) {
+		for (JobListener listener : jobListeners) {
+			for (ExperimentResult er : jobs) {
+				listener.jobFinished(er);
+			}
+		}
 	}
 
 	public float getWallTime() {
@@ -664,8 +713,18 @@ public class AAC {
 		log("c Best Configurations found: ");
 
 		for (SolverConfiguration bestSC : racing.getBestSolverConfigurations(null)) {
-			log("c ID :" + bestSC);
 			try {
+				log_db("ID :" + bestSC.getIdSolverConfiguration());
+			} catch (Exception ex) {
+			}
+			
+			log("c ID :" + bestSC.getIdSolverConfiguration());
+			try {
+				try {
+					log_db("Canonical name: " + api.getCanonicalName(parameters.getIdExperiment(), bestSC.getParameterConfiguration()));
+				} catch (Exception ex) {
+				}
+				
 				log("c Canonical name: " + api.getCanonicalName(parameters.getIdExperiment(), bestSC.getParameterConfiguration()));
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -728,11 +787,15 @@ public class AAC {
 	public static void main(String[] args) throws Exception {
 		Parameters params = new Parameters();
 		if (args.length < 1) {
-			System.out.println("Missing configuration file. Use java -jar PROAR.jar <config file path> [<key=value>]*");
-			System.out.println("If <key=value> pairs are given, config parameters will be overwritten.");
-			params.listParameters();
+			System.out.println("% Missing configuration file. Use java -jar PROAR.jar <config file path> [<key=value>]*");
+			System.out.println("% If <key=value> pairs are given, config parameters will be overwritten.");
+			for (String p : params.getParameters()) {
+				System.out.println(p);
+			}
 			return;
 		}
+		// TODO: parameter to create a generic config file
+		
 		Scanner scanner = new Scanner(new File(args[0]));
 
 		List<Pair<String, String>> paramvalues = new LinkedList<Pair<String, String>>();
@@ -763,16 +826,29 @@ public class AAC {
 			System.out.println("Error while parsing parameters; exiting.");
 			return;
 		}
-		params.listParameters();
 		AAC configurator = new AAC(params);
-		System.out.println("c Starting the EAAC configurator with following settings:");
-		System.out.println("c ---------------------------------");
 		configurator.start();
 		configurator.shutdown();
 	}
-
+	
+	/**
+	 * Logs <code>message</code> to standard output.
+	 * @param message the message
+	 */
 	public void log(String message) {
-		System.out.println("[Date: " + new Date() + ",Walltime: " + getWallTime() + ",CPUTime: " + cumulatedCPUTime + ",NumSC: " + statNumSolverConfigs + ",NumJobs: " + statNumJobs + "] " + message);
+		if (System.currentTimeMillis() - lastStats > 120*1000) {
+			lastStats = System.currentTimeMillis();
+			log("Walltime: " + getWallTime() + ",CPUTime: " + cumulatedCPUTime + ",NumSC: " + statNumSolverConfigs + ",NumJobs: " + statNumJobs);
+		}
+		System.out.println("[Date: " + new Date() + "] " + message);
 	}
 
+	/**
+	 * Logs <code>message</code> to the database.
+	 * @param message the message
+	 * @throws Exception an exception is thrown on db errors
+	 */
+	public void log_db(String message) throws Exception {
+		api.addOutput(parameters.getIdExperiment(), "[Date: " + new Date() + ",Walltime: " + getWallTime() + ",CPUTime: " + cumulatedCPUTime + ",NumSC: " + statNumSolverConfigs + ",NumJobs: " + statNumJobs + "] " + message + "\n");
+	}
 }

@@ -267,8 +267,10 @@ public class IterativeSearchSpaceSampling extends SearchMethods {
 	}
 
 	@Override
-	public void listParameters() {
-
+	public List<String> getParameters() {
+		List<String> p = new LinkedList<String>();
+		// TODO: params
+		return p;
 	}
 	
 	private class ObjectArrayWrapper {

@@ -33,7 +33,11 @@ public abstract class SearchMethods {
 	 */
 	public abstract List<SolverConfiguration> generateNewSC(int num) throws Exception;
 	
-	public abstract void listParameters();
+	/**
+	 * Returns the parameters in a config like style as ordered list
+	 * @return
+	 */
+	public abstract List<String> getParameters();
 	
 	/**
 	 * Called after termination criterion reached.

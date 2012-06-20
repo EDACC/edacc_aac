@@ -4,6 +4,7 @@ import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 
 import edacc.api.costfunctions.CostFunction;
@@ -60,57 +61,62 @@ public class Parameters {
 	/*
 	 * Lists the help for all parameters with default values or list the settings 
 	 */
-	public void listParameters(){
+	public List<String> getParameters(){
+		List<String> p = new LinkedList<String>();
 		if (pnp){
-			System.out.println("\n%Parameters that are supported by EAAC version ... with their default values:");
-			System.out.println("%If no default value listed -> specified by user!\n");
+			p.add("\n%Parameters that are supported by EAAC version ... with their default values:");
+			p.add("%If no default value listed -> specified by user!\n");
 		}
-		System.out.println("%---Database parameters---");
-		System.out.println("host = "+this.hostname+ (pnp?" (name or IP of database host)":""));
-		System.out.println("user = " + this.user + (pnp?" (database user)":""));
-		System.out.println("password = " + this.password + (pnp?" (database user password)":""));
-		System.out.println("port = "+ this.port + (pnp?"(database server port)":""));
-		System.out.println("database = " + this.database + (pnp?" (name of database to use)":""));
-		System.out.println("pollingInterval = " + this.pollingInterval + (pnp?" <int>(number of ms between two polls)":""));
-		System.out.println("deleteSolverConfigsAtStart = " + this.deleteSolverConfigsAtStart + (pnp?" <boolean> (whether to delete solver configs at the beginning or not; can be useful for multiple runs on the same experiment)":""));
-		System.out.println("%-----------------------\n");
-		System.out.println("%---Experiment parameters---");
-		System.out.println("idExperiment = " + this.idExperiment + (pnp?" <int>(id of experiment to run the configurator on)":""));
-		System.out.println("idExperimentEvaluation = " + this.idExperiment + (pnp?" <int> (id of evaluation experiment; best solver config will be added to it at the end)" : ""));
-		System.out.println("evaluationSolverConfigName = " + this.evaluationSolverConfigName + (pnp?" <String> (This string will be used as suffix for the solver config added to the evaluation experiment)" : ""));
-		System.out.println("jobCPUTimeLimit = " +this.jobCPUTimeLimit + (pnp?" <int>(maximum number of CPU seconds a job is allowed to run)":""));
-		System.out.println("jobWallClockTimeLimit = " +this.jobWallClockTimeLimit + (pnp?" <int>(maximum number of wall clock seconds a job is allowed to run)":""));
-		System.out.println("deterministicSolver = " + this.deterministicSolver + (pnp?" <boolean>(0 for stochastic / 1 for determinisitc)":""));
-		System.out.println("%-----------------------\n");
-		System.out.println("%---Parcours parameters---");
-		System.out.println("maxParcoursExpansionFactor = " + this.maxParcoursExpansionFactor + (pnp?" <int>(maxParcoursLength = maxParcoursExpansionFactor x numInstances)":""));
-		System.out.println("parcoursExpansionPerStep = " + this.parcoursExpansionPerStep + (pnp?" <int>(number of jobs the parcours is expanded in each step)":""));
-		System.out.println("initialDefaultParcoursLength = " + this.initialDefaultParcoursLength + (pnp?" <int>(initial length of the parcours)":""));
-		System.out.println("%-----------------------\n");
-		System.out.println("%---Configurator parameters---");
-		System.out.println("searchSeed =  " + this.searchSeed + (pnp?" <long>(seed for search method)":""));
-		System.out.println("racingSeed = " + this.racingSeed + (pnp?" <long>(seed for racing method)":""));
-		System.out.println("searchMethod = " + this.searchMethod + (pnp?" <string>(method used to generate new SC)":""));
-		System.out.println("racingMethod = " + this.racingMethod + (pnp?" <string>(method used to race SC)":""));
-		//System.out.println("<searchMethod>_<name> = " + this.ser + (pnp?" (additionel parameters for search method>":""));
-		//System.out.println("<racingMethod>_<name> = " +  + (pnp?" (additionel parameters for racing method>":""));
-		System.out.println("costFunction = " + this.costFunc + (pnp?" <string>(cost function to be optimized)":""));
-		System.out.println("minEvalsNewSC = " + this.minE + (pnp?" <int>(number of evaluations for new SCs)":""));
-		System.out.println("maxTuningTime = " + this.maxTuningTime + (pnp?" <float>(maximum sum of CPU seconds for all generated jobs (-1 no limitation))":""));
-		System.out.println("minCPUCount = " + this.minCPUCount + (pnp?" <int>(minimum number of CPU that should be available before starting the configuration proccess (0 no limitation))":""));
-		System.out.println("maxCPUCount = " + this.maxCPUCount + (pnp?" <int>(maximum number of CPU that should be available before starting the configuration proccess (0 no limitation))":""));
-		System.out.println("deleteSolverConfigs = " + this.deleteSolverConfigs + (pnp?" <boolean>(wheater to delete bad solver configs from DB or not)":""));
-		System.out.println("maxNumSC = " + this.maxNumSC + (pnp?" <int>(maximum number of solver configurations that the configurator should generate (-1 no limitation))":""));
-		System.out.println("%-----------------------\n");
-		System.out.println("%---Simulation parameters---");
-		System.out.println("simulation = " + this.simulation + (pnp?" <boolean>(simulate configuration proccess within an full matrix experiment)":""));
+		p.add("%---Database parameters---");
+		p.add("host = "+this.hostname+ (pnp?" (name or IP of database host)":""));
+		p.add("user = " + this.user + (pnp?" (database user)":""));
+		p.add("password = " + this.password + (pnp?" (database user password)":""));
+		p.add("port = "+ this.port + (pnp?"(database server port)":""));
+		p.add("database = " + this.database + (pnp?" (name of database to use)":""));
+		p.add("pollingInterval = " + this.pollingInterval + (pnp?" <int>(number of ms between two polls)":""));
+		p.add("deleteSolverConfigsAtStart = " + this.deleteSolverConfigsAtStart + (pnp?" <boolean> (whether to delete solver configs at the beginning or not; can be useful for multiple runs on the same experiment)":""));
+		p.add("%-----------------------");
+		p.add("%");
+		p.add("%---Experiment parameters---");
+		p.add("idExperiment = " + this.idExperiment + (pnp?" <int>(id of experiment to run the configurator on)":""));
+		p.add("idExperimentEvaluation = " + this.idExperiment + (pnp?" <int> (id of evaluation experiment; best solver config will be added to it at the end)" : ""));
+		p.add("evaluationSolverConfigName = " + this.evaluationSolverConfigName + (pnp?" <String> (This string will be used as suffix for the solver config added to the evaluation experiment)" : ""));
+		p.add("jobCPUTimeLimit = " +this.jobCPUTimeLimit + (pnp?" <int>(maximum number of CPU seconds a job is allowed to run)":""));
+		p.add("jobWallClockTimeLimit = " +this.jobWallClockTimeLimit + (pnp?" <int>(maximum number of wall clock seconds a job is allowed to run)":""));
+		p.add("deterministicSolver = " + this.deterministicSolver + (pnp?" <boolean>(0 for stochastic / 1 for determinisitc)":""));
+		p.add("%-----------------------");
+		p.add("%");
+		p.add("%---Parcours parameters---");
+		p.add("maxParcoursExpansionFactor = " + this.maxParcoursExpansionFactor + (pnp?" <int>(maxParcoursLength = maxParcoursExpansionFactor x numInstances)":""));
+		p.add("parcoursExpansionPerStep = " + this.parcoursExpansionPerStep + (pnp?" <int>(number of jobs the parcours is expanded in each step)":""));
+		p.add("initialDefaultParcoursLength = " + this.initialDefaultParcoursLength + (pnp?" <int>(initial length of the parcours)":""));
+		p.add("%-----------------------");
+		p.add("%");
+		p.add("%---Configurator parameters---");
+		p.add("searchSeed =  " + this.searchSeed + (pnp?" <long>(seed for search method)":""));
+		p.add("racingSeed = " + this.racingSeed + (pnp?" <long>(seed for racing method)":""));
+		p.add("searchMethod = " + this.searchMethod + (pnp?" <string>(method used to generate new SC)":""));
+		p.add("racingMethod = " + this.racingMethod + (pnp?" <string>(method used to race SC)":""));
+		p.add("costFunction = " + this.costFunc + (pnp?" <string>(cost function to be optimized)":""));
+		p.add("minEvalsNewSC = " + this.minE + (pnp?" <int>(number of evaluations for new SCs)":""));
+		p.add("maxTuningTime = " + this.maxTuningTime + (pnp?" <float>(maximum sum of CPU seconds for all generated jobs (-1 no limitation))":""));
+		p.add("minCPUCount = " + this.minCPUCount + (pnp?" <int>(minimum number of CPU that should be available before starting the configuration proccess (0 no limitation))":""));
+		p.add("maxCPUCount = " + this.maxCPUCount + (pnp?" <int>(maximum number of CPU that should be available before starting the configuration proccess (0 no limitation))":""));
+		p.add("deleteSolverConfigs = " + this.deleteSolverConfigs + (pnp?" <boolean>(wheater to delete bad solver configs from DB or not)":""));
+		p.add("maxNumSC = " + this.maxNumSC + (pnp?" <int>(maximum number of solver configurations that the configurator should generate (-1 no limitation))":""));
+		p.add("%-----------------------");
+		p.add("%");
+		p.add("%---Simulation parameters---");
+		p.add("simulation = " + this.simulation + (pnp?" <boolean>(simulate configuration proccess within an full matrix experiment)":""));
 		// TODO: maybe implement
 		// System.out.println("simulationGenerateInstance = " + this.simulationGenerateInstance + (pnp? " <boolean>(whether to generate an instance to be used in edacc or not)":""));
 		// if specified a serialized output of the experiment result cache + solver config cache will be generated and can be used as input instance
 		// simulation process could be started without a connection to the db => no traffic needed after downloading the instance
-		System.out.println("simulationCorecount = " +this.simulationCorecount + (pnp?" <int>(core count for computation units)":""));
-		System.out.println("simulationSeed = " + this.simulationSeed + (pnp?" <long>(seed for simulation)":""));
-		System.out.println("%-----------------------\n");
+		p.add("simulationCorecount = " +this.simulationCorecount + (pnp?" <int>(core count for computation units)":""));
+		p.add("simulationSeed = " + this.simulationSeed + (pnp?" <long>(seed for simulation)":""));
+		p.add("%-----------------------");
+		p.add("%");
+		return p;
 		//TODO : add parameter that generated generic config file!
 	}
 	
@@ -211,7 +217,6 @@ public class Parameters {
 
 			else {
 				System.err.println("unrecognized parameter:" + " '" + key + "' " + " terminating! \n Valid Parameters for EAAC:");
-				listParameters();
 				return false;
 				
 			}

@@ -437,9 +437,9 @@ public class GA extends SearchMethods {
 	}
 
 	@Override
-	public void listParameters() {
-		// TODO Auto-generated method stub
-		
+	public List<String> getParameters() {
+		// TODO: implement
+		return new LinkedList<String>();		
 	}
 
 

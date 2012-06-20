@@ -72,12 +72,13 @@ public class RandomSequenceSampling extends SearchMethods {
     }
 
     @Override
-    public void listParameters() {
-        System.out.println("--- RandomSequenceSampling parameters ---");
-        System.out.println("RandomSequenceSampling_samplingPath = <REQUIRED> (Path to the external sequence generating program)");
-        System.out.println("RandomSequenceSampling_maxSamples = "+this.maxSamples+ " (How many configurations should be evaluated at most)");
-        System.out.println("-----------------------\n");
-        
+    public List<String> getParameters() {
+    	List<String> p = new LinkedList<String>();
+    	p.add("% --- RandomSequenceSampling parameters ---");
+    	p.add("RandomSequenceSampling_samplingPath = <REQUIRED> % (Path to the external sequence generating program)");
+    	p.add("RandomSequenceSampling_maxSamples = "+this.maxSamples+ " % (How many configurations should be evaluated at most)");
+    	p.add("% -----------------------");
+        return p;
     }
     
     private ParameterConfiguration mapRealTupleToParameters(double[] values) {

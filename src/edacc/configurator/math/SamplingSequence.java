@@ -52,16 +52,4 @@ public class SamplingSequence {
         process.waitFor();
         return data;
     }
-
-    public static void main(String... args) throws IOException, InterruptedException {
-        // Testing
-        SamplingSequence s = new SamplingSequence("contrib/sampling/sampling");
-        double[][] data = s.getSequence(4, 100);
-        for (int i = 0; i < 100; i++) {
-            for (int d = 0; d < 4; d++) {
-                System.out.print(data[i][d] + " ");
-            }
-            System.out.println();
-        }
-    }
 }

@@ -307,15 +307,17 @@ public class ILS extends SearchMethods {
 		return solverConfigs;
 	}*/
 
-	public void listParameters() {
-            System.out.println("--- IteratedLocalSearch parameters ---");
-            System.out.println("ILS_StdDevFactor = "+this.stdDevFactor);
-            System.out.println("ILS_sampleSize = "+this.sampleSize);
-            System.out.println("ILS_sampleOrdinals = "+this.sampleOrdinals);
-            System.out.println("ILS_restartProbability = "+this.restartProbability);
-            System.out.println("ILS_pertubationSteps = "+this.pertubationSteps);
+	public List<String> getParameters() {
+		List<String> p = new LinkedList<String>();
+            p.add("% --- IteratedLocalSearch parameters ---");
+            p.add("ILS_StdDevFactor = "+this.stdDevFactor);
+            p.add("ILS_sampleSize = "+this.sampleSize);
+            p.add("ILS_sampleOrdinals = "+this.sampleOrdinals);
+            p.add("ILS_restartProbability = "+this.restartProbability);
+            p.add("ILS_pertubationSteps = "+this.pertubationSteps);
             //TODO: complete list
-            System.out.println("--------------------------------------\n");
+            p.add("% --------------------------------------");
+            return p;
 	}
         
         /* calculates the importance of each Parameter according to the cost-difference of 

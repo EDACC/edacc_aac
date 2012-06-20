@@ -1,6 +1,7 @@
 package edacc.configurator.aac.search;
 
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
 
@@ -32,9 +33,9 @@ public class ROAR extends SearchMethods {
 	}
 
 	@Override
-	public void listParameters() {
+	public List<String> getParameters() {
 		// TODO Auto-generated method stub
-		
+		return new LinkedList<String>();
 	}
 
 	@Override

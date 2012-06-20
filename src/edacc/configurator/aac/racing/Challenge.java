@@ -13,15 +13,17 @@ import edacc.api.API;
 import edacc.api.costfunctions.CostFunction;
 import edacc.api.costfunctions.Median;
 import edacc.configurator.aac.AAC;
+import edacc.configurator.aac.JobListener;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
+import edacc.configurator.aac.racing.challenge.Clustering;
 import edacc.model.Experiment;
 import edacc.model.ExperimentResult;
 import edacc.model.Instance;
 import edacc.model.InstanceDAO;
 import edacc.util.Pair;
 
-public class Challenge extends RacingMethods {
+public class Challenge extends RacingMethods implements JobListener {
 	private ArrayList<SolverConfiguration> solverConfigsReadyForQualification;
 	private ArrayList<SolverConfiguration> solverConfigsReadyForTournament;
 	private ArrayList<Integer> instances;
@@ -33,6 +35,8 @@ public class Challenge extends RacingMethods {
 	private List<SolverConfiguration> bestSolverConfigs;
 
 	private HashSet<Integer> instancesSolved;
+	
+	private Clustering clustering;
 	
 	// parameters	
 	private float initialRunsInstanceSolvedPercentage = 1.f;
@@ -83,6 +87,7 @@ public class Challenge extends RacingMethods {
 	
 	public Challenge(AAC pacc, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
 		super(pacc, rng, api, parameters, firstSCs, referenceSCs);
+		pacc.addJobListener(this);
 		
 		String val;
 		if ((val = parameters.getRacingMethodParameters().get("Challenge_initialRunsInstanceSolvedPercentage")) != null)
@@ -147,6 +152,7 @@ public class Challenge extends RacingMethods {
 			addInitialRuns(sc);
 		}
 
+		clustering = new Clustering(instances);
 	}
 	
 	private void updateBestSolverConfigs() {
@@ -232,13 +238,28 @@ public class Challenge extends RacingMethods {
 	
 	private void addInitialRuns(SolverConfiguration sc) throws Exception { 		
 		HashSet<Integer> instanceIds = new HashSet<Integer>();
-		if (instancesSolved.size() > instances.size()*instanceSolvedThresholdPercentage) {
+		/*if (instancesSolved.size() > instances.size()*instanceSolvedThresholdPercentage) {
 			ArrayList<Integer> instancesSolvedList = new ArrayList<Integer>();
 			instancesSolvedList.addAll(instancesSolved);
 			while (instanceIds.size() < parameters.getMinRuns() * initialRunsInstanceSolvedPercentage && instanceIds.size() < instancesSolved.size() && instanceIds.size() < parameters.getMinRuns()) {
 				instanceIds.add(instancesSolvedList.get(rng.nextInt(instancesSolvedList.size())));
 			}
-		}		
+		}*/
+		HashMap<Integer, List<Integer>> c = clustering.getClustering(false);
+		List<Integer> unsolved = null;
+		do {
+			for (List<Integer> l : c.values()) {
+				instanceIds.add(l.get(rng.nextInt(l.size())));
+				if (instanceIds.size() >= parameters.getMinRuns()) {
+					break;
+				}
+			}
+			if (unsolved == null) {
+				unsolved = new LinkedList<Integer>();
+				unsolved.addAll(clustering.getNotUsedInstances());
+			}
+			instanceIds.add(unsolved.get(rng.nextInt(unsolved.size())));
+		} while (instanceIds.size() < parameters.getMinRuns());
 		
 		while (instanceIds.size() < parameters.getMinRuns()) {
 			instanceIds.add(instances.get(rng.nextInt(instances.size())));
@@ -498,31 +519,33 @@ public class Challenge extends RacingMethods {
 	}
 
 	@Override
-	public void listParameters() {
-		System.out.println("% initial sc parameters");
-		System.out.println("Challenge_initialRunsInstanceSolvedPercentage = " + initialRunsInstanceSolvedPercentage);
-		System.out.println("Challenge_instanceSolvedThresholdPercentage = " + instanceSolvedThresholdPercentage);
-		System.out.println("Challenge_scInitialPoints = " + scInitialPoints);
-		System.out.println("Challenge_minInitialSolvedPerc = " + minInitialSolvedPerc);
-		System.out.println("% tournament parameters");
-		System.out.println("Challenge_tournamentSCCount = " + tournamentSCCount);
-		System.out.println("Challenge_scTournamentWinnerPoints = " + scTournamentWinnerPoints);
-		System.out.println("Challenge_scTournamentLoserPoints = " + scTournamentLoserPoints);
-		System.out.println("Challenge_numTournamentWinnerInstances = " + numTournamentWinnerInstances);
-		System.out.println("Challenge_numChallengeInstancesTournament = " + numChallengeInstancesTournament);
-		System.out.println("% qualification parameters");
-		System.out.println("Challenge_qualificationSCCount = " + qualificationSCCount);
-		System.out.println("Challenge_scQualificationWinnerPoints = " + scQualificationWinnerPoints);
-		System.out.println("Challenge_scQualificationLoserPoints = " + scQualificationLoserPoints);
-		System.out.println("Challenge_minQualificationWinners = " + minQualificationWinners);
-		System.out.println("Challenge_numChallengeInstancesQualification = " + numChallengeInstancesQualification);
-		System.out.println("% adaptive instance timeout parameters");
-		System.out.println("Challenge_useAdaptiveInstanceTimeouts = " + useAdaptiveInstanceTimeouts);
-		System.out.println("Challenge_limitCPUTimeFactor = " + limitCPUTimeFactor);
-		System.out.println("Challenge_limitCPUTimeMaxCPUTime = " + limitCPUTimeMaxCPUTime);
-		System.out.println("Challenge_limitCPUTimeMinRuns = " + limitCPUTimeMinRuns);
-		System.out.println("% misc parameters");
-		System.out.println("Challenge_minBestSCs = " + minBestSCs);
+	public List<String> getParameters() {
+		List<String> p = new LinkedList<String>();
+		p.add("% initial sc parameters");
+		p.add("Challenge_initialRunsInstanceSolvedPercentage = " + initialRunsInstanceSolvedPercentage);
+		p.add("Challenge_instanceSolvedThresholdPercentage = " + instanceSolvedThresholdPercentage);
+		p.add("Challenge_scInitialPoints = " + scInitialPoints);
+		p.add("Challenge_minInitialSolvedPerc = " + minInitialSolvedPerc);
+		p.add("% tournament parameters");
+		p.add("Challenge_tournamentSCCount = " + tournamentSCCount);
+		p.add("Challenge_scTournamentWinnerPoints = " + scTournamentWinnerPoints);
+		p.add("Challenge_scTournamentLoserPoints = " + scTournamentLoserPoints);
+		p.add("Challenge_numTournamentWinnerInstances = " + numTournamentWinnerInstances);
+		p.add("Challenge_numChallengeInstancesTournament = " + numChallengeInstancesTournament);
+		p.add("% qualification parameters");
+		p.add("Challenge_qualificationSCCount = " + qualificationSCCount);
+		p.add("Challenge_scQualificationWinnerPoints = " + scQualificationWinnerPoints);
+		p.add("Challenge_scQualificationLoserPoints = " + scQualificationLoserPoints);
+		p.add("Challenge_minQualificationWinners = " + minQualificationWinners);
+		p.add("Challenge_numChallengeInstancesQualification = " + numChallengeInstancesQualification);
+		p.add("% adaptive instance timeout parameters");
+		p.add("Challenge_useAdaptiveInstanceTimeouts = " + useAdaptiveInstanceTimeouts);
+		p.add("Challenge_limitCPUTimeFactor = " + limitCPUTimeFactor);
+		p.add("Challenge_limitCPUTimeMaxCPUTime = " + limitCPUTimeMaxCPUTime);
+		p.add("Challenge_limitCPUTimeMinRuns = " + limitCPUTimeMinRuns);
+		p.add("% misc parameters");
+		p.add("Challenge_minBestSCs = " + minBestSCs);
+		return p;
 	}
 
 	private static int qidCounter = 0;
@@ -687,6 +710,7 @@ public class Challenge extends RacingMethods {
 		}
 		// remove the solver config
 		allSolverConfigs.remove(scId);
+		clustering.remove(scId);
 	}
 	
 	private List<Integer> getChallengeInstances(SolverConfiguration sc, int num) {
@@ -1006,5 +1030,25 @@ public class Challenge extends RacingMethods {
 	public void raceFinished() {
 		// TODO Auto-generated method stub
 		
+	}
+
+	@Override
+	public void jobFinished(ExperimentResult result) {
+		SolverConfigurationMetaData sc = allSolverConfigs.get(result.getSolverConfigId());
+		if (sc == null) {
+			return;
+		}
+		List<ExperimentResult> results = new LinkedList<ExperimentResult>(); 
+		boolean hasCost = false;
+		for (ExperimentResult r : sc.solverConfig.getJobs()) {
+			if (r.getInstanceId() == result.getInstanceId()) {
+				results.add(r);
+				if (r.getResultCode().isCorrect()) {
+					hasCost = true;
+				}
+			}
+		}
+		float cost = hasCost ? parameters.getStatistics().getCostFunction().calculateCost(results) : Float.POSITIVE_INFINITY;
+		clustering.update(result.getSolverConfigId(), result.getInstanceId(), cost);
 	}
 }

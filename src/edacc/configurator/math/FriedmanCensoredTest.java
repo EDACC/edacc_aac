@@ -18,9 +18,9 @@ import org.apache.commons.math.distribution.ChiSquaredDistributionImpl;
  * interval value is +inf. However there is never a test for "+inf", only
  * comparisons of values so a fixed value (e.g. cost limit) should be also fine.
  * 
- * TODO: check implementation
+ * TODO: fix implementation for censored values
  */
-public class FriedmanCensoredTest {
+public class FriedmanCensoredTest implements FamilyTest {
     private int[][] a_score;
     private int n, k;
 
@@ -33,18 +33,34 @@ public class FriedmanCensoredTest {
      * @param data
      */
     public FriedmanCensoredTest(int n, int k, double[][] data) {
-        a_score = new int[k][n];
-
-        for (int i = 0; i < k; i++) {
-            for (int j = 0; j < n; j++) {
-                a_score[i][j] = 0;
-                for (int h = 0; h < k; h++) {
-                    a_score[i][j] += (data[j][i] < data[j][h] ? 1 : (data[j][i] > data[j][h] ? -1 : 0));
+        boolean[] missingRow = new boolean[n];
+        int numMissingRows = 0;
+        for (int j = 0; j < n; j++) missingRow[j] = false; 
+        
+        for (int j = 0; j < n; j++) {
+            for (int i = 0; i < k; i++) {
+                if (Double.isNaN(data[j][i])) {
+                    missingRow[j] = true; 
+                    numMissingRows++;
+                    break;
                 }
             }
         }
+        
+        a_score = new int[k][n - numMissingRows];
+        for (int i = 0; i < k; i++) {
+            int score_row = 0;
+            for (int j = 0; j < n; j++) {
+                if (missingRow[j]) continue; // skip rows with missing data
+                a_score[i][score_row] = 0;
+                for (int h = 0; h < k; h++) {
+                    a_score[i][score_row] += (data[j][i] < data[j][h] ? 1 : (data[j][i] > data[j][h] ? -1 : 0));
+                }
+                score_row += 1;
+            }
+        }
 
-        this.n = n;
+        this.n = n - numMissingRows;
         this.k = k;
     }
 
@@ -54,6 +70,8 @@ public class FriedmanCensoredTest {
      * @return
      */
     public double familyTestStatistic() {
+        if (n == 0 || k == 0) return 0.0;
+        
         double denom = 0.0f;
         for (int j = 0; j < n; j++) {
             for (int i = 0; i < k; i++) {
@@ -61,7 +79,7 @@ public class FriedmanCensoredTest {
             }
         }
 
-        double nom = (k - 1);
+        double nom = 0;
         for (int i = 0; i < k; i++) {
             double dsum = 0.0f;
             for (int j = 0; j < n; j++) {
@@ -72,7 +90,12 @@ public class FriedmanCensoredTest {
 
         if (denom == 0)
             return 0.0f; // this should happen when all observations are equal
-        return nom / denom;
+        return (k-1) * nom / denom;
+    }
+    
+    public double criticalValue(double alpha) throws MathException {
+        ChiSquaredDistribution XS = new ChiSquaredDistributionImpl(k - 1);
+        return XS.inverseCumulativeProbability(1.0 - alpha);
     }
 
     /**
@@ -88,12 +111,4 @@ public class FriedmanCensoredTest {
         ChiSquaredDistribution XS = new ChiSquaredDistributionImpl(k - 1);
         return S > XS.inverseCumulativeProbability(1.0 - alpha);
     }
-
-    public static void main(String... args) throws Exception {
-        FriedmanCensoredTest f = new FriedmanCensoredTest(10, 3, new double[][] { { 1, 3, 5 }, { 3, 3, 4 }, { 1, 1, 22 },
-                { 1, 1, 10 }, { 1, 1, 10 }, { 1, 2, 10 }, { 1, 1, 10 }, { 1, 2, 10 }, { 1, 1, 10 }, { 1, 2, 10 }, });
-        System.out.println(f.familyTestStatistic());
-        System.out.println(f.isFamilyTestSignificant(f.familyTestStatistic(), 0.05));
-    }
-
 }

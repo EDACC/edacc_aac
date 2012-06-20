@@ -1,5 +1,6 @@
 package edacc.configurator.math;
 
+import org.apache.commons.math.MathException;
 import org.rosuda.JRI.REXP;
 import org.rosuda.JRI.Rengine;
 
@@ -39,35 +40,12 @@ public class SMTest {
     public double pValue() {
         rengine.assign("SMTestData", linearizedData);
         rengine.eval("SMTestData <- data.frame(matrix(SMTestData, nrow=" + n + ", ncol=" + c + ", byrow=T))");
+        
         // throw out columns with less than 2 observations
         rengine.eval("SMTestData <- SMTestData[, apply(SMTestData, 2, function(x) sum(!is.na(x)) > (length(x) / 2))]");
         REXP x = rengine.eval("if (ncol(SMTestData) == 0) 1.0 else MS.test(SMTestData, seq("+ n + "), reps=1)$P");
         if (x == null) return 1.0;
         return x.asDouble();
         
-    }
-    
-    public static void main(String ... args) throws Exception {
-        // testing ...
-        Rengine re = new Rengine(new String[]{"--vanilla"}, false, null);
-        
-        if (!re.waitForR()) {
-            throw new Exception("Could not initialize Rengine");
-        }
-        
-        if (re.eval("library(asbio)") == null) {
-            re.end();
-            throw new Exception("Did not find R library asbio (try running install.packages(\"asbio\")).");
-        }
-        
-        re.assign("M", new double[] {Double.NaN, 1.0, 2.0, 3.0, 4.0, 5.0});
-        re.eval("M = matrix(M, 3, 2)");
-        REXP e = re.eval("MS.test(M, seq(3), reps=1)$P");
-        System.out.println(e.asDouble());
-        
-        SMTest t = new SMTest(3, 3, new Double[][] {{1.0,2.0,3.0}, {2.0, 2.0, null}, {3.0, null, null}}, re);
-        System.out.println(t.pValue());
-        
-        re.end();
     }
 }
