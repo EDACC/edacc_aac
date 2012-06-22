@@ -1,8 +1,8 @@
 package edacc.configurator.aac;
 
 public class InstanceIdSeed {
-	int instanceId;
-	int seed;
+	public int instanceId;
+	public int seed;
 	
 	public InstanceIdSeed(int instanceId, int seed) {
 		this.instanceId = instanceId;
