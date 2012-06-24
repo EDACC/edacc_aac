@@ -4,6 +4,10 @@ import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.model.ExperimentResult;
 
+/**
+ *
+ * @author mugrauer, schulte
+ */
 public interface ClusterMethods {
 	
 	/**

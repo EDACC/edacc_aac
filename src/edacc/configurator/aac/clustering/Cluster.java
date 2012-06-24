@@ -10,15 +10,23 @@ import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.model.ExperimentResult;
 
+/**
+ *
+ * @author schulte, mugrauer
+ */
 public class Cluster{
 	private HashMap<Integer, InstanceIdSeed> idToInstances;
 	
 	public Cluster(List<InstanceIdSeed> instances) {
-		for (InstanceIdSeed instance : instances) {
-			idToInstances = new HashMap<Integer, InstanceIdSeed>();
+                idToInstances = new HashMap<Integer, InstanceIdSeed>();
+		for (InstanceIdSeed instance : instances) {			
 			idToInstances.put(instance.instanceId, instance);
 		}
 	}
+        public Cluster(InstanceIdSeed initialInstance){
+            idToInstances = new HashMap<Integer, InstanceIdSeed>();
+            idToInstances.put(initialInstance.instanceId, initialInstance);
+        }
 	
 	/**
 	 * Number of runs for this sc in this cluster
@@ -44,7 +52,7 @@ public class Cluster{
 	public List<InstanceIdSeed> getInstances() {
 		Collection<InstanceIdSeed> instances = idToInstances.values();
 		Iterator<InstanceIdSeed> instancesIter = instances.iterator();
-		ArrayList<InstanceIdSeed> instancesList = new ArrayList<InstanceIdSeed>();
+		ArrayList<InstanceIdSeed> instancesList = new ArrayList<InstanceIdSeed>(idToInstances.size());
 		while(instancesIter.hasNext()) {
 			InstanceIdSeed tmp = instancesIter.next();
 			instancesList.add(tmp);
@@ -77,4 +85,35 @@ public class Cluster{
 		idToInstances.put(instance.instanceId, instance);
 		return true;
 	}
+        
+        /* merges the contents of the specified cluster into this one
+         * 
+         * @param c the cluster to be merged into this cluster
+         */
+        public void mergeClusters(Cluster c){
+            idToInstances.putAll(c.idToInstances);
+            c.idToInstances.clear(); //instances shouldn't be in multiple clusters
+        }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        final Cluster other = (Cluster) obj;
+        if (this.idToInstances != other.idToInstances && (this.idToInstances == null || !this.idToInstances.equals(other.idToInstances))) {
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int hash = 5;
+        hash = 47 * hash + (this.idToInstances != null ? this.idToInstances.hashCode() : 0);
+        return hash;
+    }        
 }
