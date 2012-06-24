@@ -1,5 +1,6 @@
 package edacc.configurator.aac.clustering;
 
+import edacc.configurator.aac.InstanceIdSeed;
 import edacc.model.ExperimentResult;
 import edacc.util.Pair;
 import java.util.LinkedList;
@@ -18,6 +19,9 @@ public class InstanceData {
         this.seed = seed;
         costValues = new LinkedList<Double>();
         avg = 0D;
+    }
+    public InstanceData(InstanceIdSeed iis){
+        this(iis.instanceId, iis.seed);
     }
     
     public void addValue(ExperimentResult r){

@@ -1,14 +1,9 @@
 package edacc.configurator.aac.clustering;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-
 import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.model.ExperimentResult;
+import java.util.*;
 
 /**
  *
@@ -24,8 +19,8 @@ public class Cluster{
 		}
 	}
         public Cluster(InstanceIdSeed initialInstance){
-            idToInstances = new HashMap<Integer, InstanceIdSeed>();
-            idToInstances.put(initialInstance.instanceId, initialInstance);
+                idToInstances = new HashMap<Integer, InstanceIdSeed>();
+                idToInstances.put(initialInstance.instanceId, initialInstance);
         }
 	
 	/**
@@ -91,29 +86,29 @@ public class Cluster{
          * @param c the cluster to be merged into this cluster
          */
         public void mergeClusters(Cluster c){
-            idToInstances.putAll(c.idToInstances);
-            c.idToInstances.clear(); //instances shouldn't be in multiple clusters
+                idToInstances.putAll(c.idToInstances);
+                c.idToInstances.clear(); //instances shouldn't be in multiple clusters
         }
 
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null) {
-            return false;
+        @Override
+        public boolean equals(Object obj) {
+                if (obj == null) {
+                    return false;
+                }
+                if (getClass() != obj.getClass()) {
+                    return false;
+                }
+                final Cluster other = (Cluster) obj;
+                if (this.idToInstances != other.idToInstances && (this.idToInstances == null || !this.idToInstances.equals(other.idToInstances))) {
+                    return false;
+                }
+                return true;
         }
-        if (getClass() != obj.getClass()) {
-            return false;
-        }
-        final Cluster other = (Cluster) obj;
-        if (this.idToInstances != other.idToInstances && (this.idToInstances == null || !this.idToInstances.equals(other.idToInstances))) {
-            return false;
-        }
-        return true;
-    }
 
-    @Override
-    public int hashCode() {
-        int hash = 5;
-        hash = 47 * hash + (this.idToInstances != null ? this.idToInstances.hashCode() : 0);
-        return hash;
-    }        
+        @Override
+        public int hashCode() {
+                int hash = 5;
+                hash = 47 * hash + (this.idToInstances != null ? this.idToInstances.hashCode() : 0);
+                return hash;
+        }        
 }
