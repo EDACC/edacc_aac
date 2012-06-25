@@ -44,6 +44,10 @@ public class ILS extends SearchMethods {
         private SolverConfiguration currentBest;
         private SolverConfiguration referenceSolver=null;
         
+        
+        //measurements
+        private int numberOfLocalMinimums = 0;
+        private int numberOfFakeMinimums = 0; 
 	
 	
 	public ILS(AAC pacc, API api, Random rng, 
@@ -161,6 +165,7 @@ public class ILS extends SearchMethods {
         }
         
         private void startSecondaryNeighbourhood(SolverConfiguration starter) throws Exception{
+            numberOfLocalMinimums++;
             if(secondaryNeighbourhood != null){
                 secondaryNeighbourhood.killHard();
                 activeNeighbourhoods.add(secondaryNeighbourhood);
@@ -221,8 +226,9 @@ public class ILS extends SearchMethods {
                 currentNeighbourhood = new ILSNeighbourhood(newIncumbent, this);
                 aac.log("ILS: New incumbent found, searching new neighbourhood!");
                 if(secondaryNeighbourhood != null){
+                    numberOfFakeMinimums++;
                     secondaryNeighbourhood.killHard();
-                    activeNeighbourhoods.add(secondaryNeighbourhood);
+                    //activeNeighbourhoods.add(secondaryNeighbourhood); 
                     secondaryNeighbourhood = null;
                     aac.log("ILS: Killing secondary neighbourhood!");
                 }
@@ -377,7 +383,6 @@ public class ILS extends SearchMethods {
          */
         public void stopEvaluation(List<SolverConfiguration> configs) throws Exception{
             aac.racing.stopEvaluation(configs);
-            //TODO: implement functionality once the racing procedures are updated
         }
         
         /* compares two configs
@@ -431,9 +436,51 @@ public class ILS extends SearchMethods {
             return target;
         }
 
-		@Override
-		public void searchFinished() {
-			// TODO Auto-generated method stub
-			
-		}
+        @Override
+        public void searchFinished() {
+            int numberOfNeighbourhoods = completedNeighbourhoods.size()
+                                            +activeNeighbourhoods.size()+1
+                                            +((secondaryNeighbourhood==null) ? 0:1);
+            int numberOfConfigs = countConfigs(completedNeighbourhoods)
+                                            +countConfigs(activeNeighbourhoods)
+                                            +currentNeighbourhood.getNumberOfEvaluatedConfigs();
+            if(secondaryNeighbourhood!=null)
+                numberOfConfigs += secondaryNeighbourhood.getNumberOfEvaluatedConfigs();
+            
+            //average neighbourhood stage
+            double sum = 0;
+            double num = 0;
+            for(ILSNeighbourhood n : completedNeighbourhoods)
+                sum += n.getStage();
+            num += completedNeighbourhoods.size();
+            for(ILSNeighbourhood n: activeNeighbourhoods)
+                sum += n.getStage();
+            num += activeNeighbourhoods.size();
+            sum += currentNeighbourhood.getStage();
+            num += 1;
+            if(secondaryNeighbourhood != null){
+                sum += secondaryNeighbourhood.getStage();
+                num += 1;
+            }
+            double averageStage = sum/num;
+            
+            System.out.println("Stats for ILS:");
+            System.out.println("Number of neighbourhoods searched: "+numberOfNeighbourhoods);
+            System.out.println("Number of local minimums encountered: "+numberOfLocalMinimums
+                        +" (including "+numberOfFakeMinimums+" fake minimums)");
+            System.out.println("Average stage of neighbourhoods: "+averageStage);
+            System.out.println("Number of configurations evaluated: "+numberOfConfigs);
+            //System.out.println();
+            System.out.println("Best configuration found: "+currentBest.getName()
+                        +" (ID: "+currentBest.getIdSolverConfiguration()+")");
+        }
+        
+        //counts the number of evaluated configs
+        private int countConfigs(LinkedList<ILSNeighbourhood> lst){
+            int num = 0;
+            for(ILSNeighbourhood n : lst){
+                num += n.getNumberOfEvaluatedConfigs();
+            }
+            return num;
+        }
 }

@@ -247,4 +247,8 @@ public class ILSNeighbourhood {
         System.out.println("Number of configs: pending_"+pendingConfigs.size()+" running_"+runningConfigs.size()+" completed_"+completedConfigs.size());
         System.out.println("Stage: "+stage+", Incumbent found: "+hasNewIncumbent());
     }
+    
+    public int getStage(){
+        return stage;
+    }
 }
