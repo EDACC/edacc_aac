@@ -152,7 +152,7 @@ public class Challenge extends RacingMethods implements JobListener {
 			addInitialRuns(sc);
 		}
 
-		clustering = new Clustering(instances);
+		clustering = new Clustering(instances, new LinkedList<String>());
 	}
 	
 	private void updateBestSolverConfigs() {
@@ -246,17 +246,25 @@ public class Challenge extends RacingMethods implements JobListener {
 			}
 		}*/
 		HashMap<Integer, List<Integer>> c = clustering.getClustering(false);
-		List<Integer> unsolved = null;
+		List<Integer> unsolved = new LinkedList<Integer>();
+		unsolved.addAll(clustering.getNotUsedInstances());
+		
 		do {
+			if (unsolved.size() > 0.5f * instances.size()) {
+				for (int i = 0; i < parameters.getMinRuns() * 0.5f; i++) {
+					instanceIds.add(unsolved.get(rng.nextInt(unsolved.size())));
+					if (instanceIds.size() == parameters.getMinRuns())
+						break;
+				}
+			}
+			
+			if (instanceIds.size() == parameters.getMinRuns())
+				break;
 			for (List<Integer> l : c.values()) {
 				instanceIds.add(l.get(rng.nextInt(l.size())));
 				if (instanceIds.size() >= parameters.getMinRuns()) {
 					break;
 				}
-			}
-			if (unsolved == null) {
-				unsolved = new LinkedList<Integer>();
-				unsolved.addAll(clustering.getNotUsedInstances());
 			}
 			instanceIds.add(unsolved.get(rng.nextInt(unsolved.size())));
 		} while (instanceIds.size() < parameters.getMinRuns());

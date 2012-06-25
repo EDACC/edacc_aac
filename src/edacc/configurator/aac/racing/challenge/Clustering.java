@@ -1,9 +1,20 @@
 package edacc.configurator.aac.racing.challenge;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Properties;
 
 import edacc.api.API;
 import edacc.api.APIImpl;
@@ -13,7 +24,13 @@ import edacc.model.Experiment.Cost;
 import edacc.model.ExperimentResult;
 import edacc.model.ExperimentResultDAO;
 import edacc.model.Instance;
+import edacc.model.InstanceClassMustBeSourceException;
 import edacc.model.InstanceDAO;
+import edacc.model.InstanceHasProperty;
+import edacc.model.ParameterInstanceDAO;
+import edacc.model.SolverConfiguration;
+import edacc.model.SolverConfigurationDAO;
+import edacc.model.SolverDAO;
 import edacc.util.Pair;
 
 /**
@@ -21,7 +38,12 @@ import edacc.util.Pair;
  * @author simon
  *
  */
-public class Clustering {
+public class Clustering implements Serializable {
+	
+	/**
+	 * 
+	 */
+	private static final long serialVersionUID = 2847802957451633450L;
 	
 	private int n; // number of instances = I.size();
 	private HashMap<Integer, Integer> I; // maps instance id to column
@@ -34,11 +56,19 @@ public class Clustering {
 	// cache for data to be updated before using matrix M
 	private HashSet<Integer> update_columns;
 	
+	protected HashMap<Integer, float[]> F; // feature vectors for instances
+	protected HashMap<Integer, String> P; // parameter lines
+	
+	
+	protected DecisionTree tree;
+	
 	/**
 	 * Creates new Clustering object with the given instance ids. Instance ids cannot be changed later.
 	 * @param instanceIds the instance ids to be clustered
+	 * @throws SQLException 
+	 * @throws InstanceClassMustBeSourceException 
 	 */
-	public Clustering(List<Integer> instanceIds) {
+	public Clustering(List<Integer> instanceIds, List<String> feature_names) throws InstanceClassMustBeSourceException, SQLException {
 		// generate the column mapping for M,C matrices
 		I = new HashMap<Integer, Integer>();
 		int row = 0;
@@ -60,6 +90,31 @@ public class Clustering {
 		for (int i = 0; i < n; i++) {
 			K[i] = 0.f;
 		}
+		
+		// load features
+		F = new HashMap<Integer, float[]>();
+		for (Integer id : instanceIds) {
+			float[] f = new float[feature_names.size()];
+			HashMap<String, Float> tmp = new HashMap<String, Float>();
+			Instance instance = InstanceDAO.getById(id);
+			for (InstanceHasProperty ihp : instance.getPropertyValues().values()) {
+				try {
+					tmp.put(ihp.getProperty().getName(), Float.parseFloat(ihp.getValue()));
+				} catch (Exception ex) {
+				}
+			}
+			for (int i = 0; i < feature_names.size(); i++) {
+				Float val = tmp.get(feature_names.get(i));
+				if (val == null) {
+					System.err.println("WARNING: Did not find feature value for name " + feature_names.get(i) + " and instance " + instance.getId());
+					f[i] = 0.f;
+				} else {
+					f[i] = val;
+				}
+			}
+			F.put(id, f);
+		}
+		P = new HashMap<Integer, String>();
 	}
 	
 	private void updateData() {
@@ -131,6 +186,14 @@ public class Clustering {
 			
 			// initial weight is 0.
 			//W.put(scid, 0.f);
+			
+			// get parameter line
+			try {
+				SolverConfiguration sc = SolverConfigurationDAO.getSolverConfigurationById(scid);
+				P.put(scid, edacc.experiment.Util.getSolverParameterString(ParameterInstanceDAO.getBySolverConfig(sc), SolverDAO.getById(sc.getSolverBinary().getIdSolver())));
+			} catch (Exception ex) {
+				System.err.println("WARNING: Could not add parameter line for solver configuration " + scid);
+			}
 		}
 		int column = I.get(instanceid);
 		float[] c = C.get(scid);
@@ -285,12 +348,15 @@ public class Clustering {
 		}
 		System.out.printf("%9s\n", "weight");
 		for (int scid : M.keySet()) {
+			float weight = getWeight(scid);
+			if (weight <= 0.0f)
+				continue;
 			float[] m = M.get(scid);
 			System.out.printf("%9d", scid);
 			for (int i = 0; i < n; i++) {
 				System.out.printf("%9f", m[i]);
 			}
-			System.out.printf("%9f\n", getWeight(scid));
+			System.out.printf("%9f\n", weight);
 		}
 		System.out.println();
 		System.out.printf("%9s", "");
@@ -300,6 +366,20 @@ public class Clustering {
 		System.out.println();
 	}
 	
+	public static void serialize(String file, Clustering C) throws FileNotFoundException, IOException {
+		ObjectOutputStream os = new ObjectOutputStream(new FileOutputStream(new File(file)));
+		os.writeUnshared(C);
+		os.close();
+	}
+	
+	public static Clustering deserialize(String file) throws FileNotFoundException, IOException, ClassNotFoundException {
+		ObjectInputStream is = new ObjectInputStream(new FileInputStream(new File(file)));
+		Clustering c = (Clustering) is.readUnshared();
+		is.close();
+		return c;
+	}
+	
+	
 	/**
 	 * Test method for Clustering class.
 	 * @param args
@@ -307,8 +387,18 @@ public class Clustering {
 	 */
 	public static void main(String[] args) throws Exception {
 		API api = new APIImpl();
-		api.connect("edacc3.informatik.uni-ulm.de", 3306, "ssd", "edacc", "edaccteam", true);
-		int expid = 356;
+		
+		Properties properties = new Properties();
+		InputStream in = Clustering.class.getResourceAsStream("settings.properties");
+		properties.load(in);
+		in.close();
+		in = Clustering.class.getResourceAsStream("private.properties");
+		if (in != null) {
+			properties.load(in);
+			in.close();
+		}		
+		api.connect(properties.getProperty("DBHost"), Integer.parseInt(properties.getProperty("DBPort")), properties.getProperty("DB"), properties.getProperty("DBUser"), properties.getProperty("DBPassword"), true);
+		int expid = Integer.parseInt(properties.getProperty("ExperimentId"));
 		
 		LinkedList<Instance> instances = InstanceDAO.getAllByExperimentId(expid);
 		List<Integer> instanceIds = new LinkedList<Integer>();
@@ -317,7 +407,63 @@ public class Clustering {
 		}
 		//instanceIds.add(17164);
 		
-		Clustering C = new Clustering(instanceIds);
+		List<String> feature_names = new LinkedList<String>();
+		feature_names.add("nvarsOrig");
+		feature_names.add("nclausesOrig");
+		feature_names.add("nvars");
+		feature_names.add("nclauses");
+		feature_names.add("reducedVars");
+		feature_names.add("reducedClauses");
+		feature_names.add("Pre-featuretime");
+		feature_names.add("vars-clauses-ratio");
+		feature_names.add("POSNEG-RATIO-CLAUSE-mean");
+		feature_names.add("POSNEG-RATIO-CLAUSE-coeff-variation");
+		feature_names.add("POSNEG-RATIO-CLAUSE-min");
+		feature_names.add("POSNEG-RATIO-CLAUSE-max");
+		feature_names.add("POSNEG-RATIO-CLAUSE-entropy");
+		feature_names.add("VCG-CLAUSE-mean");
+		feature_names.add("VCG-CLAUSE-coeff-variation");
+		feature_names.add("VCG-CLAUSE-min");
+		feature_names.add("VCG-CLAUSE-max");
+		feature_names.add("VCG-CLAUSE-entropy");
+		feature_names.add("UNARY");
+		feature_names.add("BINARY+");
+		feature_names.add("TRINARY+");
+		feature_names.add("Basic-featuretime");
+		feature_names.add("VCG-VAR-mean");
+		feature_names.add("VCG-VAR-coeff-variation");
+		feature_names.add("VCG-VAR-min");
+		feature_names.add("VCG-VAR-max");
+		feature_names.add("VCG-VAR-entropy");
+		feature_names.add("POSNEG-RATIO-VAR-mean");
+		feature_names.add("POSNEG-RATIO-VAR-stdev");
+		feature_names.add("POSNEG-RATIO-VAR-min");
+		feature_names.add("POSNEG-RATIO-VAR-max");
+		feature_names.add("POSNEG-RATIO-VAR-entropy");
+		feature_names.add("HORNY-VAR-mean");
+		feature_names.add("HORNY-VAR-coeff-variation");
+		feature_names.add("HORNY-VAR-min");
+		feature_names.add("HORNY-VAR-max");
+		feature_names.add("HORNY-VAR-entropy");
+		feature_names.add("horn-clauses-fraction");
+		feature_names.add("VG-mean");
+		feature_names.add("VG-coeff-variation");
+		feature_names.add("VG-min");
+		feature_names.add("VG-max");
+		feature_names.add("KLB-featuretime");
+		feature_names.add("CG-mean");
+		feature_names.add("CG-coeff-variation");
+		feature_names.add("CG-min");
+		feature_names.add("CG-max");
+		feature_names.add("CG-entropy");
+		feature_names.add("cluster-coeff-mean");
+		feature_names.add("cluster-coeff-coeff-variation");
+		feature_names.add("cluster-coeff-min");
+		feature_names.add("cluster-coeff-max");
+		feature_names.add("cluster-coeff-entropy");
+		feature_names.add("CG-featuretime");
+		
+		Clustering C = new Clustering(instanceIds, feature_names);
 		CostFunction f = new PARX(Cost.resultTime, false, 0, 1);
 		//int sc_limit = 100;
 		//int sc_c = 0;
@@ -360,9 +506,13 @@ public class Clustering {
 		for (List<Integer> i : c.values()) {
 			System.out.println(i);
 		}
-		C.printM();
+		//C.printM();
+		
+		C.tree = new DecisionTree(c, C.F, C.F.values().iterator().next().length);
 		
 		System.out.println("# instances not used: " + C.getNotUsedInstances().size());
+		
+		serialize(properties.getProperty("SerializeFilename"), C);
 		
 		/*
 		List<Integer> instanceIds2 = new LinkedList<Integer>();
