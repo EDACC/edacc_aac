@@ -22,6 +22,15 @@ public class CLC_Clustering implements ClusterMethods{
     private HashMap<InstanceIdSeed, Integer> instanceClusterMap;
     private Cluster[] clusters;
     
+    
+    //these values determine the number of clusters that will be generated
+    //if useVarianceCriterion is set, clusters will be merged until further mergin would create
+    //a cluster with a variance > maximumVariance.
+    //Otherwise, clusters will be merged until the number of clusters = staticClusterNumber
+    private final double maximumVariance = 0.1;
+    private final int staticClusterNumber = 10;
+    private boolean useVarianceCriterion = true;
+    
     public CLC_Clustering(Parameters params, API api, Random rng, List<SolverConfiguration> scs) throws Exception{
         this.rng = rng;
         //initialise instanceID -> instance mapping
@@ -71,6 +80,12 @@ public class CLC_Clustering implements ClusterMethods{
         recalculateClustering();
     }
     
+    public List<InstanceIdSeed> getClusterInstances(int clusterNumber){
+        if(clusterNumber<0 || clusterNumber >= clusters.length)
+            return null;
+        return clusters[clusterNumber].getInstances();
+    }
+    
     private void addData(SolverConfiguration sc){
         List<ExperimentResult> resList = sc.getJobs();
         for(ExperimentResult r : resList){
@@ -87,7 +102,8 @@ public class CLC_Clustering implements ClusterMethods{
         for(InstanceData i : datList){
             clusterList.add(new Cluster(new InstanceIdSeed(i.getInstanceID(), i.getSeed())));
         }
-        while(clusterList.size()>10/*TODO: Think of a better termination criterion*/){
+        while((!useVarianceCriterion && clusterList.size()>staticClusterNumber) 
+                || clusterList.size()>1){//in the unlikely event, that all instances together do not exceed maxVariance
             Cluster mergeA=null, mergeB=null;
             Double distance=Double.MAX_VALUE, tmpDist;
             boolean block;
@@ -107,6 +123,8 @@ public class CLC_Clustering implements ClusterMethods{
                     }
                 }
             }
+            if(useVarianceCriterion && !checkVarianceCriterion(mergeA, mergeB))
+                break;
             clusterList.remove(mergeA);
             clusterList.remove(mergeB);
             mergeA.mergeClusters(mergeB);
@@ -136,5 +154,32 @@ public class CLC_Clustering implements ClusterMethods{
             }
         }
         return distance;
+    }
+    
+    private boolean checkVarianceCriterion(Cluster a, Cluster b){
+        LinkedList<InstanceIdSeed> mergeList = new LinkedList<InstanceIdSeed>();
+        mergeList.addAll(a.getInstances());
+        mergeList.addAll(b.getInstances());
+        return calculateVariance(mergeList) < maximumVariance;        
+    }
+    
+    private Double calculateVariance(List<InstanceIdSeed> instances){        
+        double var = 0d, clusterAvg=0d, tmp;
+        if(instances.isEmpty()) 
+            return 0d;
+        LinkedList<InstanceData> datList = new LinkedList<InstanceData>();
+        for(InstanceIdSeed instance : instances){
+            InstanceData iDat = data.get(instance);
+            datList.add(iDat);
+            clusterAvg += iDat.getAvg();
+        }
+        clusterAvg = clusterAvg/((double)datList.size());
+        
+        for(InstanceData iDat : datList){
+            tmp = iDat.getAvg() - clusterAvg;
+            var += tmp*tmp;
+        }
+        var = var/((double)datList.size());        
+        return var;
     }
 }

@@ -3,6 +3,7 @@ package edacc.configurator.aac.clustering;
 import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.model.ExperimentResult;
+import java.util.List;
 
 /**
  *
@@ -41,4 +42,12 @@ public interface ClusterMethods {
 	 * @param sc
 	 */
 	public void addDataForClustering(SolverConfiguration sc);
+        
+        /**
+         * Retrieves a list of all instance-seed-pairs within a cluster
+         * 
+         * @param clusterNumber the cluster whose instances are to be returned
+         * @return List of instances in the specified clustera
+         */
+        public List<InstanceIdSeed> getClusterInstances(int clusterNumber);
 }
