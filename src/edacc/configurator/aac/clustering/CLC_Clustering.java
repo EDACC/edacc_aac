@@ -74,6 +74,19 @@ public class CLC_Clustering implements ClusterMethods{
         int index = rng.nextInt(instances.size());
         return instances.get(index);
     }
+    public InstanceIdSeed getInstanceInCluster(int clusterNr, SolverConfiguration solverConfig){
+        List<InstanceIdSeed> clusterInstances = clusters[clusterNr].getInstances();
+        List<ExperimentResult> resList = solverConfig.getJobs();
+        LinkedList<InstanceIdSeed> tmpList = new LinkedList<InstanceIdSeed>();
+        for(ExperimentResult res : resList){
+            tmpList.add(new InstanceIdSeed(res.getInstanceId(), res.getSeed()));
+        }
+        clusterInstances.removeAll(tmpList);//clusterInstances is a copy of the cluster's list -> no side effects
+        if(tmpList.isEmpty())
+            return null;
+        int index = rng.nextInt(clusterInstances.size());
+        return clusterInstances.get(index);
+    }
 
     public void addDataForClustering(SolverConfiguration sc) {
         addData(sc);        

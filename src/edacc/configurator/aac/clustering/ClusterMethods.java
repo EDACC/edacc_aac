@@ -34,6 +34,18 @@ public interface ClusterMethods {
 	 * @return random instance from the given cluster
 	 */
 	public InstanceIdSeed getInstanceInCluster(int clusterNr);
+        
+        /**
+         * Returns a random instance from a given cluster that the given solver configuration has
+         * not yet completed. Will return null if the configuration has completed all instances in this cluster
+         * 
+         * @param clusterNr the cluster the instances will be selected from
+         * @param solverConfig the Instances this solver configuration has already completed will not be considered
+         * 
+         * @return random instance from a given cluster that the given solver configuration has
+         * not yet completed.
+         */
+        public InstanceIdSeed getInstanceInCluster(int clusterNr, SolverConfiguration solverConfig);
 	
 	/**
 	 * Analyses new provided data for the clusters (Checks if instances should switch 
