@@ -177,7 +177,7 @@ public class Roar_aggrCapping extends RacingMethods {
 				boolean equalRuns = true;
 				if (sc == bestSC) continue;
 				int[] competitor = clusterHandler.countRunPerCluster(sc);
-				int[] best = clusterHandler.countRunPerCluster(sc);
+				int[] best = clusterHandler.countRunPerCluster(bestSC);
 				for (int i = 0; i < best.length; i++) {
 					// incumbent always has most runs
 					if(best[i] < competitor[i]) {
@@ -193,7 +193,7 @@ public class Roar_aggrCapping extends RacingMethods {
 					int comp = compareTo(sc, bestSC);
 					if (comp > 0) {
 						bestSC = sc;
-						clusterHandler.addDataForClustering(sc);
+						clusterHandler.addDataForClustering(bestSC);
 						sc.setIncumbentNumber(incumbentNumber++);
 						pacc.log("i " + pacc.getWallTime() + "," + sc.getCost() + ",n.A. ," + sc.getIdSolverConfiguration() + ",n.A. ," + sc.getParameterConfiguration().toString());
 					}
@@ -220,7 +220,8 @@ public class Roar_aggrCapping extends RacingMethods {
 						int runsAdded = 0;
 						while(runsAdded < bestSCRuns) {
 							int rand = rng.nextInt(competitor.length);
-							if(null != clusterHandler.getInstanceInCluster(rand)) {
+							// TODO: Solver Configuration 
+							if(null != clusterHandler.getInstanceInCluster(rand, bestSC)) {
 								InstanceIdSeed newRun = clusterHandler.getInstanceInCluster(rand);
 								pacc.addJob(sc, newRun.seed, newRun.instanceId, sc.getIncumbentNumber());
 								pacc.addJob(bestSC, newRun.seed, newRun.instanceId, bestSC.getIncumbentNumber());
