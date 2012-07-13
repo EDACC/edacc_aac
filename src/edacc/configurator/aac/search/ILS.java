@@ -471,7 +471,8 @@ public class ILS extends SearchMethods {
             System.out.println("Average stage of neighbourhoods: "+averageStage);
             System.out.println("Number of configurations evaluated: "+numberOfConfigs);
             //System.out.println();
-            System.out.println("Best configuration found: "+currentBest.getName()
+            System.out.println("Best configuration found: "
+                        +(currentBest.getName()==null ? "(no name given)" : currentBest.getName())
                         +" (ID: "+currentBest.getIdSolverConfiguration()+")");
         }
         

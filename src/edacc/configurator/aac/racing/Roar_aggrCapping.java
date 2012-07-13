@@ -30,13 +30,14 @@ public class Roar_aggrCapping extends RacingMethods {
 	HashSet<Integer> stopEvalSolverConfigIds = new HashSet<Integer>();
 	
 	int numberOfMinStartupSCs = 20;
-	boolean clustering = false;
+	boolean clustering = true;
 	float maxCappingFactor = 2f;
 	ParameterGraph paramGraph;
 	ClusterMethods clusterHandler;
 	
 	public Roar_aggrCapping(AAC proar, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
 		super(proar, rng, api, parameters, firstSCs, referenceSCs);
+                paramGraph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
 		incumbentNumber = 0;
 		num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse().getInitialLength();
 		
@@ -73,13 +74,14 @@ public class Roar_aggrCapping extends RacingMethods {
 		// At least (number of minimal startupSCs)/2 random SCs are added. Improves the reliability of the predefined data. 
 		pacc.log("c Random SCs:");
 		for (int i = 0; i < (int)(numberOfMinStartupSCs/2); i++) {
-			ParameterConfiguration randomConf = paramGraph.getRandomConfiguration(rng);
-			try {
+                        ParameterConfiguration randomConf = paramGraph.getRandomConfiguration(rng);
+                        try {
 				int scID = api.createSolverConfig(parameters.getIdExperiment(), randomConf, 
 						api.getCanonicalName(parameters.getIdExperiment(), randomConf));
+                                
 				SolverConfiguration randomSC = new SolverConfiguration(scID, randomConf, parameters.getStatistics());
 				startupSCs.add(randomSC);
-				pacc.log("c "+startupSCs.size()+": "+randomSC.getName());
+                                pacc.log("c "+startupSCs.size()+": "+randomSC.getName());
 			} catch (Exception e) {
 				pacc.log("w A new random configuration could not be created for the initialising of the clustering!");
 				e.printStackTrace();
@@ -410,13 +412,16 @@ public class Roar_aggrCapping extends RacingMethods {
 	}
 
 	@Override
-	public void raceFinished() {
+	public void raceFinished() { 
+            //debug
+            if(clustering)
+                clusterHandler.visualiseClustering();
 		try {
 			pacc.updateSolverConfigName(bestSC, true);
 		} catch (Exception e) {
 			pacc.log("Error: Incumbent name could not be changed!");
 			e.printStackTrace();
-		}
+		}                
 	}
 
 }

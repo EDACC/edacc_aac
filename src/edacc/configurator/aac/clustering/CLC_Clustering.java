@@ -16,7 +16,7 @@ import java.util.*;
  */
 public class CLC_Clustering implements ClusterMethods{
     private Random rng;
-    private HashMap<Integer, Instance> instanceIDMap;
+    //private HashMap<Integer, Instance> instanceIDMap;
     private HashMap<InstanceIdSeed, InstanceData> data;
     
     private HashMap<InstanceIdSeed, Integer> instanceClusterMap;
@@ -33,30 +33,32 @@ public class CLC_Clustering implements ClusterMethods{
     
     public CLC_Clustering(Parameters params, API api, Random rng, List<SolverConfiguration> scs) throws Exception{
         this.rng = rng;
+        /*
         //initialise instanceID -> instance mapping
         List<Instance> iL = api.getExperimentInstances(params.getIdExperiment());
         instanceIDMap = new HashMap<Integer, Instance>();
         for(Instance i : iL){
             instanceIDMap.put(i.getId(), i);
-        }
+        }*/
         
         //initialise data
         data = new HashMap<InstanceIdSeed, InstanceData>();
         Course course = api.getCourse(params.getIdExperiment());
         for(InstanceSeed is : course.getInstanceSeedList()){
             data.put(new InstanceIdSeed(is.instance.getId(), is.seed), 
-                        new InstanceData(is.instance.getId(), is.seed));
+                        new InstanceData(is.instance.getId(), is.seed, params.getStatistics().getCostFunction()));
         }
         for(SolverConfiguration s : scs){
             addData(s);
         }
-        
         //initialise clustering
         recalculateClustering();
     }
 
     public int[] countRunPerCluster(SolverConfiguration sc) {
         int[] numInstances = new int[clusters.length];
+        for(int i=0; i<numInstances.length; i++)
+            numInstances[i] = 0;
         for(ExperimentResult r : sc.getJobs()){
             numInstances[clusterOfInstance(r)]++;
         }
@@ -64,9 +66,11 @@ public class CLC_Clustering implements ClusterMethods{
     }
 
     public int clusterOfInstance(ExperimentResult res) {
-        InstanceIdSeed inst = 
-                new InstanceIdSeed(res.getInstanceId(), res.getSeed());
-        return instanceClusterMap.get(inst);
+        if(res == null)
+            return -1;
+        InstanceIdSeed inst = new InstanceIdSeed(res.getInstanceId(), res.getSeed());
+        Integer cl = instanceClusterMap.get(inst);
+        return cl;
     }
 
     public InstanceIdSeed getInstanceInCluster(int clusterNumber) {
@@ -89,8 +93,12 @@ public class CLC_Clustering implements ClusterMethods{
     }
 
     public void addDataForClustering(SolverConfiguration sc) {
-        addData(sc);        
+        addData(sc);
+        long time = System.currentTimeMillis();
         recalculateClustering();
+        time = System.currentTimeMillis() - time;
+        System.out.println("addDataForClustering: Time used to recalculate clustering: "+time+" ms.");
+        //visualiseClustering();
     }
     
     public List<InstanceIdSeed> getClusterInstances(int clusterNumber){
@@ -123,11 +131,12 @@ public class CLC_Clustering implements ClusterMethods{
             for(Cluster cA : clusterList){
                 block = true;
                 for(Cluster cB : clusterList){
-                    if(block) continue; //we already compared cB to cA, no need to do it again
                     if(cA.equals(cB)){
                         block = false;
                         continue;
-                    }                    
+                    }    
+                    if(block) continue; //we already compared cB to cA, no need to do it again
+                                    
                     tmpDist = calculateClusterDistance(cA, cB);
                     if(tmpDist < distance){
                         mergeA = cA;
@@ -148,7 +157,7 @@ public class CLC_Clustering implements ClusterMethods{
         instanceClusterMap = new HashMap<InstanceIdSeed, Integer>();
         for(int c=0; c<clusters.length; c++){
             for(InstanceIdSeed i : clusters[c].getInstances()){
-                instanceClusterMap.put(new InstanceIdSeed(i.instanceId, i.seed), c);
+                instanceClusterMap.put(i, c);
             }
         }
     }
@@ -194,5 +203,27 @@ public class CLC_Clustering implements ClusterMethods{
         }
         var = var/((double)datList.size());        
         return var;
+    }
+    
+    public void visualiseClustering(){
+        System.out.println("---------------CLUSTERING-------------------");
+        for(int i=0; i<clusters.length; i++){
+            List<InstanceIdSeed> iList = clusters[i].getInstances();
+            System.out.println("Cluster "+i+" ("+iList.size()+" instances, variance: "+calculateVariance(iList)+"):");            
+            for(InstanceIdSeed inst : iList){
+                System.out.println("   "+formatDouble(data.get(inst).getAvg())+" ID: "+inst.instanceId+" Seed: "+inst.seed);
+            }
+        }        
+        System.out.println("---------------CLUSTERING-------------------");
+    }
+    
+    public String formatDouble(double v){
+        v = v*100d;
+        v = Math.round(v);
+        v = v/(100d);
+        String s = ""+v;
+        while(s.length() < 7)
+            s = " "+s;
+        return s;
     }
 }
