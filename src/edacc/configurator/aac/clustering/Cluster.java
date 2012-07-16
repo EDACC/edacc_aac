@@ -3,24 +3,26 @@ package edacc.configurator.aac.clustering;
 import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.model.ExperimentResult;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.List;
 
 /**
  *
  * @author schulte, mugrauer
  */
 public class Cluster{
-	private HashMap<Integer, InstanceIdSeed> idToInstances;
+        private HashSet<InstanceIdSeed> idSeed;
+	//private HashMap<Integer, InstanceIdSeed> idToInstances;
 	
 	public Cluster(List<InstanceIdSeed> instances) {
-                idToInstances = new HashMap<Integer, InstanceIdSeed>();
-		for (InstanceIdSeed instance : instances) {			
-			idToInstances.put(instance.instanceId, instance);
-		}
+                idSeed = new HashSet<InstanceIdSeed>();
+                idSeed.addAll(instances);            
 	}
         public Cluster(InstanceIdSeed initialInstance){
-                idToInstances = new HashMap<Integer, InstanceIdSeed>();
-                idToInstances.put(initialInstance.instanceId, initialInstance);
+                idSeed = new HashSet<InstanceIdSeed>();
+                idSeed.add(initialInstance);
         }
 	
 	/**
@@ -33,10 +35,14 @@ public class Cluster{
 		List<ExperimentResult> results = sc.getFinishedJobs();
 		int count = 0;
 		for (ExperimentResult result : results) {
-			if(null != idToInstances.get(result.getInstanceId())) count++;
+			if(contains(result.getInstanceId(), result.getSeed())) count++;
 		}
 		return count;
 	}
+        
+        public boolean contains(int instanceId, int seed){
+            return idSeed.contains(new InstanceIdSeed(instanceId, seed));
+        }
 
 	
 	/**
@@ -45,15 +51,12 @@ public class Cluster{
 	 * @return all instances
 	 */
 	public List<InstanceIdSeed> getInstances() {
-		Collection<InstanceIdSeed> instances = idToInstances.values();
-		Iterator<InstanceIdSeed> instancesIter = instances.iterator();
-		ArrayList<InstanceIdSeed> instancesList = new ArrayList<InstanceIdSeed>(idToInstances.size());
-		while(instancesIter.hasNext()) {
-			InstanceIdSeed tmp = instancesIter.next();
-			instancesList.add(tmp);
-		}
-		return instancesList;
-	}
+		InstanceIdSeed[] instances = new InstanceIdSeed[idSeed.size()];
+                instances = idSeed.toArray(instances);
+                LinkedList<InstanceIdSeed> iList = new LinkedList<InstanceIdSeed>();
+                iList.addAll(Arrays.asList(instances));
+                return iList;
+        }
 	
 	/**
 	 * Removes a instance from this cluster
@@ -61,9 +64,9 @@ public class Cluster{
 	 * @param instanceId
 	 * @return true if this cluster holds the specific instance
 	 */
-	public boolean removeInstance(int instanceId) {
-		if(idToInstances.containsKey(instanceId)) {
-			idToInstances.remove(instanceId);
+	public boolean removeInstance(int instanceId, int seed) {
+		if(idSeed.contains(new InstanceIdSeed(instanceId, seed))) {
+			idSeed.remove(new InstanceIdSeed(instanceId, seed));
 			return true;
 		}
 		return false;
@@ -76,8 +79,8 @@ public class Cluster{
 	 * @return true if the instance was successfully added
 	 */
 	public boolean addInstance(InstanceIdSeed instance) {
-		if(idToInstances.containsKey(instance.instanceId)) return false;
-		idToInstances.put(instance.instanceId, instance);
+		if(idSeed.contains(instance)) return false;
+		idSeed.add(instance);
 		return true;
 	}
         
@@ -86,8 +89,8 @@ public class Cluster{
          * @param c the cluster to be merged into this cluster
          */
         public void mergeClusters(Cluster c){
-                idToInstances.putAll(c.idToInstances);
-                c.idToInstances.clear(); //instances shouldn't be in multiple clusters
+                idSeed.addAll(c.idSeed);
+                c.idSeed.clear(); //safety precaution, instances should never be in multiple clusters
         }
 
         @Override
@@ -99,7 +102,7 @@ public class Cluster{
                     return false;
                 }
                 final Cluster other = (Cluster) obj;
-                if (this.idToInstances != other.idToInstances && (this.idToInstances == null || !this.idToInstances.equals(other.idToInstances))) {
+                if (this.idSeed != other.idSeed && (this.idSeed == null || !this.idSeed.equals(other.idSeed))) {
                     return false;
                 }
                 return true;
@@ -108,7 +111,7 @@ public class Cluster{
         @Override
         public int hashCode() {
                 int hash = 5;
-                hash = 47 * hash + (this.idToInstances != null ? this.idToInstances.hashCode() : 0);
+                hash = 47 * hash + (this.idSeed != null ? this.idSeed.hashCode() : 0);
                 return hash;
         }        
 }
