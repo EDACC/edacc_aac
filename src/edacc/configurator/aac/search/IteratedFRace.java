@@ -72,13 +72,13 @@ public class IteratedFRace extends SearchMethods {
                 return generateNewSC(num);
             }
             int Ns = raceSurvivors.size();
-            newSC.addAll(raceSurvivors);
+            //newSC.addAll(raceSurvivors);
             
             RandomCollection<SolverConfiguration> roulette = new RandomCollection<SolverConfiguration>(rng);
             for (int i = 0; i < Ns; i++) roulette.add((Ns - (i+1) + 1.0)/(Ns * (Ns + 1) / 2.0), raceSurvivors.get(i));
             
-            pacc.log("Generating " + (Nlnext - Ns) + " new configurations based on the " + Ns + " elite configurations from the last race, Parameters are sampled with the stdDev " + parameterStdDev);
-            for (int i = 0; i < Nlnext - Ns; i++) {
+            pacc.log("Generating " + (Nlnext - 0) + " new configurations based on the " + Ns + " elite configurations from the last race, Parameters are sampled with the stdDev " + parameterStdDev);
+            for (int i = 0; i < Nlnext - 0; i++) {
                 SolverConfiguration eliteConfig = roulette.next();
                 ParameterConfiguration paramConfig = new ParameterConfiguration(eliteConfig.getParameterConfiguration());
                 pspace.mutateParameterConfiguration(rng, paramConfig, parameterStdDev, 1.0f);

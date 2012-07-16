@@ -4,7 +4,8 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 
 public class Main {
-	static String features_bin = "SAT12_submission/bin/featuresSAT12";
+	static String features_bin = "./features.sh"; //"SAT12_submission/bin/featuresSAT12";
+	static String features_args = "";//"-base";
 	static String solver_bin = "./probSATc";
 	static String clustering = "./clustering";
 	
@@ -16,8 +17,8 @@ public class Main {
 			System.out.println("algorithm instance seed");
 			return;
 		}
-		
-		Process p = Runtime.getRuntime().exec(features_bin + " -base " + args[1]);
+		System.out.println("c calculating instance properties..");
+		Process p = Runtime.getRuntime().exec(features_bin + " " + features_args + " " + args[1]);
 		BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
 		br.readLine();
 		String[] features_str = br.readLine().split(",");
@@ -28,14 +29,16 @@ public class Main {
 		br.close();
 		p.destroy();
 		
-		
+		System.out.println("c loading clustering..");
 		Clustering C = Clustering.deserialize(clustering);
-		
+		System.out.println("c getting parameters with " + args[0] + " method..");
 		String params;
 		if (args[0].equals("mindist")) {
 			params = MinDist.getParameters(C, features);
 		} else if (args[0].equals("tree")) {
 			params = C.P.get(C.tree.query(features));
+		} else if (args[0].equals("randomforest")) {
+			params = C.forest.getParameters(features);
 		} else {
 			System.out.println("Did not find algorithm: " + args[0]);
 			return;

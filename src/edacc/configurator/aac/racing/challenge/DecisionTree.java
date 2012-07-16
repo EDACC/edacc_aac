@@ -44,6 +44,7 @@ public class DecisionTree implements Serializable {
 	private int num_features;
 	private HashMap<Integer, float[]> features;
 	
+	private HashSet<Integer> usedFeatures;
 	
 	private Double eps = 0.000001;
 	
@@ -54,6 +55,8 @@ public class DecisionTree implements Serializable {
 		
 		this.num_features = num_features;
 		this.features = features;
+		
+		usedFeatures = new HashSet<Integer>();
 		/*List<Pair<ParameterConfiguration, List<ExperimentResult>>> sample = new ArrayList<Pair<ParameterConfiguration, List<ExperimentResult>>>();
 		for (int i = 0; i < trainData.size(); i++) {
 			sample.add(trainData.get(rng.nextInt(trainData.size())));
@@ -66,6 +69,8 @@ public class DecisionTree implements Serializable {
 		
 		initializeNode(root);
 		train(root);
+		
+		System.out.println("[DecisionTree] Used " + usedFeatures.size() + " features of " + num_features);
 	}
 
 	private void train(Node node) {
@@ -204,7 +209,7 @@ public class DecisionTree implements Serializable {
 	
 	// ******** end of impurity measures *********
 	
-	private SplitAttribute findOptimalSplitAttribute(double stddev, HashMap<Integer, List<Integer>> clustering) {
+	private SplitAttribute findOptimalSplitAttribute(HashMap<Integer, List<Integer>> clustering) {
 		if (clustering.size() <= 1) {
 			throw new IllegalArgumentException("Expected at least two clusters.");
 		}
@@ -265,8 +270,8 @@ public class DecisionTree implements Serializable {
 				}
 			}
 		}
-		System.err.println("LEFT SIZE: " + res.getFirst().size() + "  RIGHT SIZE: " + res.getSecond().size());
-		System.err.println("purity gain = " + purityGain);
+		//System.err.println("LEFT SIZE: " + res.getFirst().size() + "  RIGHT SIZE: " + res.getSecond().size());
+		//System.err.println("purity gain = " + purityGain);
 		return new SplitAttribute(res.getFirst(), res.getSecond(), split_attribute, res_split_point);
 	}
 	
@@ -278,10 +283,12 @@ public class DecisionTree implements Serializable {
 			return;
 		}
 		
-		SplitAttribute sa = findOptimalSplitAttribute(node.stddev, node.clustering);
+		SplitAttribute sa = findOptimalSplitAttribute(node.clustering);
 		
 		node.split = sa.split;
 		node.split_attribute = sa.split_attribute;
+		
+		usedFeatures.add(sa.split_attribute);
 		
 		node.left = new Node(sa.leftClustering);
 		node.right = new Node(sa.rightClustering);
