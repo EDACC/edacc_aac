@@ -29,6 +29,8 @@ public class Roar_aggrCapping extends RacingMethods {
 	int num_instances;
 	HashSet<Integer> stopEvalSolverConfigIds = new HashSet<Integer>();
 	
+	boolean aggressiveCapping = true;
+	
 	int numberOfMinStartupSCs = 20;
 	boolean clustering = true;
 	float maxCappingFactor = 2f;
@@ -40,6 +42,20 @@ public class Roar_aggrCapping extends RacingMethods {
                 paramGraph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
 		incumbentNumber = 0;
 		num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse().getInitialLength();
+		
+		HashMap<String, String> params = parameters.getRacingMethodParameters();
+        if(params.containsKey("ROAR_clustering")){
+            clustering = Boolean.parseBoolean(params.get("ROAR_clustering"));
+        }
+        if(params.containsKey("ROAR_minStartupSCs")){
+        	numberOfMinStartupSCs = Integer.parseInt(params.get("ROAR_minStartupSCs"));
+        }
+        if(params.containsKey("ROAR_capping")){
+        	 aggressiveCapping = Boolean.parseBoolean(params.get("ROAR_cappingg"));
+        }
+        if(params.containsKey("ROAR_cappingFactor")){
+        	maxCappingFactor = Float.parseFloat(params.get("ROAR_cappingFactor"));
+        }
 		
 		if(clustering) {
 			initClustering();
@@ -171,7 +187,7 @@ public class Roar_aggrCapping extends RacingMethods {
 
 	@Override
 	public void solverConfigurationsFinished(List<SolverConfiguration> scs) throws Exception {
-		aggressiveCapping(pacc.returnListNewSC());
+		if(aggressiveCapping) aggressiveCapping(pacc.returnListNewSC());
 		
 		if(clustering) {
 			boolean runBest = false;
@@ -339,6 +355,7 @@ public class Roar_aggrCapping extends RacingMethods {
 				if (costs.getY() > cappingFactor*costs.getX()) {
 					pacc.log("c COST Competitor (" + costs.getY() + ") > Incumbent ("+ (float) cappingFactor +"*" + costs.getX()+")"); 
 					pacc.log("c RUNS Competitor (" + sc.getJobCount() + ") < Incumbent (" + bestSC.getJobCount()+")");
+					if(clustering) clusterHandler.addDataForClustering(sc);
 					List<ExperimentResult> jobsToKill = sc.getJobs(); 
 					for (ExperimentResult j : jobsToKill) {
 						try {
