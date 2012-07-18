@@ -6,7 +6,6 @@ import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.model.Course;
 import edacc.model.ExperimentResult;
-import edacc.model.Instance;
 import edacc.model.InstanceSeed;
 import java.util.*;
 
@@ -31,16 +30,14 @@ public class CLC_Clustering implements ClusterMethods{
     private final int staticClusterNumber = 10;
     private boolean useVarianceCriterion = true;
     
+    //when a random instance is to be selected from a cluster, should
+    //instances with high variance have a higher chance of being picked,
+    //as they are more useful in distinguishing between configurations?
+    private boolean preferHighVarianceInstances = false;
+    
     public CLC_Clustering(Parameters params, API api, Random rng, List<SolverConfiguration> scs) throws Exception{
         this.rng = rng;
-        /*
-        //initialise instanceID -> instance mapping
-        List<Instance> iL = api.getExperimentInstances(params.getIdExperiment());
-        instanceIDMap = new HashMap<Integer, Instance>();
-        for(Instance i : iL){
-            instanceIDMap.put(i.getId(), i);
-        }*/
-        
+               
         //initialise data
         data = new HashMap<InstanceIdSeed, InstanceData>();
         Course course = api.getCourse(params.getIdExperiment());
@@ -69,14 +66,11 @@ public class CLC_Clustering implements ClusterMethods{
         if(res == null)
             return -1;
         InstanceIdSeed inst = new InstanceIdSeed(res.getInstanceId(), res.getSeed());
-        Integer cl = instanceClusterMap.get(inst);
-        return cl;
+        return instanceClusterMap.get(inst);
     }
 
     public InstanceIdSeed getInstanceInCluster(int clusterNumber) {
-        List<InstanceIdSeed> instances = clusters[clusterNumber].getInstances();
-        int index = rng.nextInt(instances.size());
-        return instances.get(index);
+        return getRandomInstance(clusters[clusterNumber].getInstances());
     }
     public InstanceIdSeed getInstanceInCluster(int clusterNr, SolverConfiguration solverConfig){
         List<InstanceIdSeed> clusterInstances = clusters[clusterNr].getInstances();
@@ -86,10 +80,37 @@ public class CLC_Clustering implements ClusterMethods{
             tmpList.add(new InstanceIdSeed(res.getInstanceId(), res.getSeed()));
         }
         clusterInstances.removeAll(tmpList);//clusterInstances is a copy of the cluster's list -> no side effects
-        if(tmpList.isEmpty())
+        return getRandomInstance(clusterInstances);
+    }
+    
+    private InstanceIdSeed getRandomInstance(List<InstanceIdSeed> instances){
+        if(instances.isEmpty())
             return null;
-        int index = rng.nextInt(clusterInstances.size());
-        return clusterInstances.get(index);
+        LinkedList<InstanceData> datList = new LinkedList<InstanceData>();
+        for(InstanceIdSeed inst : instances)
+            datList.add(data.get(inst));       
+        
+        if(!preferHighVarianceInstances){
+            int index = rng.nextInt(datList.size());
+            return datList.get(index).getInstanceIdSeed();
+        }
+        
+        //randomly select instance; preferring instances with high variance
+        double varianceSum = 0;
+        for(InstanceData id : datList)
+            varianceSum += id.getNormalisedVariance();
+        
+        //this orders the list in _descending_ order!
+        Collections.sort(datList, new InstanceDataComparator());
+        
+        double randomVal = rng.nextDouble()*varianceSum;
+        for(InstanceData id : datList){
+            if(randomVal < id.getNormalisedVariance())
+                return id.getInstanceIdSeed();
+            else
+                randomVal -= id.getNormalisedVariance();
+        }
+        return datList.get(datList.size()-1).getInstanceIdSeed();
     }
 
     public void addDataForClustering(SolverConfiguration sc) {
@@ -226,4 +247,19 @@ public class CLC_Clustering implements ClusterMethods{
             s = " "+s;
         return s;
     }
+}
+
+
+class InstanceDataComparator implements Comparator<InstanceData>{
+    //this comparator is supposed to be used to order elements in _descending_
+    //order
+    public int compare(InstanceData t, InstanceData t1) {
+        if(t.getNormalisedVariance() == t1.getNormalisedVariance())
+            return 0;
+        if(t.getNormalisedVariance() < t1.getNormalisedVariance())
+            return 1;
+        else
+            return -1;
+    }
+    
 }
