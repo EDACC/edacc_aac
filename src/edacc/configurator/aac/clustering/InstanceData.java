@@ -1,9 +1,10 @@
 package edacc.configurator.aac.clustering;
 
+import edacc.api.costfunctions.CostFunction;
 import edacc.configurator.aac.InstanceIdSeed;
 import edacc.model.ExperimentResult;
-import edacc.util.Pair;
 import java.util.LinkedList;
+import org.apache.commons.math.stat.descriptive.moment.Variance;
 
 /**
  *
@@ -13,22 +14,41 @@ public class InstanceData {
     private int instanceID, seed;
     private LinkedList<Double> costValues;
     private double avg;
+    private double var;
+    private CostFunction costFunction;
+    private Variance variance;
     
-    public InstanceData(int instanceID, int seed){
+    public InstanceData(int instanceID, int seed, CostFunction cf){
         this.instanceID = instanceID;
         this.seed = seed;
         costValues = new LinkedList<Double>();
-        avg = 0D;
+        avg = 0d;
+        var = 0;
+        costFunction = cf;
+        variance = new Variance();
     }
-    public InstanceData(InstanceIdSeed iis){
-        this(iis.instanceId, iis.seed);
+    public InstanceData(InstanceIdSeed iis, CostFunction cf){
+        this(iis.instanceId, iis.seed, cf);
     }
     
     public void addValue(ExperimentResult r){
-        avg = avg*((double)costValues.size());
-        costValues.add((double)r.getCost());
-        avg += (double)r.getCost();
-        avg = avg/((double)costValues.size());
+        double oldSize = costValues.size();
+        double newSize = oldSize +1;
+        
+        costValues.add((double)r.getCost());        
+        
+        //calculate new average
+        avg = avg*oldSize;        
+        avg += costFunction.singleCost(r);
+        avg = avg/newSize;
+        
+        double[] vals = new double[costValues.size()];
+        int i=0;
+        for(Double d : costValues){
+            vals[i] = d;
+            i++;
+        }
+        var = variance.evaluate(vals, avg);
     }
 
     public LinkedList<Double> getCostValues() {
@@ -43,11 +63,15 @@ public class InstanceData {
         return seed;
     }
     
-    public Pair<Integer, Integer> getInstance(){
-        return new Pair<Integer, Integer>(instanceID, seed);
+    public InstanceIdSeed getInstanceIdSeed(){
+        return new InstanceIdSeed(instanceID, seed);
     }
-    
+       
     public Double getAvg(){
         return avg;
+    }
+    
+    public Double getNormalisedVariance(){
+        return var/avg;
     }
 }

@@ -670,7 +670,10 @@ public class AAC {
 			}
 		}
 	}
-
+	/**
+	 * Returns wall time in seconds.
+	 * @return wall time
+	 */
 	public float getWallTime() {
 		return (System.currentTimeMillis() - startTime) / 1000.f;
 	}

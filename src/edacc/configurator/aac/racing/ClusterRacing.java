@@ -56,21 +56,20 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		return 0;
 	}
 
+	float lastBestSCsClusteringUpdate = 0.f;
+	HashMap<Integer, List<Integer>> bestSCsClustering = null;
 	@Override
 	public List<SolverConfiguration> getBestSolverConfigurations() {
-		HashMap<Integer, List<Integer>> c = clustering.getClustering(false);
-		int m = 0;
-		SolverConfiguration res = null;
-		for (int id : c.keySet()) {
-			if (c.get(id).size() > m) {
-				m = c.get(id).size();
-				res = scs.get(id).sc;
-			}
+		if (bestSCsClustering == null || pacc.getWallTime() - lastBestSCsClusteringUpdate > 120) {
+			bestSCsClustering = clustering.getClusteringHierarchical(Clustering.HierarchicalClusterMethod.AVERAGE_LINKAGE, 10);
+			lastBestSCsClusteringUpdate = pacc.getWallTime();
 		}
+		
 		List<SolverConfiguration> best = new LinkedList<SolverConfiguration>();
-		if (res != null) {
-			best.add(res);
+		for (int id : bestSCsClustering.keySet()) {
+			best.add(scs.get(id).sc);
 		}
+		// TODO: sort best?
 		return best;
 	}
 
@@ -92,8 +91,10 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 
 	@Override
 	public void solverConfigurationsCreated(List<SolverConfiguration> scs) throws Exception {
-		for (SolverConfiguration sc : scs)
-			initializeSolverConfiguration(sc);
+		for (SolverConfiguration sc : scs) {
+			if (!this.scs.containsKey(sc.getIdSolverConfiguration()))
+				initializeSolverConfiguration(sc);
+		}
 
 	}
 
@@ -141,7 +142,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 	private void initializeSolverConfiguration(SolverConfiguration sc) throws Exception {
 		List<Integer> unsolved = new LinkedList<Integer>();
 		unsolved.addAll(clustering.getNotUsedInstances());
-		HashMap<Integer, List<Integer>> c = clustering.getClustering(false);
+		HashMap<Integer, List<Integer>> c = clustering.getClusteringHierarchical(Clustering.HierarchicalClusterMethod.AVERAGE_LINKAGE, 10);
 		
 		
 		for (int i = 0; i < parameters.getMinRuns() && !unsolved.isEmpty(); i++) {
@@ -153,7 +154,11 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		SolverConfigurationMetaData data = new SolverConfigurationMetaData(sc, unsolved, c);
 		//if (!data.racingScs.isEmpty()) {
 			scs.put(sc.getIdSolverConfiguration(), data);
-			for (Integer id : data.racingScs) {
+			
+			// race(..) can modify racingScs list
+			LinkedList<Integer> copy = new LinkedList<Integer>();
+			copy.addAll(data.racingScs);
+			for (Integer id : copy) {
 				SolverConfiguration inc = scs.get(id).sc;
 				race(inc, data);
 			}

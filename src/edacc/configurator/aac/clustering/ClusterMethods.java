@@ -62,4 +62,9 @@ public interface ClusterMethods {
          * @return List of instances in the specified clustera
          */
         public List<InstanceIdSeed> getClusterInstances(int clusterNumber);
+        
+        /**
+         * Visualises the current clustering in the log file
+         */
+        public void visualiseClustering();
 }

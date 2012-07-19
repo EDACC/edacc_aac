@@ -29,16 +29,33 @@ public class Roar_aggrCapping extends RacingMethods {
 	int num_instances;
 	HashSet<Integer> stopEvalSolverConfigIds = new HashSet<Integer>();
 	
+	boolean aggressiveCapping = true;
+	
 	int numberOfMinStartupSCs = 20;
-	boolean clustering = false;
+	boolean clustering = true;
 	float maxCappingFactor = 2f;
 	ParameterGraph paramGraph;
 	ClusterMethods clusterHandler;
 	
 	public Roar_aggrCapping(AAC proar, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
 		super(proar, rng, api, parameters, firstSCs, referenceSCs);
+                paramGraph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
 		incumbentNumber = 0;
 		num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse().getInitialLength();
+		
+		HashMap<String, String> params = parameters.getRacingMethodParameters();
+        if(params.containsKey("ROAR_clustering")){
+            clustering = Boolean.parseBoolean(params.get("ROAR_clustering"));
+        }
+        if(params.containsKey("ROAR_minStartupSCs")){
+        	numberOfMinStartupSCs = Integer.parseInt(params.get("ROAR_minStartupSCs"));
+        }
+        if(params.containsKey("ROAR_capping")){
+        	 aggressiveCapping = Boolean.parseBoolean(params.get("ROAR_cappingg"));
+        }
+        if(params.containsKey("ROAR_cappingFactor")){
+        	maxCappingFactor = Float.parseFloat(params.get("ROAR_cappingFactor"));
+        }
 		
 		if(clustering) {
 			initClustering();
@@ -73,13 +90,14 @@ public class Roar_aggrCapping extends RacingMethods {
 		// At least (number of minimal startupSCs)/2 random SCs are added. Improves the reliability of the predefined data. 
 		pacc.log("c Random SCs:");
 		for (int i = 0; i < (int)(numberOfMinStartupSCs/2); i++) {
-			ParameterConfiguration randomConf = paramGraph.getRandomConfiguration(rng);
-			try {
+                        ParameterConfiguration randomConf = paramGraph.getRandomConfiguration(rng);
+                        try {
 				int scID = api.createSolverConfig(parameters.getIdExperiment(), randomConf, 
 						api.getCanonicalName(parameters.getIdExperiment(), randomConf));
+                                
 				SolverConfiguration randomSC = new SolverConfiguration(scID, randomConf, parameters.getStatistics());
 				startupSCs.add(randomSC);
-				pacc.log("c "+startupSCs.size()+": "+randomSC.getName());
+                                pacc.log("c "+startupSCs.size()+": "+randomSC.getName());
 			} catch (Exception e) {
 				pacc.log("w A new random configuration could not be created for the initialising of the clustering!");
 				e.printStackTrace();
@@ -169,7 +187,7 @@ public class Roar_aggrCapping extends RacingMethods {
 
 	@Override
 	public void solverConfigurationsFinished(List<SolverConfiguration> scs) throws Exception {
-		aggressiveCapping(pacc.returnListNewSC());
+		if(aggressiveCapping) aggressiveCapping(pacc.returnListNewSC());
 		
 		if(clustering) {
 			boolean runBest = false;
@@ -337,6 +355,7 @@ public class Roar_aggrCapping extends RacingMethods {
 				if (costs.getY() > cappingFactor*costs.getX()) {
 					pacc.log("c COST Competitor (" + costs.getY() + ") > Incumbent ("+ (float) cappingFactor +"*" + costs.getX()+")"); 
 					pacc.log("c RUNS Competitor (" + sc.getJobCount() + ") < Incumbent (" + bestSC.getJobCount()+")");
+					if(clustering) clusterHandler.addDataForClustering(sc);
 					List<ExperimentResult> jobsToKill = sc.getJobs(); 
 					for (ExperimentResult j : jobsToKill) {
 						try {
@@ -410,13 +429,16 @@ public class Roar_aggrCapping extends RacingMethods {
 	}
 
 	@Override
-	public void raceFinished() {
+	public void raceFinished() { 
+            //debug
+            if(clustering)
+                clusterHandler.visualiseClustering();
 		try {
 			pacc.updateSolverConfigName(bestSC, true);
 		} catch (Exception e) {
 			pacc.log("Error: Incumbent name could not be changed!");
 			e.printStackTrace();
-		}
+		}                
 	}
 
 }
