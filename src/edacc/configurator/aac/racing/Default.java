@@ -80,6 +80,7 @@ public class Default extends RacingMethods {
 					if (comp > 0) {
 						bestSC = sc;
 						sc.setIncumbentNumber(incumbentNumber++);
+						pacc.log("new incumbent: " + sc.getIdSolverConfiguration() + ":" + pacc.getWallTime() + ":" + pacc.getCumulatedCPUTime() + ":" + sc.getCost());
 						pacc.log("i " + pacc.getWallTime() + "," + sc.getCost() + ",n.A. ," + sc.getIdSolverConfiguration() + ",n.A. ," + sc.getParameterConfiguration().toString());
 					}
 					// api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(),
@@ -145,10 +146,10 @@ public class Default extends RacingMethods {
 		 * TODO: was geschickteres implementieren, denn von diesem Wert haengt
 		 * sehr stark der Grad der parallelisierung statt. denkbar ware noch
 		 * api.getNumComputingUnits(); wenn man die Methode haette. eine andere
-		 * geschicktere Moeglichkeit ist es: Anzahl cores = numCores Größe der
+		 * geschicktere Moeglichkeit ist es: Anzahl cores = numCores Grï¿½ï¿½e der
 		 * besseren solver configs in letzter runde = numBests Anzahl der jobs
 		 * die in der letzten Iteration berechnet wurden = numJobs Anzahl der
-		 * neuen solver configs beim letzten Aufruf zurückgeliefert wurden =
+		 * neuen solver configs beim letzten Aufruf zurï¿½ckgeliefert wurden =
 		 * lastExpansion CPUTimeLimit = time Dann kann man die Anzahl an neuen
 		 * konfigs berechnen durch newNumConfigs = TODO
 		 */

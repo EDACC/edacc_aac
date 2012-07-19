@@ -134,241 +134,251 @@ public class SMFRace extends RacingMethods {
     @Override
     public void solverConfigurationsFinished(List<SolverConfiguration> scs) throws Exception {
         curFinishedConfigurations.addAll(scs);
-
-        for (SolverConfiguration solverConfig : raceConfigurations) {
-            int i = 0; // course entry number
-            for (ExperimentResult run : api.getRuns(parameters.getIdExperiment(), solverConfig.getIdSolverConfiguration())) {
-                if (i > level)
-                    break; // only consider runs up until the current level
-                           // (already existing configurations might have more)
-                if (!courseResults.containsKey(i)) {
-                    courseResults.put(i, new HashMap<SolverConfiguration, ExperimentResult>());
+        
+        if (curFinishedConfigurations.containsAll(raceConfigurations)) {
+    
+            for (SolverConfiguration solverConfig : raceConfigurations) {
+                int i = 0; // course entry number
+                for (ExperimentResult run : api.getRuns(parameters.getIdExperiment(), solverConfig.getIdSolverConfiguration())) {
+                    if (i > level)
+                        break; // only consider runs up until the current level
+                               // (already existing configurations might have more)
+                    if (!courseResults.containsKey(i)) {
+                        courseResults.put(i, new HashMap<SolverConfiguration, ExperimentResult>());
+                    }
+                    if (run.getStatus().getStatusCode() >= 1) {
+                        courseResults.get(i).put(solverConfig, run);
+                    } else {
+                        // missing values are null
+                        courseResults.get(i).put(solverConfig, null);
+                    }
+                    i += 1;
                 }
-                if (run.getStatus().getStatusCode() >= 1) {
-                    courseResults.get(i).put(solverConfig, run);
-                } else {
-                    // missing values are null
-                    courseResults.get(i).put(solverConfig, null);
+            }
+    
+            if (curFinishedConfigurations.containsAll(raceConfigurations) && raceConfigurations.size() == 2) {
+                // If only 2 configurations remain we use a 2-sample test
+                pacc.log("Only 2 configurations remaining, performing 2-sample test");
+                double[] c1 = new double[courseResults.size()];
+                double[] c2 = new double[courseResults.size()];
+                boolean[] x1_censored = new boolean[courseResults.size()];
+                boolean[] x2_censored = new boolean[courseResults.size()];
+                for (int i = 0; i < courseResults.size(); i++) {
+                    c1[i] = parameters.getStatistics().getCostFunction()
+                            .singleCost(courseResults.get(i).get(raceConfigurations.get(0)));
+                    x1_censored[i] = courseResults.get(i).get(raceConfigurations.get(0)).getStatus()
+                            .equals(StatusCode.TIMELIMIT);
+                    c2[i] = parameters.getStatistics().getCostFunction()
+                            .singleCost(courseResults.get(i).get(raceConfigurations.get(1)));
+                    x2_censored[i] = courseResults.get(i).get(raceConfigurations.get(1)).getStatus()
+                            .equals(StatusCode.TIMELIMIT);
                 }
-                i += 1;
-            }
-        }
-
-        if (curFinishedConfigurations.containsAll(raceConfigurations) && raceConfigurations.size() == 2) {
-            // If only 2 configurations remain we use a 2-sample test
-            pacc.log("Only 2 configurations remaining, performing 2-sample test");
-            double[] c1 = new double[courseResults.size()];
-            double[] c2 = new double[courseResults.size()];
-            boolean[] x1_censored = new boolean[courseResults.size()];
-            boolean[] x2_censored = new boolean[courseResults.size()];
-            for (int i = 0; i < courseResults.size(); i++) {
-                c1[i] = parameters.getStatistics().getCostFunction()
-                        .singleCost(courseResults.get(i).get(raceConfigurations.get(0)));
-                x1_censored[i] = courseResults.get(i).get(raceConfigurations.get(0)).getStatus()
-                        .equals(StatusCode.TIMELIMIT);
-                c2[i] = parameters.getStatistics().getCostFunction()
-                        .singleCost(courseResults.get(i).get(raceConfigurations.get(1)));
-                x2_censored[i] = courseResults.get(i).get(raceConfigurations.get(1)).getStatus()
-                        .equals(StatusCode.TIMELIMIT);
-            }
-
-            LogrankTest lr = new LogrankTest(rengine);
-            if (lr.pValue(c1, c2, x1_censored, x2_censored) < alpha) {
-                if (raceConfigurations.get(0).compareTo(raceConfigurations.get(1)) == 1) {
-                    raceConfigurations.remove(1);
+    
+                LogrankTest lr = new LogrankTest(rengine);
+                if (lr.pValue(c1, c2, x1_censored, x2_censored) < alpha) {
+                    if (raceConfigurations.get(0).compareTo(raceConfigurations.get(1)) == 1) {
+                        raceConfigurations.remove(1);
+                    } else {
+                        raceConfigurations.remove(0);
+                    }
                 } else {
-                    raceConfigurations.remove(0);
+                    pacc.log("Test didn't find a significant difference between the two solver configurations");
                 }
             } else {
-                pacc.log("Test didn't find a significant difference between the two solver configurations");
-            }
-        } else {
-            boolean[][] censored = new boolean[courseResults.size()][raceConfigurations.size()];
-            double[][] data = new double[courseResults.size()][raceConfigurations.size()];
-            for (int i = 0; i < courseResults.size(); i++) {
-                for (int j = 0; j < raceConfigurations.size(); j++) {
-                    if (courseResults.get(i).get(raceConfigurations.get(j)) == null)
-                        data[i][j] = Double.NaN;
-                    else {
-                        data[i][j] = Double.valueOf(parameters.getStatistics().getCostFunction()
-                                .singleCost(courseResults.get(i).get(raceConfigurations.get(j))));
-                        censored[i][j] = courseResults.get(i).get(raceConfigurations.get(j)).getStatus()
-                                .equals(StatusCode.TIMELIMIT);
-                    }
-                }
-            }
-
-            pacc.log("Performing family hyopthesis test based on:");
-            logDataMatrix(raceConfigurations, data);
-
-            FamilyTest fmt = new RankTransformationTest(courseResults.size(), raceConfigurations.size(), data, censored);
-            pacc.log("Statistic: " + fmt.familyTestStatistic() + ", critical Value: " + fmt.criticalValue(alpha));
-            if (fmt.isFamilyTestSignificant(fmt.familyTestStatistic(), alpha)) {
-                // There is evidence that at least one configuration is significantly different from the others
-                SolverConfiguration bestConfiguration = null;
-                for (SolverConfiguration solverConfig : raceConfigurations) {
-                    if (bestConfiguration == null || solverConfig.compareTo(bestConfiguration) == 1) {
-                        bestConfiguration = solverConfig;
-                    }
-                }
-                if (this.bestSC == null || bestConfiguration.compareTo(bestSC) == 1) this.bestSC = bestConfiguration;
-                
-                pacc.log("Best solver configuration in current race: " + bestConfiguration.getIdSolverConfiguration()
-                        + " with cost: " + bestConfiguration.getCost());
-
-                int bestConfigurationIx = raceConfigurations.indexOf(bestConfiguration);
-                int bestConfigEvaluations = bestConfiguration.getNumFinishedJobs();
-                boolean expandBest = false;
-
-                // Prepare the data of the best configuration
-                double[] x = new double[courseResults.size()];
-                boolean[] x_censored = new boolean[courseResults.size()];
+                boolean[][] censored = new boolean[courseResults.size()][raceConfigurations.size()];
+                double[][] data = new double[courseResults.size()][raceConfigurations.size()];
                 for (int i = 0; i < courseResults.size(); i++) {
-                    if (courseResults.get(i).get(bestConfiguration) == null) {
-                        x[i] = Double.NaN;
-                        x_censored[i] = false;
-                    } else {
-                        x[i] = Double.valueOf(parameters.getStatistics().getCostFunction()
-                                .singleCost(courseResults.get(i).get(bestConfiguration)));
-                        x_censored[i] = !courseResults.get(i).get(bestConfiguration).getResultCode().isCorrect();
-                    }
-                }
-
-                // Compare (calculate p-values) each other configuration with the best configuration
-                Map<SolverConfiguration, Double> pValueByConfiguration = new HashMap<SolverConfiguration, Double>();
-                for (int j = 0; j < raceConfigurations.size(); j++) {
-                    if (j == bestConfigurationIx)
-                        continue;
-
-                    double[] y = new double[courseResults.size()];
-                    boolean[] y_censored = new boolean[courseResults.size()];
-
-                    for (int i = 0; i < courseResults.size(); i++) {
-                        if (courseResults.get(i).get(raceConfigurations.get(j)) == null) {
-                            y[i] = Double.NaN;
-                            y_censored[i] = false;
-                        } else {
-                            y[i] = Double.valueOf(parameters.getStatistics().getCostFunction()
+                    for (int j = 0; j < raceConfigurations.size(); j++) {
+                        if (courseResults.get(i).get(raceConfigurations.get(j)) == null)
+                            data[i][j] = Double.NaN;
+                        else {
+                            data[i][j] = Double.valueOf(parameters.getStatistics().getCostFunction()
                                     .singleCost(courseResults.get(i).get(raceConfigurations.get(j))));
-                            y_censored[i] = !courseResults.get(i).get(raceConfigurations.get(j)).getResultCode().isCorrect();
+                            censored[i][j] = courseResults.get(i).get(raceConfigurations.get(j)).getStatus()
+                                    .equals(StatusCode.TIMELIMIT);
                         }
                     }
-
-                    LogrankTest lr = new LogrankTest(rengine);
-                    double lr_pvalue = lr.pValue(x, y, x_censored, y_censored);
-                    pValueByConfiguration.put(raceConfigurations.get(j), lr_pvalue);
-
                 }
-
-                // Holm-Bonferroni method rejecting as many null-hypothesis as the significance level allows
-                Map<SolverConfiguration, Double> sortedpValueByConfiguration = sortByValue(pValueByConfiguration);
-                int k = raceConfigurations.size() - 1;
-                for (SolverConfiguration sc : sortedpValueByConfiguration.keySet()) {
-                    if (sortedpValueByConfiguration.get(sc).doubleValue() < alpha / (float) k) {
-                        SolverConfiguration worseConfig = sc;
-                        if (incumbents.contains(worseConfig)) {
-                            // The worse configuration is one of the current incumbents.
-                            // Protect the incumbent if the best configuration does not have as many evaluations.
-                            System.out.println("Comparing best configuration against an incumbent "
-                                    + worseConfig.getIdSolverConfiguration());
-                            if (bestConfigEvaluations < worseConfig.getNumFinishedJobs()) {
-                                expandBest = true;
-                                pacc.log("Post hoc test indicates significant differences but the loser configuration is an incumbent with more evaluations so it stays in the race.");
-                                continue;
+    
+                pacc.log("Performing family hyopthesis test based on:");
+                logDataMatrix(raceConfigurations, data);
+    
+                FamilyTest fmt = new RankTransformationTest(courseResults.size(), raceConfigurations.size(), data, censored);
+                pacc.log("Statistic: " + fmt.familyTestStatistic() + ", critical Value: " + fmt.criticalValue(alpha));
+                if (fmt.isFamilyTestSignificant(fmt.familyTestStatistic(), alpha)) {
+                    // There is evidence that at least one configuration is significantly different from the others
+                    SolverConfiguration bestConfiguration = null;
+                    for (SolverConfiguration solverConfig : raceConfigurations) {
+                        if (bestConfiguration == null || solverConfig.compareTo(bestConfiguration) == 1) {
+                            bestConfiguration = solverConfig;
+                        }
+                    }
+                    if (this.bestSC == null || bestConfiguration.compareTo(bestSC) == 1) {
+                        pacc.log("new incumbent: " + bestConfiguration.getIdSolverConfiguration() + ":" + pacc.getWallTime() + ":" + pacc.getCumulatedCPUTime());
+                        this.bestSC = bestConfiguration;
+                    }
+                    
+                    pacc.log("Best solver configuration in current race: " + bestConfiguration.getIdSolverConfiguration()
+                            + " with cost: " + bestConfiguration.getCost());
+    
+                    int bestConfigurationIx = raceConfigurations.indexOf(bestConfiguration);
+                    int bestConfigEvaluations = bestConfiguration.getNumFinishedJobs();
+                    boolean expandBest = false;
+    
+                    // Prepare the data of the best configuration
+                    double[] x = new double[courseResults.size()];
+                    boolean[] x_censored = new boolean[courseResults.size()];
+                    for (int i = 0; i < courseResults.size(); i++) {
+                        if (courseResults.get(i).get(bestConfiguration) == null) {
+                            x[i] = Double.NaN;
+                            x_censored[i] = false;
+                        } else {
+                            x[i] = Double.valueOf(parameters.getStatistics().getCostFunction()
+                                    .singleCost(courseResults.get(i).get(bestConfiguration)));
+                            x_censored[i] = !courseResults.get(i).get(bestConfiguration).getResultCode().isCorrect();
+                        }
+                    }
+    
+                    // Compare (calculate p-values) each other configuration with the best configuration
+                    Map<SolverConfiguration, Double> pValueByConfiguration = new HashMap<SolverConfiguration, Double>();
+                    for (int j = 0; j < raceConfigurations.size(); j++) {
+                        if (j == bestConfigurationIx)
+                            continue;
+    
+                        double[] y = new double[courseResults.size()];
+                        boolean[] y_censored = new boolean[courseResults.size()];
+    
+                        for (int i = 0; i < courseResults.size(); i++) {
+                            if (courseResults.get(i).get(raceConfigurations.get(j)) == null) {
+                                y[i] = Double.NaN;
+                                y_censored[i] = false;
+                            } else {
+                                y[i] = Double.valueOf(parameters.getStatistics().getCostFunction()
+                                        .singleCost(courseResults.get(i).get(raceConfigurations.get(j))));
+                                y_censored[i] = !courseResults.get(i).get(raceConfigurations.get(j)).getResultCode().isCorrect();
                             }
                         }
-                        
-                        pacc.log("Removing configuration " + sc.getIdSolverConfiguration() + " from race, Cost: " + sc.getCost()
-                                + ", p-value: " + sortedpValueByConfiguration.get(sc).doubleValue());
-                        raceConfigurations.remove(worseConfig);
-                        incumbents.remove(worseConfig);
-                        
-                        for (ExperimentResult run: worseConfig.getJobs()) {
-                            // try to prevent execution of unneeded runs
-                            if (run.getStatus().equals(StatusCode.NOT_STARTED)) api.setJobPriority(run.getId(), -1);
+    
+                        LogrankTest lr = new LogrankTest(rengine);
+                        double lr_pvalue = lr.pValue(x, y, x_censored, y_censored);
+                        pValueByConfiguration.put(raceConfigurations.get(j), lr_pvalue);
+    
+                    }
+    
+                    // Holm-Bonferroni method rejecting as many null-hypothesis as the significance level allows
+                    Map<SolverConfiguration, Double> sortedpValueByConfiguration = sortByValue(pValueByConfiguration);
+                    int k = raceConfigurations.size() - 1;
+                    for (SolverConfiguration sc : sortedpValueByConfiguration.keySet()) {
+                        if (sortedpValueByConfiguration.get(sc).doubleValue() < 2.0*alpha / (float) k) {
+                            SolverConfiguration worseConfig = sc;
+                            if (incumbents.contains(worseConfig)) {
+                                // The worse configuration is one of the current incumbents.
+                                // Protect the incumbent if the best configuration does not have as many evaluations.
+                                System.out.println("Comparing best configuration against an incumbent "
+                                        + worseConfig.getIdSolverConfiguration());
+                                if (bestConfigEvaluations < worseConfig.getNumFinishedJobs()) {
+                                    expandBest = true;
+                                    pacc.log("Post hoc test indicates significant differences but the loser configuration is an incumbent with more evaluations so it stays in the race.");
+                                    continue;
+                                }
+                            }
+                            
+                            pacc.log("Removing configuration " + sc.getIdSolverConfiguration() + " from race, Cost: " + sc.getCost()
+                                    + ", p-value: " + sortedpValueByConfiguration.get(sc).doubleValue());
+                            raceConfigurations.remove(worseConfig);
+                            incumbents.remove(worseConfig);
+                            worseConfig.setNameRacing((referenceSCs.contains(worseConfig) ? "REF-" : "")
+                                    + (incumbents.contains(worseConfig) ? "INC-" : "") + +starts + "-" + race + "-" + round);
+                            
+                            for (ExperimentResult run: worseConfig.getJobs()) {
+                                // try to prevent execution of unneeded runs
+                                if (run.getStatus().equals(StatusCode.NOT_STARTED)) api.setJobPriority(run.getId(), -1);
+                                //if (run.getStatus().equals(StatusCode.RUNNING)) api.killJob(run.getId());
+                            }
+                            
+                            
+                            k--;
+                        } else {
+                            break;
                         }
-                        
-                        
-                        k--;
+                    }
+    
+                    if (expandBest) {
+                        // One of the incumbents was protected against elimination of the best
+                        // configuration. This means the current best configuration
+                        // should get more jobs.
+                        int maxIncumbentEvaluations = 0;
+                        for (SolverConfiguration sc : raceConfigurations) {
+                            if (incumbents.contains(sc)) {
+                                maxIncumbentEvaluations = Math.max(maxIncumbentEvaluations, sc.getJobCount());
+                            }
+                        }
+                        pacc.expandParcoursSC(bestConfiguration,
+                                Math.min(parameters.getMaxParcoursExpansionFactor() * num_instances - bestConfiguration.getJobCount(),
+                                        Math.min(2 * bestConfiguration.getJobCount(), maxIncumbentEvaluations)));
+                    }
+    
+                } else {
+                    pacc.log("family-wise comparison test indicated no significant differences between the configurations");
+                }
+    
+                if (raceConfigurations.size() <= this.Nmin) {
+                    // end of race since there are less than the required amount of
+                    // configurations remaining
+                    pacc.log("Terminating race because minimum number of remaining candidates was reached");
+                    terminateRace();
+                    return;
+                }
+            }
+    
+            if (level + 1 >= parameters.getMaxParcoursExpansionFactor() * num_instances) {
+                // only terminate when all jobs are finished
+                pacc.log("Exceeded maximum number of runs per solver config");
+                terminateRace();
+                return;
+            }
+    
+            if (api.getComputationJobCount(parameters.getIdExperiment()) < api.getComputationCoreCount(parameters.getIdExperiment())) {
+                // if there are free cores we add more jobs
+                int numAvailableCores = Math.max(1, this.CPUFactor * api.getComputationCoreCount(parameters.getIdExperiment()));
+                pacc.log("c Using " + numAvailableCores + " cores to generate new jobs");
+                boolean firstRound = true;
+                boolean createdJobs = true;
+                while (numAvailableCores > 0 && createdJobs) {
+                    boolean allConfigsEnoughJobsForLevel = true;
+                    createdJobs = false;
+                    for (SolverConfiguration solverConfig : raceConfigurations) {
+                        int numJobs = solverConfig.getJobs().size();
+                        if (numJobs == level + 1 && level + 1 < parameters.getMaxParcoursExpansionFactor() * num_instances) {
+                            // this SC needs a new job
+                            pacc.expandParcoursSC(solverConfig, 1, parameters.getMaxParcoursExpansionFactor() * num_instances
+                                    - solverConfig.getJobCount());
+                            numAvailableCores--;
+                            createdJobs = true;
+                        }
+                        if (firstRound) {
+                            pacc.addSolverConfigurationToListNewSC(solverConfig);
+                            solverConfig.setFinished(false);
+                        }
+                        allConfigsEnoughJobsForLevel &= solverConfig.getJobs().size() >= level + 1;
+                    }
+                    firstRound = false;
+                    if (allConfigsEnoughJobsForLevel) {
+                        level++;
                     } else {
                         break;
                     }
                 }
-
-                if (expandBest) {
-                    // One of the incumbents was protected against elimination of the best
-                    // configuration. This means the current best configuration
-                    // should get more jobs.
-                    int maxIncumbentEvaluations = 0;
-                    for (SolverConfiguration sc : raceConfigurations) {
-                        if (incumbents.contains(sc)) {
-                            maxIncumbentEvaluations = Math.max(maxIncumbentEvaluations, sc.getJobCount());
-                        }
-                    }
-                    pacc.expandParcoursSC(bestConfiguration,
-                            Math.max(parameters.getMaxParcoursExpansionFactor() * num_instances - bestConfiguration.getJobCount(),
-                                    Math.min(2 * bestConfiguration.getJobCount(), maxIncumbentEvaluations)));
-                }
-
-            } else {
-                pacc.log("family-wise comparison test indicated no significant differences between the configurations");
-            }
-
-            if (raceConfigurations.size() <= this.Nmin) {
-                // end of race since there are less than the required amount of
-                // configurations remaining
-                pacc.log("Terminating race because minimum number of remaining candidates was reached");
-                terminateRace();
-                return;
-            }
-        }
-
-        if (level + 1 >= parameters.getMaxParcoursExpansionFactor() * num_instances) {
-            // only terminate when all jobs are finished
-            pacc.log("Exceeded maximum number of runs per solver config");
-            terminateRace();
-            return;
-        }
-
-        if (api.getComputationJobCount(parameters.getIdExperiment()) < api.getComputationCoreCount(parameters.getIdExperiment())) {
-            // if there are free cores we add more jobs
-            int numAvailableCores = Math.max(1, this.CPUFactor * api.getComputationCoreCount(parameters.getIdExperiment()));
-            pacc.log("c Using " + numAvailableCores + " cores to generate new jobs");
-            boolean firstRound = true;
-            boolean createdJobs = true;
-            while (numAvailableCores > 0 && createdJobs) {
-                boolean allConfigsEnoughJobsForLevel = true;
-                createdJobs = false;
+                round += 1;
                 for (SolverConfiguration solverConfig : raceConfigurations) {
-                    int numJobs = solverConfig.getJobs().size();
-                    if (numJobs == level + 1 && level + 1 < parameters.getMaxParcoursExpansionFactor() * num_instances) {
-                        // this SC needs a new job
-                        pacc.expandParcoursSC(solverConfig, 1, parameters.getMaxParcoursExpansionFactor() * num_instances
-                                - solverConfig.getJobCount());
-                        numAvailableCores--;
-                        createdJobs = true;
-                    }
-                    if (firstRound) {
-                        pacc.addSolverConfigurationToListNewSC(solverConfig);
-                        solverConfig.setFinished(false);
-                    }
-                    allConfigsEnoughJobsForLevel &= solverConfig.getJobs().size() >= level + 1;
-                }
-                firstRound = false;
-                if (allConfigsEnoughJobsForLevel) {
-                    level++;
-                } else {
-                    break;
+                    solverConfig.setNameRacing((referenceSCs.contains(solverConfig) ? "REF-" : "")
+                            + (incumbents.contains(solverConfig) ? "INC-" : "") + +starts + "-" + race + "-" + round);
                 }
             }
-            round += 1;
-            for (SolverConfiguration solverConfig : raceConfigurations) {
-                solverConfig.setNameRacing((referenceSCs.contains(solverConfig) ? "REF-" : "")
-                        + (incumbents.contains(solverConfig) ? "INC-" : "") + +starts + "-" + race + "-" + round);
+            
+            if (curFinishedConfigurations.containsAll(raceConfigurations)) {
+                curFinishedConfigurations.clear();
             }
-        }
-        if (curFinishedConfigurations.containsAll(raceConfigurations)) {
-            curFinishedConfigurations.clear();
         }
     }
 
@@ -405,9 +415,10 @@ public class SMFRace extends RacingMethods {
         }
         race += 1;
         round = 1;
+        pacc.log("Initial race runs: " + initialRaceRuns);
         for (SolverConfiguration solverConfig : raceConfigurations) {
             solverConfig.setFinished(false);
-            pacc.expandParcoursSC(solverConfig, initialRaceRuns, parameters.getMaxParcoursExpansionFactor() * num_instances);
+            pacc.expandParcoursSC(solverConfig, Math.max(0, Math.min(initialRaceRuns, parameters.getMaxParcoursExpansionFactor() * num_instances - solverConfig.getJobCount())), parameters.getMaxParcoursExpansionFactor() * num_instances);
             pacc.addSolverConfigurationToListNewSC(solverConfig);
             solverConfig.setNameRacing((referenceSCs.contains(solverConfig) ? "REF-" : "")
                     + (incumbents.contains(solverConfig) ? "INC-" : "") + starts + "-" + race + "-" + round);
