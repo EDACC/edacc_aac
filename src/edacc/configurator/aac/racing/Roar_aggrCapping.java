@@ -210,8 +210,9 @@ public class Roar_aggrCapping extends RacingMethods {
 				if(equalRuns) {
 					int comp = compareTo(sc, bestSC);
 					if (comp > 0) {
-						bestSC = sc;
+						bestSC.setFinished(true);
 						clusterHandler.addDataForClustering(bestSC);
+						bestSC = sc;
 						sc.setIncumbentNumber(incumbentNumber++);
 						pacc.log("i " + pacc.getWallTime() + "," + sc.getCost() + ",n.A. ," + sc.getIdSolverConfiguration() + ",n.A. ," + sc.getParameterConfiguration().toString());
 					}
@@ -357,6 +358,7 @@ public class Roar_aggrCapping extends RacingMethods {
 					pacc.log("c RUNS Competitor (" + sc.getJobCount() + ") < Incumbent (" + bestSC.getJobCount()+")");
 					if(clustering) clusterHandler.addDataForClustering(sc);
 					List<ExperimentResult> jobsToKill = sc.getJobs(); 
+					sc.setFinished(true);
 					for (ExperimentResult j : jobsToKill) {
 						try {
 							api.killJob(j.getId());
