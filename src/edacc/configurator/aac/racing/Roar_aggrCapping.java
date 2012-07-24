@@ -71,8 +71,8 @@ public class Roar_aggrCapping extends RacingMethods {
 		pacc.log("c Initialize clustering with the following SCs ...");
 		
 		// All reference SCs are added
+		pacc.log("c Reference SCs:");
 		if(referenceSCs.size() > 0) {
-			pacc.log("c Reference SCs:");
 			for (SolverConfiguration refSc : referenceSCs) {
 				pacc.log("c "+startupSCs.size()+": "+refSc.getName());
 				startupSCs.add(refSc);
@@ -90,14 +90,14 @@ public class Roar_aggrCapping extends RacingMethods {
 		// At least (number of minimal startupSCs)/2 random SCs are added. Improves the reliability of the predefined data. 
 		pacc.log("c Random SCs:");
 		for (int i = 0; i < (int)(numberOfMinStartupSCs/2); i++) {
-                        ParameterConfiguration randomConf = paramGraph.getRandomConfiguration(rng);
-                        try {
+            ParameterConfiguration randomConf = paramGraph.getRandomConfiguration(rng);
+            try {
 				int scID = api.createSolverConfig(parameters.getIdExperiment(), randomConf, 
 						api.getCanonicalName(parameters.getIdExperiment(), randomConf));
                                 
 				SolverConfiguration randomSC = new SolverConfiguration(scID, randomConf, parameters.getStatistics());
 				startupSCs.add(randomSC);
-                                pacc.log("c "+startupSCs.size()+": "+randomSC.getName());
+                pacc.log("c "+startupSCs.size()+": "+scID);
 			} catch (Exception e) {
 				pacc.log("w A new random configuration could not be created for the initialising of the clustering!");
 				e.printStackTrace();
@@ -224,7 +224,6 @@ public class Roar_aggrCapping extends RacingMethods {
 						runsToAdd = bestSC.getJobCount() - runsToAdd;
 					}
 					while(runsToAdd > 0) {
-						// ToDo: 0 (incl) - max (exclusive)?
 						int rand = rng.nextInt(competitor.length);
 						if(competitor[rand] < best[rand]) {
 							int diff = best[rand] - competitor[rand];
@@ -239,7 +238,6 @@ public class Roar_aggrCapping extends RacingMethods {
 						int runsAdded = 0;
 						while(runsAdded < bestSCRuns) {
 							int rand = rng.nextInt(competitor.length);
-							// TODO: Solver Configuration 
 							if(null != clusterHandler.getInstanceInCluster(rand, bestSC)) {
 								InstanceIdSeed newRun = clusterHandler.getInstanceInCluster(rand);
 								pacc.addJob(sc, newRun.seed, newRun.instanceId, sc.getIncumbentNumber());
