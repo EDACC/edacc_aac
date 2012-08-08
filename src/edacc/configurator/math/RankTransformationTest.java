@@ -117,13 +117,13 @@ public class RankTransformationTest implements FamilyTest {
 
         
         // Friedman variant: ranks of logrank scores within each block
-        /*score_ranks_by_block = new double[n][c];
+        score_ranks_by_block = new double[n][c];
         for (int j = 0; j < c; j++) {
             double[] block_j_score_ranks = ranking.rank(col(logrank_score, j));
             for (int i = 0; i < n; i++) score_ranks_by_block[i][j] = block_j_score_ranks[i];
         }
         
-        out = new StringBuilder();
+        /*out = new StringBuilder();
         out.append("\n");
         for (int i = 0; i < score_ranks_by_block.length; i++) {
             for (int j = 0; j < score_ranks_by_block[i].length; j++) {
@@ -188,7 +188,7 @@ public class RankTransformationTest implements FamilyTest {
         
         
         // Friedman variant
-        /*double F = 12.0 * c / (N * (N + c));
+        double F = 12.0 * c / (N * (N + c));
         double sum = 0.0;
         for (int i = 0; i < n; i++) {
             double innersum = 0.0f;
@@ -198,27 +198,31 @@ public class RankTransformationTest implements FamilyTest {
             innersum -= (N + c) / 2.0;
             sum += innersum*innersum;
         }
-        F *= sum;*/
+        F *= sum;
         
-        return RT;
+        return F;
     }
 
     @Override
     public boolean isFamilyTestSignificant(double T, double alpha) throws MathException {
-        //ChiSquaredDistribution XS = new ChiSquaredDistributionImpl(n - 1);
-        //return T > XS.inverseCumulativeProbability(1.0 - alpha);
         if (c <= 1 || n <= 1) return false;
-        FDistribution FD = new FDistributionImpl(n - 1, n*c - n - c + 1);
-        return T > FD.inverseCumulativeProbability(1.0 - alpha);
+        
+        ChiSquaredDistribution XS = new ChiSquaredDistributionImpl(n - 1);
+        return T > XS.inverseCumulativeProbability(1.0 - alpha);
+        
+        //FDistribution FD = new FDistributionImpl(n - 1, n*c - n - c + 1);
+        //return T > FD.inverseCumulativeProbability(1.0 - alpha);
     }
     
     @Override
     public double criticalValue(double alpha) throws MathException {
-        //ChiSquaredDistribution XS = new ChiSquaredDistributionImpl(n - 1);
-        //return XS.inverseCumulativeProbability(1.0 - alpha);
         if (c <= 1 || n <= 1) return 0;
-        FDistribution FD = new FDistributionImpl(n - 1, n*c - n - c + 1);
-        return FD.inverseCumulativeProbability(1.0 - alpha);
+        
+        ChiSquaredDistribution XS = new ChiSquaredDistributionImpl(n - 1);
+        return XS.inverseCumulativeProbability(1.0 - alpha);
+        
+        //FDistribution FD = new FDistributionImpl(n - 1, n*c - n - c + 1);
+        //return FD.inverseCumulativeProbability(1.0 - alpha);
     }
 
     public static void main(String ... args) throws Exception {
@@ -229,7 +233,7 @@ public class RankTransformationTest implements FamilyTest {
                 { 1, 3.0, 2.0},
                 { 1, Double.NaN, 2.0},
                 { 1, 3.0, 2.0},
-                { 1, 104.0, 3.0},
+                { 1, 10, 3.0},
                 };
         boolean[][] censored = new boolean[][] {
                 { false, false, false},
@@ -238,7 +242,7 @@ public class RankTransformationTest implements FamilyTest {
                 { false, false, false},
                 { false, false, false},
                 { false, false, false},
-                { true, true, false},
+                { false, true, false},
                 };
 
         FamilyTest rts = new RankTransformationTest(data.length, data[0].length, data, censored );

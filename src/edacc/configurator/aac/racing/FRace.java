@@ -169,6 +169,7 @@ public class FRace extends RacingMethods {
                         }
                     }
                     if (this.bestSC == null || bestConfiguration.compareTo(bestSC) == 1) {
+                        pacc.log("new incumbent: " + bestConfiguration.getIdSolverConfiguration() + ":" + pacc.getWallTime() + ":" + pacc.getCumulatedCPUTime() + ":" + bestConfiguration.getCost());
                         this.bestSC = bestConfiguration;
                     }
     
