@@ -731,6 +731,17 @@ public class Clustering implements Serializable {
 			serialize(properties.getProperty("SerializeFilename"), C);
 		}
 		
+		if (Boolean.parseBoolean(properties.getProperty("CreateSolver"))) {
+			String folder = properties.getProperty("SolverDirectory");
+			File solverFolder = new File(folder);
+			if (solverFolder.mkdirs()) {
+				
+			} else {
+				System.err.println("Could not create directory: " + folder);
+			}
+		}
+		
+		
 		/*
 		List<Integer> instanceIds2 = new LinkedList<Integer>();
 		instanceIds2.add(1);

@@ -56,14 +56,15 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		return 0;
 	}
 
-	float lastBestSCsClusteringUpdate = 0.f;
-	HashMap<Integer, List<Integer>> bestSCsClustering = null;
+	//float lastBestSCsClusteringUpdate = 0.f;
+	//HashMap<Integer, List<Integer>> bestSCsClustering = null;
 	@Override
 	public List<SolverConfiguration> getBestSolverConfigurations() {
-		if (bestSCsClustering == null || pacc.getWallTime() - lastBestSCsClusteringUpdate > 120) {
+		/*if (bestSCsClustering == null || pacc.getWallTime() - lastBestSCsClusteringUpdate > 120) {
 			bestSCsClustering = clustering.getClusteringHierarchical(Clustering.HierarchicalClusterMethod.AVERAGE_LINKAGE, 10);
 			lastBestSCsClusteringUpdate = pacc.getWallTime();
-		}
+		}*/
+		HashMap<Integer, List<Integer>> bestSCsClustering = clustering.getClustering(false);
 		
 		List<SolverConfiguration> best = new LinkedList<SolverConfiguration>();
 		for (int id : bestSCsClustering.keySet()) {
@@ -142,7 +143,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 	private void initializeSolverConfiguration(SolverConfiguration sc) throws Exception {
 		List<Integer> unsolved = new LinkedList<Integer>();
 		unsolved.addAll(clustering.getNotUsedInstances());
-		HashMap<Integer, List<Integer>> c = clustering.getClusteringHierarchical(Clustering.HierarchicalClusterMethod.AVERAGE_LINKAGE, 10);
+		HashMap<Integer, List<Integer>> c = clustering.getClustering(false); // clustering.getClusteringHierarchical(Clustering.HierarchicalClusterMethod.AVERAGE_LINKAGE, 10);
 		
 		
 		for (int i = 0; i < parameters.getMinRuns() && !unsolved.isEmpty(); i++) {
