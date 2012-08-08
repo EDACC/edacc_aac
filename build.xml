@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project default="aac" name="Create Runnable Jar for Project aac with libraries in sub-folder">
+    <!--this file was created by Eclipse Runnable JAR Export Wizard-->
+    <!--ANT 1.7 is required                                        -->
+	<property name="lib.dir" value="libs"/>
+	<property name="aac.jar" value="AAC.jar"/>
+	<property name="aac.dir" value="aac"/>
+	<property name="solvercreator.jar" value="SolverCreator.jar"/>
+	<property name="solvercreator.dir" value="aac"/>
+	<property name="solverlauncher.jar" value="SolverLauncher.jar"/>
+	<property name="solverlauncher.dir" value="aac"/>
+	<property name="dist.dir" value="dist"/>
+	<property name="src.dir" value="src"/>
+	
+	
+	<path id="classpath">
+		<fileset dir="${lib.dir}" includes="**/*.jar"/>
+	</path>
+	
+	<target name="clean">
+		<delete dir="bin"/>
+		<delete dir="dist"/>
+	</target>
+	
+	<target name="compile">
+		<mkdir dir="bin"/>
+		<javac srcdir="src" destdir="bin" classpathref="classpath"/>
+	</target>
+	
+    <target name="aac" depends="compile">
+        <jar destfile="${dist.dir}/${aac.dir}/${aac.jar}">
+            <manifest>
+                <attribute name="Main-Class" value="edacc.configurator.aac.AAC"/>
+                <attribute name="Class-Path" value=". AAC_lib/EDACCAPI.jar AAC_lib/mysql-connector-java-5.1.13-bin.jar AAC_lib/SevenZip.jar AAC_lib/EDACC_model.jar AAC_lib/commons-math-2.2.jar AAC_lib/commons-math3-3.0.jar AAC_lib/JRI.jar AAC_lib/JRIEngine.jar AAC_lib/REngine.jar AAC_lib/junit.jar AAC_lib/org.hamcrest.core_1.1.0.v20090501071000.jar"/>
+            </manifest>
+            <fileset dir="bin"/>
+        </jar>
+		<delete dir="${dist.dir}/${aac.dir}/AAC_lib"/>
+        <mkdir dir="${dist.dir}/${aac.dir}/AAC_lib"/>
+		<copy todir="${dist.dir}/${aac.dir}/AAC_lib">
+			<fileset dir="${lib.dir}"/>
+		</copy>
+    </target>
+	
+	<target name="solvercreator" depends="compile">
+		<jar destfile="${dist.dir}/${solvercreator.dir}/${solvercreator.jar}">
+            <manifest>
+                <attribute name="Main-Class" value="edacc.configurator.aac.racing.challenge.Clustering"/>
+                <attribute name="Class-Path" value=". AAC_lib/EDACCAPI.jar AAC_lib/mysql-connector-java-5.1.13-bin.jar AAC_lib/SevenZip.jar AAC_lib/EDACC_model.jar AAC_lib/commons-math-2.2.jar AAC_lib/commons-math3-3.0.jar AAC_lib/JRI.jar AAC_lib/JRIEngine.jar AAC_lib/REngine.jar AAC_lib/junit.jar AAC_lib/org.hamcrest.core_1.1.0.v20090501071000.jar"/>
+            </manifest>
+            <fileset dir="bin"/>
+        </jar>
+		<delete dir="${dist.dir}/${solvercreator.dir}/AAC_lib"/>
+        <mkdir dir="${dist.dir}/${solvercreator.dir}/AAC_lib"/>
+		<copy todir="${dist.dir}/${solvercreator.dir}/AAC_lib">
+			<fileset dir="${lib.dir}"/>
+		</copy>
+		<copy file="${src.dir}/edacc/configurator/aac/racing/challenge/settings.properties" todir="${dist.dir}/${solvercreator.dir}"/>
+	</target>
+	
+	<target name="solverlauncher" depends="compile">
+		<jar destfile="${dist.dir}/${solverlauncher.dir}/${solverlauncher.jar}">
+            <manifest>
+                <attribute name="Main-Class" value="edacc.configurator.aac.racing.challenge.Main"/>
+                <attribute name="Class-Path" value=". AAC_lib/EDACCAPI.jar AAC_lib/mysql-connector-java-5.1.13-bin.jar AAC_lib/SevenZip.jar AAC_lib/EDACC_model.jar AAC_lib/commons-math-2.2.jar AAC_lib/commons-math3-3.0.jar AAC_lib/JRI.jar AAC_lib/JRIEngine.jar AAC_lib/REngine.jar AAC_lib/junit.jar AAC_lib/org.hamcrest.core_1.1.0.v20090501071000.jar"/>
+            </manifest>
+            <fileset dir="bin"/>
+        </jar>
+		<delete dir="${dist.dir}/${solverlauncher.dir}/AAC_lib"/>
+        <mkdir dir="${dist.dir}/${solverlauncher.dir}/AAC_lib"/>
+		<copy todir="${dist.dir}/${solverlauncher.dir}/AAC_lib">
+			<fileset dir="${lib.dir}"/>
+		</copy>
+	</target>
+</project>

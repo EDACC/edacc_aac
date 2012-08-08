@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.OutputStream;
 import java.io.Serializable;
 import java.sql.SQLException;
 import java.util.Collections;
@@ -20,11 +21,14 @@ import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 import edacc.api.API;
 import edacc.api.APIImpl;
 import edacc.api.costfunctions.CostFunction;
 import edacc.api.costfunctions.PARX;
+import edacc.model.ConfigurationScenarioDAO;
 import edacc.model.Experiment.Cost;
 import edacc.model.ExperimentResult;
 import edacc.model.ExperimentResultDAO;
@@ -614,39 +618,63 @@ public class Clustering implements Serializable {
 	public static void main(String[] args) throws Exception {
 		API api = new APIImpl();
 		
+		// load user specified properties
 		Properties properties = new Properties();
+		// general settings
 		InputStream in = Clustering.class.getResourceAsStream("settings.properties");
-		properties.load(in);
-		in.close();
-		in = Clustering.class.getResourceAsStream("private.properties");
+		if (in != null) {
+			// starting within eclipse
+			properties.load(in);
+			in.close();
+			// private settings (not in repository)
+			in = Clustering.class.getResourceAsStream("private.properties");
+			if (in != null) {
+				properties.load(in);
+				in.close();
+			}
+		} else {
+			File settingsFile = new File("settings.properties");
+			if (!settingsFile.exists()) {
+				System.err.println("settings.properties not found.");
+				return;
+			}
+			in = new FileInputStream(settingsFile);
+			properties.load(in);
+			in.close();
+		}
+		
+		// feature specific settings
+		String featureDirectory = properties.getProperty("FeatureDirectory");
+		in = new FileInputStream(new File(new File(featureDirectory), "features.properties"));
 		if (in != null) {
 			properties.load(in);
 			in.close();
-		}		
-		api.connect(properties.getProperty("DBHost"), Integer.parseInt(properties.getProperty("DBPort")), properties.getProperty("DB"), properties.getProperty("DBUser"), properties.getProperty("DBPassword"), Boolean.parseBoolean(properties.getProperty("DBCompress")));
+		}
+		
 		int expid = Integer.parseInt(properties.getProperty("ExperimentId"));
 		
+		// connect to database
+		api.connect(properties.getProperty("DBHost"), Integer.parseInt(properties.getProperty("DBPort")), properties.getProperty("DB"), properties.getProperty("DBUser"), properties.getProperty("DBPassword"), Boolean.parseBoolean(properties.getProperty("DBCompress")));
+		
+		// load instances and determine instance ids
 		LinkedList<Instance> instances = InstanceDAO.getAllByExperimentId(expid);
 		List<Integer> instanceIds = new LinkedList<Integer>();
 		for (Instance i : instances) {
 			instanceIds.add(i.getId());
 		}
-		//instanceIds.add(17164);
 		
+		// extract feature names
 		List<String> feature_names = new LinkedList<String>();		
 		for (String f : properties.getProperty("Features").split(","))
 			feature_names.add(f);
 		
-		
+		// create clustering
 		Clustering C = new Clustering(instanceIds, feature_names);
 		CostFunction f = new PARX(Cost.resultTime, false, 0, 1);
-		//int sc_limit = 100;
-		//int sc_c = 0;
 		
+		// load experiment results
 		HashMap<Pair<Integer, Integer>, List<ExperimentResult>> results = new HashMap<Pair<Integer, Integer>, List<ExperimentResult>>();
 		HashSet<Integer> scids = new HashSet<Integer>();
-		
-		
 		for (ExperimentResult er : ExperimentResultDAO.getAllByExperimentId(expid)) {
 			List<ExperimentResult> tmp = results.get(new Pair<Integer, Integer>(er.getSolverConfigId(), er.getInstanceId()));
 			if (tmp == null) {
@@ -657,10 +685,8 @@ public class Clustering implements Serializable {
 			tmp.add(er);
 		}
 		
+		// update clustering
 		for (Pair<Integer, Integer> p : results.keySet()) {
-			//if (sc_c++ >= sc_limit)
-			//	break;
-			// System.out.println("" + sc.getId() + ":" + i);
 			List<ExperimentResult> r = results.get(p);
 			if (!r.isEmpty()) {
 				boolean inf = true;
@@ -673,48 +699,51 @@ public class Clustering implements Serializable {
 				float c = inf ? Float.POSITIVE_INFINITY : f.calculateCost(r);
 				C.update(p.getFirst(), p.getSecond(), c);
 				// System.out.println("" + sc.getId() + ":" + i + ":" + c);
-
 			}
 		}
 		//C.printM();
 		
-		System.out.println("Generating clustering for single decision tree using default method..");
-		HashMap<Integer, List<Integer>> c = C.getClustering(false);
-		System.out.println("Clustering size: " + c.size());
-		//C.tree = new DecisionTree(c, C.F, C.F.values().iterator().next().length);
-		
-		for (Entry<Integer, List<Integer>> entry : c.entrySet()) {
-			System.out.print(entry.getKey() + ": ");
-			System.out.println(entry.getValue());
-		}
-		
-		List<Pair<Integer, Float>> scweights = new LinkedList<Pair<Integer, Float>>();
-		for (int scid : scids) {
-			scweights.add(new Pair<Integer, Float>(scid, C.getAbsoluteWeight(scid)));
-		}
-		Collections.sort(scweights, new Comparator<Pair<Integer, Float>>() {
-
-			@Override
-			public int compare(Pair<Integer, Float> arg0, Pair<Integer, Float> arg1) {
-				if (arg0.getSecond() < arg1.getSecond()) {
-					return 1;
-				} else if (arg1.getSecond() < arg0.getSecond()) {
-					return -1;
-				} else {
-					return 0;
-				}
+		if (Boolean.parseBoolean(properties.getProperty("ShowClustering"))) {
+			System.out.println("Generating clustering for single decision tree using default method..");
+			HashMap<Integer, List<Integer>> c = C.getClustering(false);
+			System.out.println("Clustering size: " + c.size());
+			// C.tree = new DecisionTree(c, C.F,
+			// C.F.values().iterator().next().length);
+			for (Entry<Integer, List<Integer>> entry : c.entrySet()) {
+				System.out.print(entry.getKey() + ": ");
+				System.out.println(entry.getValue());
 			}
-			
-		});
-		int count = 1;
-		for (Pair<Integer, Float> p : scweights) {
-			System.out.println((count++) + ") " + p.getFirst() + "   W: " + p.getSecond());
+			for (Integer i : c.keySet()) {
+				System.out.print("(.*ID: " + i + ".*)|");
+			}
+			System.out.println();
 		}
+		
+		if (Boolean.parseBoolean(properties.getProperty("ShowWeightedRanking"))) {
+			// weighted ranking
+			List<Pair<Integer, Float>> scweights = new LinkedList<Pair<Integer, Float>>();
+			for (int scid : scids) {
+				scweights.add(new Pair<Integer, Float>(scid, C.getAbsoluteWeight(scid)));
+			}
+			Collections.sort(scweights, new Comparator<Pair<Integer, Float>>() {
 
-		for (Integer i : c.keySet()) {
-			System.out.print("(.*ID: " + i + ".*)|");
+				@Override
+				public int compare(Pair<Integer, Float> arg0, Pair<Integer, Float> arg1) {
+					if (arg0.getSecond() < arg1.getSecond()) {
+						return 1;
+					} else if (arg1.getSecond() < arg0.getSecond()) {
+						return -1;
+					} else {
+						return 0;
+					}
+				}
+
+			});
+			int count = 1;
+			for (Pair<Integer, Float> p : scweights) {
+				System.out.println((count++) + ") " + p.getFirst() + "   W: " + p.getSecond());
+			}
 		}
-		System.out.println();
 		
 		//System.out.println(C.getClusteringHierarchical(HierarchicalClusterMethod.AVERAGE_LINKAGE, 10));
 		
@@ -732,10 +761,32 @@ public class Clustering implements Serializable {
 		}
 		
 		if (Boolean.parseBoolean(properties.getProperty("CreateSolver"))) {
+			System.out.println("Exporting solver..");
 			String folder = properties.getProperty("SolverDirectory");
 			File solverFolder = new File(folder);
-			if (solverFolder.mkdirs()) {
+			if (solverFolder.mkdirs()) {			
+				edacc.model.SolverBinaries binary = edacc.model.SolverBinariesDAO.getById(ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(expid).getIdSolverBinary());
 				
+	            InputStream binStream = edacc.model.SolverBinariesDAO.getZippedBinaryFile(binary);
+	            ZipInputStream zis = new ZipInputStream(binStream);
+	            ZipEntry entry;
+	            while ((entry = zis.getNextEntry()) != null) {
+	            	byte[] b = new byte[2048];
+	            	int n;
+	            	File file = new File(solverFolder, entry.getName());
+	            	OutputStream os = new FileOutputStream(file);
+	            	while ((n = zis.read(b)) > 0) {
+	            		os.write(b, 0, n);
+	            	}
+	            	os.close();
+	            	zis.closeEntry();
+	            }
+	            zis.close();
+	            binStream.close();
+	            
+	            System.out.println("Exporting feature binary..");
+	            File featureFolder = new File(featureDirectory);
+	            copyFiles(featureFolder, solverFolder);
 			} else {
 				System.err.println("Could not create directory: " + folder);
 			}
@@ -761,4 +812,76 @@ public class Clustering implements Serializable {
 		
 		C2.printM();*/
 	}
+	
+	
+	/**
+	 * This function will copy files or directories from one location to
+	 * another. note that the source and the destination must be mutually
+	 * exclusive. This function can not be used to copy a directory to a sub
+	 * directory of itself. The function will also have problems if the
+	 * destination files already exist.
+	 * 
+	 * @param src
+	 *            -- A File object that represents the source for the copy
+	 * @param dest
+	 *            -- A File object that represnts the destination for the copy.
+	 * @throws IOException
+	 *             if unable to copy.
+	 */
+	public static void copyFiles(File src, File dest) throws IOException {
+		// Check to ensure that the source is valid...
+		if (!src.exists()) {
+			throw new IOException("copyFiles: Can not find source: " + src.getAbsolutePath() + ".");
+		} else if (!src.canRead()) { // check to ensure we have rights to the
+										// source...
+			throw new IOException("copyFiles: No right to source: " + src.getAbsolutePath() + ".");
+		}
+		// is this a directory copy?
+		if (src.isDirectory()) {
+			if (!dest.exists()) { // does the destination already exist?
+				// if not we need to make it exist if possible (note this is
+				// mkdirs not mkdir)
+				if (!dest.mkdirs()) {
+					throw new IOException("copyFiles: Could not create direcotry: " + dest.getAbsolutePath() + ".");
+				}
+			}
+			// get a listing of files...
+			String list[] = src.list();
+			// copy all the files in the list.
+			for (int i = 0; i < list.length; i++) {
+				File dest1 = new File(dest, list[i]);
+				File src1 = new File(src, list[i]);
+				copyFiles(src1, dest1);
+			}
+		} else {
+			// This was not a directory, so lets just copy the file
+			FileInputStream fin = null;
+			FileOutputStream fout = null;
+			byte[] buffer = new byte[4096]; // Buffer 4K at a time (you can
+											// change this).
+			int bytesRead;
+			try {
+				// open the files for input and output
+				fin = new FileInputStream(src);
+				fout = new FileOutputStream(dest);
+				// while bytesRead indicates a successful read, lets write...
+				while ((bytesRead = fin.read(buffer)) >= 0) {
+					fout.write(buffer, 0, bytesRead);
+				}
+			} catch (IOException e) { // Error copying file...
+				IOException wrapper = new IOException("copyFiles: Unable to copy file: " + src.getAbsolutePath() + "to" + dest.getAbsolutePath() + ".");
+				wrapper.initCause(e);
+				wrapper.setStackTrace(e.getStackTrace());
+				throw wrapper;
+			} finally { // Ensure that the files are closed (if they were open).
+				if (fin != null) {
+					fin.close();
+				}
+				if (fout != null) {
+					fout.close();
+				}
+			}
+		}
+	}
+	
 }
