@@ -1,16 +1,22 @@
 package edacc.configurator.aac.racing.challenge;
 
+import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
 import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -36,6 +42,8 @@ import edacc.model.Instance;
 import edacc.model.InstanceClassMustBeSourceException;
 import edacc.model.InstanceDAO;
 import edacc.model.InstanceHasProperty;
+import edacc.model.InstanceNotInDBException;
+import edacc.model.NoConnectionToDBException;
 import edacc.model.ParameterInstanceDAO;
 import edacc.model.SolverConfiguration;
 import edacc.model.SolverConfigurationDAO;
@@ -84,7 +92,7 @@ public class Clustering implements Serializable {
 	 * @throws SQLException 
 	 * @throws InstanceClassMustBeSourceException 
 	 */
-	public Clustering(List<Integer> instanceIds, List<String> feature_names) throws InstanceClassMustBeSourceException, SQLException {
+	public Clustering(List<Integer> instanceIds, HashMap<Integer, float[]> featureMapping) throws InstanceClassMustBeSourceException, SQLException {
 		// generate the column mapping for M,C matrices
 		I = new HashMap<Integer, Integer>();
 		int row = 0;
@@ -107,29 +115,9 @@ public class Clustering implements Serializable {
 			K[i] = 0.f;
 		}
 		
-		// load features
-		F = new HashMap<Integer, float[]>();
-		for (Integer id : instanceIds) {
-			float[] f = new float[feature_names.size()];
-			HashMap<String, Float> tmp = new HashMap<String, Float>();
-			Instance instance = InstanceDAO.getById(id);
-			for (InstanceHasProperty ihp : instance.getPropertyValues().values()) {
-				try {
-					tmp.put(ihp.getProperty().getName(), Float.parseFloat(ihp.getValue()));
-				} catch (Exception ex) {
-				}
-			}
-			for (int i = 0; i < feature_names.size(); i++) {
-				Float val = tmp.get(feature_names.get(i));
-				if (val == null) {
-					System.err.println("WARNING: Did not find feature value for name " + feature_names.get(i) + " and instance " + instance.getId());
-					f[i] = 0.f;
-				} else {
-					f[i] = val;
-				}
-			}
-			F.put(id, f);
-		}
+		// 
+		F = featureMapping;
+
 		P = new HashMap<Integer, String>();
 	}
 	
@@ -621,35 +609,42 @@ public class Clustering implements Serializable {
 		// load user specified properties
 		Properties properties = new Properties();
 		// general settings
-		InputStream in = Clustering.class.getResourceAsStream("settings.properties");
-		if (in != null) {
-			// starting within eclipse
-			properties.load(in);
-			in.close();
-			// private settings (not in repository)
-			in = Clustering.class.getResourceAsStream("private.properties");
-			if (in != null) {
-				properties.load(in);
-				in.close();
-			}
-		} else {
-			File settingsFile = new File("settings.properties");
+		File settingsFile = new File("settings.properties");
+		if (settingsFile.exists()) {
 			if (!settingsFile.exists()) {
 				System.err.println("settings.properties not found.");
 				return;
 			}
-			in = new FileInputStream(settingsFile);
+			InputStream in = new FileInputStream(settingsFile);
 			properties.load(in);
 			in.close();
+		} else {
+
+			InputStream in = Clustering.class.getResourceAsStream("settings.properties");
+			if (in != null) {
+				// starting within eclipse
+				properties.load(in);
+				in.close();
+				// private settings (not in repository)
+				in = Clustering.class.getResourceAsStream("private.properties");
+				if (in != null) {
+					properties.load(in);
+					in.close();
+				}
+			}
+
 		}
 		
 		// feature specific settings
 		String featureDirectory = properties.getProperty("FeatureDirectory");
-		in = new FileInputStream(new File(new File(featureDirectory), "features.properties"));
+		InputStream in = new FileInputStream(new File(new File(featureDirectory), "features.properties"));
 		if (in != null) {
 			properties.load(in);
 			in.close();
 		}
+		
+		// extract feature names
+		String[] feature_names = properties.getProperty("Features").split(",");
 		
 		int expid = Integer.parseInt(properties.getProperty("ExperimentId"));
 		
@@ -663,13 +658,41 @@ public class Clustering implements Serializable {
 			instanceIds.add(i.getId());
 		}
 		
-		// extract feature names
-		List<String> feature_names = new LinkedList<String>();		
-		for (String f : properties.getProperty("Features").split(","))
-			feature_names.add(f);
+		HashMap<Integer, float[]> featureMapping = new HashMap<Integer, float[]>();
+		
+		// calculate features
+		if (Boolean.parseBoolean(properties.getProperty("UseFeaturesFromDB"))) {
+			for (Integer id : instanceIds) {
+				float[] f = new float[feature_names.length];
+				HashMap<String, Float> tmp = new HashMap<String, Float>();
+				Instance instance = InstanceDAO.getById(id);
+				for (InstanceHasProperty ihp : instance.getPropertyValues().values()) {
+					try {
+						tmp.put(ihp.getProperty().getName(), Float.parseFloat(ihp.getValue()));
+					} catch (Exception ex) {
+					}
+				}
+				for (int i = 0; i < feature_names.length; i++) {
+					Float val = tmp.get(feature_names[i]);
+					if (val == null) {
+						System.err.println("WARNING: Did not find feature value for name " + feature_names[i] + " and instance " + instance.getId());
+						f[i] = 0.f;
+					} else {
+						f[i] = val;
+					}
+				}
+				featureMapping.put(id, f);
+			}
+		} else {
+			int count = 0;
+			for (Integer id : instanceIds) {
+				System.out.println("Calculating feature vector " + (++count) + " / " + instanceIds.size());
+				featureMapping.put(id, calculateFeatures(id, new File(featureDirectory)));
+			}
+		}
 		
 		// create clustering
-		Clustering C = new Clustering(instanceIds, feature_names);
+		Clustering C = new Clustering(instanceIds, featureMapping);
 		CostFunction f = new PARX(Cost.resultTime, false, 0, 1);
 		
 		// load experiment results
@@ -787,6 +810,27 @@ public class Clustering implements Serializable {
 	            System.out.println("Exporting feature binary..");
 	            File featureFolder = new File(featureDirectory);
 	            copyFiles(featureFolder, solverFolder);
+	            System.out.println("Exporting solver launcher..");
+	            File solverLauncherFolder = new File(properties.getProperty("SolverLauncherDirectory"));
+	            copyFiles(solverLauncherFolder, solverFolder);
+	            System.out.println("Saving clustering..");
+	            serialize(new File(solverFolder, "clustering").getAbsolutePath(), C);
+	            System.out.println("Creating solverlauncher.properties file..");
+	            FileWriter fw = new FileWriter(new File(solverFolder, "solverlauncher.properties").getAbsoluteFile());
+	            BufferedWriter bw = new BufferedWriter(fw);
+	            bw.write("FeaturesBin = " + properties.getProperty("FeaturesRunCommand") + "\n");
+	            bw.write("FeaturesParameters = " + properties.getProperty("FeaturesParameters") + "\n");
+	            bw.write("SolverBin = ./" + binary.getRunPath() + "\n");
+	            bw.write("Clustering = ./clustering\n");
+	            bw.close();
+	            fw.close();
+	            
+	            System.out.println("Creating start script..");
+	            fw = new FileWriter(new File(solverFolder, "start.sh").getAbsoluteFile());
+	            bw = new BufferedWriter(fw);
+	            bw.write("#!/bin/bash\njava -Xmx1024M -jar SolverLauncher.jar $1 $2 $3\n");
+	            bw.close();
+	            fw.close();
 			} else {
 				System.err.println("Could not create directory: " + folder);
 			}
@@ -884,4 +928,36 @@ public class Clustering implements Serializable {
 		}
 	}
 	
+	static float[] calculateFeatures(int instanceId, File featureFolder) throws IOException, NoConnectionToDBException, InstanceClassMustBeSourceException, InstanceNotInDBException, InterruptedException, SQLException {
+		Properties properties = new Properties();
+		File propFile = new File(featureFolder, "features.properties");
+		FileInputStream in = new FileInputStream(propFile);
+		properties.load(in);
+		in.close();
+		String featuresRunCommand = properties.getProperty("FeaturesRunCommand");
+		String featuresParameters = properties.getProperty("FeaturesParameters");
+		String[] features = properties.getProperty("Features").split(",");
+		float[] res = new float[features.length];
+		new File("tmp").mkdir();
+		File f = File.createTempFile("instance"+instanceId, "instance"+instanceId, new File("tmp"));
+		InstanceDAO.getBinaryFileOfInstance(InstanceDAO.getById(instanceId), f, false, false);
+		
+		
+		//System.out.println("Call: " + featuresRunCommand + " " + featuresParameters + " " + f.getAbsolutePath());
+		
+		Process p = Runtime.getRuntime().exec(featuresRunCommand + " " + featuresParameters + " " + f.getAbsolutePath(), null, featureFolder);
+		BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
+		br.readLine();
+		String[] features_str = br.readLine().split(",");
+		for (int i = 0; i < features_str.length; i++) {
+			res[i] = Float.valueOf(features_str[i]);
+		}
+		br.close();
+		p.destroy();
+		f.delete();
+		
+		//System.out.println("Result: " + Arrays.toString(res));
+		
+		return res;
+	}
 }

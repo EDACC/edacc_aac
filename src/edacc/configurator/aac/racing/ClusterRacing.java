@@ -43,7 +43,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 			throw new IllegalArgumentException("No instances selected.");
 		}
 
-		clustering = new Clustering(instances, new LinkedList<String>());
+		clustering = new Clustering(instances, new HashMap<Integer, float[]>());
 		
 		for (SolverConfiguration sc : firstSCs) {
 			initializeSolverConfiguration(sc);

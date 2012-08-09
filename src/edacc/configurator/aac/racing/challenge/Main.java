@@ -1,22 +1,36 @@
 package edacc.configurator.aac.racing.challenge;
 
 import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.Properties;
 
 public class Main {
-	static String features_bin = "./features.sh"; //"SAT12_submission/bin/featuresSAT12";
-	static String features_args = "";//"-base";
-	static String solver_bin = "./probSATc";
-	static String clustering = "./clustering";
+	//static String features_bin = "./features.sh"; //"SAT12_submission/bin/featuresSAT12";
+	//static String features_args = "";//"-base";
+	//static String solver_bin = "./probSATc";
+	//static String clustering = "./clustering";
 	
 	public static void main(String[] args) throws Exception {
-		
-		
-		
 		if (args.length != 3) {
 			System.out.println("algorithm instance seed");
 			return;
 		}
+		
+		// load properties
+		Properties properties = new Properties();
+		File f = new File("solverlauncher.properties");
+		InputStream in = new FileInputStream(f);
+		properties.load(in);
+		in.close();
+		
+		String features_bin = properties.getProperty("FeaturesBin");
+		String features_args = properties.getProperty("FeaturesParameters");
+		String solver_bin = properties.getProperty("SolverBin");
+		String clustering = properties.getProperty("Clustering");
+		
 		System.out.println("c calculating instance properties..");
 		Process p = Runtime.getRuntime().exec(features_bin + " " + features_args + " " + args[1]);
 		BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));

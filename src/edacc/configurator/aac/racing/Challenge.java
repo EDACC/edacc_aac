@@ -152,7 +152,7 @@ public class Challenge extends RacingMethods implements JobListener {
 			addInitialRuns(sc);
 		}
 
-		clustering = new Clustering(instances, new LinkedList<String>());
+		clustering = new Clustering(instances, new HashMap<Integer, float[]>());
 	}
 	
 	private void updateBestSolverConfigs() {
