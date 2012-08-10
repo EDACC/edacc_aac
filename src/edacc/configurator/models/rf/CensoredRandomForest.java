@@ -18,7 +18,7 @@ public class CensoredRandomForest {
     public void learnModel(double[][] theta, double[][] instance_features, int nVars,
             int[][] theta_inst_idxs, double[] y, boolean[] censored, int logModel) {
         RegtreeBuildParams params = new RegtreeBuildParams();
-        params.ratioFeatures = 0.2;
+        params.ratioFeatures = Math.max(0.1, Math.sqrt(nVars));
         params.catDomainSizes = new int[nVars];
         params.logModel = logModel;
         params.storeResponses = true;
