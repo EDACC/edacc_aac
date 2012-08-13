@@ -55,4 +55,9 @@ public class Utils {
         }
         return result;
     }
+    
+    public static boolean any(boolean[] b) {
+        for (int i = 0; i < b.length; i++) if (b[i]) return true;
+        return false;
+    }
 }
