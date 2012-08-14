@@ -32,13 +32,13 @@ public class CensoredRandomForestTest {
         }*/
         
         
-        int N = 50000;
-        File file = new File("/home/daniel/downloads/BBO_configuration_runs.csv");
+        int N = 9600;
+        File file = new File("/home/daniel/download/BBO_configuration_runs.csv");
         BufferedReader bufRdr  = new BufferedReader(new FileReader(file));
         bufRdr.readLine(); // read header
         
         int nParams = 2;
-        int nFeatures = 54;
+        int nFeatures = 8;
         
         int[] catDomainSizes = new int[nParams+nFeatures];
         
@@ -116,10 +116,15 @@ public class CensoredRandomForestTest {
             }
         }
         
-        CensoredRandomForest rf = new CensoredRandomForest(20, 0, 20, 1, catDomainSizes, new Random());
+        CensoredRandomForest rf = new CensoredRandomForest(20, 0, 20000000, 1, catDomainSizes, new Random());
         rf.learnModel(all_theta, all_x, nParams, nFeatures, ixs, y, cens, 0);
         System.out.println("Learned model");
         
+        
+        double[][] res = rf.predict(new double[][] {{-4.9, -4.52}});
+        System.out.println(res[0][0] + " " + res[0][1]);
+        
+        /*
         double[][] preds = new double[1000*100][2];
         ix = 0;
         for (double x1 = -5; x1 < 5; x1 += 0.1) {
@@ -135,9 +140,9 @@ public class CensoredRandomForestTest {
         for (double x1 = -5; x1 < 5; x1 += 0.1) {
             for (double x2 = -5; x2 < 5; x2 += 0.1) {
                 //System.out.println("model(" + x1 + "," + x2 + ") = " + pred[ix][0] + ", " + pred[ix][1]);
-                System.out.println(x1 + " " + x2 + " " + pred[ix][0]);
+                System.out.println(x1 + " " + x2 + " " + pred[ix][0] + " " + pred[ix][1]);
                 ix++;
             }
-        }
+        }*/
     }
 }

@@ -14,6 +14,7 @@ public class CensoredRandomForest {
     private double kappaMax;
     private double cutoffPenaltyFactor;
     private int[] catDomainSizes;
+    private double[][] instanceFeatures;
 
     private int numImputationIterations = 5;
     
@@ -28,6 +29,8 @@ public class CensoredRandomForest {
     public void learnModel(double[][] theta, double[][] instance_features, int nParams, int nFeatures,
             int[][] theta_inst_idxs, double[] y, boolean[] censored, int logModel) {
         int nVars = nParams + nFeatures;
+        
+        this.instanceFeatures = instance_features;
         
         // count number of censored observations
         int numCensored = 0;
@@ -49,64 +52,66 @@ public class CensoredRandomForest {
         }
         // learn model on uncensored data
         internalLearnModel(theta, instance_features, nVars, theta_inst_idxs_noncens, y_noncens, censored_noncens, logModel);
-
-        // censored subset of observations
-        int[][] theta_inst_idxs_cens = new int[numCensored][2];
-        double[] y_cens = new double[numCensored];
-        boolean[] censored_cens = new boolean[numCensored];
-        ix = 0;
-        for (int i = 0; i < y.length; i++) {
-            if (censored[i]) {
-                theta_inst_idxs_cens[ix][0] = theta_inst_idxs[i][0];
-                theta_inst_idxs_cens[ix][1] = theta_inst_idxs[i][1];
-                y_cens[ix] = y[i];
-                censored_cens[ix] = true;
-                ix++;
-            }
-        }
         
-        double[][] X_cens = new double[numCensored][nVars];
-        ix = 0;
-        for (int i = 0; i < numCensored; i++) {
-            for (int j = 0; j < nParams; j++) X_cens[i][j] = theta[theta_inst_idxs_cens[i][0]][j];
-            for (int j = nParams; j < nParams + nFeatures; j++) X_cens[i][j] = instance_features[theta_inst_idxs_cens[i][1]][j - nParams];
-        }
-        
-        double maxValue = kappaMax * cutoffPenaltyFactor;
-        double[] oldMeanImputed = new double[numCensored];
-        for (int impIteration = 0; impIteration < numImputationIterations; impIteration++) {
-            double[][] cens_pred = predict(X_cens);
-            
-            if (impIteration == 0) {
-                for (int i = 0; i < numCensored; i++) oldMeanImputed[i] = cens_pred[i][0];
-            }
-            
-            double[] mu = new double[numCensored];
-            double[] sigma = new double[numCensored];
-            double[] alpha = new double[numCensored];
-            double[] single_y_hal = new double[numCensored];
-            for (int i = 0; i < numCensored; i++) {
-                mu[i] = cens_pred[i][0];
-                sigma[i] = Math.sqrt(cens_pred[i][1]);
-                alpha[i] = (y_cens[i] - mu[i]) / sigma[i];
-                single_y_hal[i] = Math.min(mu[i] + sigma[i] * Gaussian.phi(alpha[i]) / (1-Gaussian.PhiInverse(alpha[i])), maxValue);
-            }
-            
-            double[] imp_y = new double[y.length];
+        if (numCensored > 0) {
+            // censored subset of observations
+            int[][] theta_inst_idxs_cens = new int[numCensored][2];
+            double[] y_cens = new double[numCensored];
+            boolean[] censored_cens = new boolean[numCensored];
             ix = 0;
             for (int i = 0; i < y.length; i++) {
-                if (!censored[i]) imp_y[i] = y[i];
-                else imp_y[i] = single_y_hal[ix++];
+                if (censored[i]) {
+                    theta_inst_idxs_cens[ix][0] = theta_inst_idxs[i][0];
+                    theta_inst_idxs_cens[ix][1] = theta_inst_idxs[i][1];
+                    y_cens[ix] = y[i];
+                    censored_cens[ix] = true;
+                    ix++;
+                }
             }
-
-            internalLearnModel(theta, instance_features, nVars, theta_inst_idxs, imp_y, new boolean[censored.length], logModel);
+            
+            double[][] X_cens = new double[numCensored][nVars];
+            ix = 0;
+            for (int i = 0; i < numCensored; i++) {
+                for (int j = 0; j < nParams; j++) X_cens[i][j] = theta[theta_inst_idxs_cens[i][0]][j];
+                for (int j = nParams; j < nParams + nFeatures; j++) X_cens[i][j] = instance_features[theta_inst_idxs_cens[i][1]][j - nParams];
+            }
+            
+            double maxValue = kappaMax * cutoffPenaltyFactor;
+            double[] oldMeanImputed = new double[numCensored];
+            for (int impIteration = 0; impIteration < numImputationIterations; impIteration++) {
+                double[][] cens_pred = predict(X_cens);
+                
+                if (impIteration == 0) {
+                    for (int i = 0; i < numCensored; i++) oldMeanImputed[i] = cens_pred[i][0];
+                }
+                
+                double[] mu = new double[numCensored];
+                double[] sigma = new double[numCensored];
+                double[] alpha = new double[numCensored];
+                double[] single_y_hal = new double[numCensored];
+                for (int i = 0; i < numCensored; i++) {
+                    mu[i] = cens_pred[i][0];
+                    sigma[i] = Math.sqrt(cens_pred[i][1]);
+                    alpha[i] = (y_cens[i] - mu[i]) / sigma[i];
+                    single_y_hal[i] = Math.min(mu[i] + sigma[i] * Gaussian.phi(alpha[i]) / (1-Gaussian.PhiInverse(alpha[i])), maxValue);
+                }
+                
+                double[] imp_y = new double[y.length];
+                ix = 0;
+                for (int i = 0; i < y.length; i++) {
+                    if (!censored[i]) imp_y[i] = y[i];
+                    else imp_y[i] = single_y_hal[ix++];
+                }
+    
+                internalLearnModel(theta, instance_features, nVars, theta_inst_idxs, imp_y, new boolean[censored.length], logModel);
+            }
         }
     }
     
     protected void internalLearnModel(double[][] theta, double[][] instance_features, int nVars,
             int[][] theta_inst_idxs, double[] y, boolean[] censored, int logModel) {
         RegtreeBuildParams params = new RegtreeBuildParams();
-        params.ratioFeatures = Math.max(0.1, Math.sqrt(nVars));
+        params.ratioFeatures = 1;
         params.catDomainSizes = catDomainSizes;
         params.logModel = logModel;
         params.storeResponses = true;
@@ -130,6 +135,8 @@ public class CensoredRandomForest {
     }
     
     public double[][] predict(double[][] theta_inst) {
-        return RandomForest.apply(this.rf, theta_inst);
+        int[] tree_used_idxs = new int[rf.numTrees];
+        for (int i = 0; i < rf.numTrees; i++) tree_used_idxs[i] = i;
+        return RandomForest.applyMarginal(this.rf, tree_used_idxs, theta_inst, instanceFeatures);
     }
 }
