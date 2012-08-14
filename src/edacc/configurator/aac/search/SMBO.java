@@ -1,6 +1,9 @@
 package edacc.configurator.aac.search;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -11,7 +14,10 @@ import edacc.api.API;
 import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
+import edacc.configurator.aac.racing.FRace;
+import edacc.configurator.aac.racing.SMFRace;
 import edacc.configurator.models.rf.CensoredRandomForest;
+import edacc.configurator.models.rf.fastrf.utils.Gaussian;
 import edacc.model.ExperimentResult;
 import edacc.model.Instance;
 import edacc.model.InstanceDAO;
@@ -78,14 +84,14 @@ public class SMBO extends SearchMethods {
             }
         }
         
-        model = new CensoredRandomForest(20, 0, 5000.0, 1.0, catDomainSizes, rng);
+        model = new CensoredRandomForest(80, 0, 5000.0, 1.0, catDomainSizes, rng);
     }
 
     @Override
     public List<SolverConfiguration> generateNewSC(int num) throws Exception {
         if (generatedConfigs.isEmpty()) {
             // start with some random configs
-            for (int i = 0; i < 20; i++) {
+            for (int i = 0; i < num; i++) {
                 ParameterConfiguration paramConfig = pspace.getRandomConfiguration(rng);
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
                 generatedConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
@@ -96,11 +102,64 @@ public class SMBO extends SearchMethods {
             for (SolverConfiguration config: generatedConfigs) numJobs += config.getNumFinishedJobs();
             long start = System.currentTimeMillis();
             updateModel();
-            pacc.log("Learning the model from " + generatedConfigs.size() + " configs and " + numJobs + " runs in total took " + (System.currentTimeMillis() - start) + " ms");
+            pacc.log("c Learning the model from " + generatedConfigs.size() + " configs and " + numJobs + " runs in total took " + (System.currentTimeMillis() - start) + " ms");
+            
+            double[][] pred_opt = new double[1][2];
+            pred_opt[0][0] = 1.23;
+            pred_opt[0][1] = 1.42;
+            pacc.log("c Prediction of x_opt: " + model.predict(pred_opt)[0][0] + " var: " + model.predict(pred_opt)[0][1]);
+            
+            pred_opt = new double[1][2];
+            pred_opt[0][0] = -3.6;
+            pred_opt[0][1] = 4.5;
+            pacc.log("c Prediction of -4.8/-4: " + model.predict(pred_opt)[0][0] + " var: " + model.predict(pred_opt)[0][1]);
             
             List<SolverConfiguration> newConfigs = new ArrayList<SolverConfiguration>();
-            for (int i = 0; i < 20; i++) {
+            if (pacc.racing instanceof FRace || pacc.racing instanceof SMFRace) {
+                // FRace and SMFRace don't automatically use the old best configurations
+                newConfigs.addAll(pacc.racing.getBestSolverConfigurations(num));
+                Collections.sort(newConfigs);
+            }
+            
+            double f_min = newConfigs.get(0).getCost();
+            pacc.log("c Current best configuration: " + newConfigs.get(0).toString() + " with cost " + f_min);
+            
+            double[][] randomThetas = new double[10000][];
+            ParameterConfiguration[] randomParamConfigs = new ParameterConfiguration[10000]; 
+            for (int i = 0; i < 10000; i++) {
                 ParameterConfiguration paramConfig = pspace.getRandomConfiguration(rng);
+                randomThetas[i] = paramConfigToTuple(paramConfig);
+                randomParamConfigs[i] = paramConfig;
+            }
+            
+            double[][] randomThetasPred = model.predict(randomThetas);
+            ThetaPrediction[] thetaPred = new ThetaPrediction[10000];
+            for (int i = 0; i < 10000; i++) {
+                thetaPred[i] = new ThetaPrediction();
+                thetaPred[i].mu = randomThetasPred[i][0];
+                thetaPred[i].var = randomThetasPred[i][1];
+                thetaPred[i].thetaIdx = i;
+                
+                double sigma = Math.sqrt(thetaPred[i].var);
+                double mu = thetaPred[i].mu;
+                double u = (f_min - mu) / sigma;
+                thetaPred[i].ei = (f_min - mu) * Gaussian.phi(u) + sigma * Gaussian.Phi(u);
+                
+                
+                if (i < 10) {
+                    pacc.log("c " + thetaPred[i].mu + " " + thetaPred[i].var + " " + f_min + " " + u + " " + thetaPred[i].ei);
+                }
+            }
+            Arrays.sort(thetaPred, new Comparator<ThetaPrediction>() {
+                @Override
+                public int compare(final ThetaPrediction pred1, final ThetaPrediction pred2) {
+                    return Double.compare(pred1.ei, pred2.ei);
+                }
+            });
+
+            for (int i = 0; i < num - newConfigs.size(); i++) {
+                ParameterConfiguration paramConfig = randomParamConfigs[thetaPred[thetaPred.length - i - 1].thetaIdx];
+                pacc.log("c Using configuration " + api.getCanonicalName(parameters.getIdExperiment(), paramConfig) + " with predicted performance: " + thetaPred[thetaPred.length - i - 1].mu + " and sigma " + Math.sqrt(thetaPred[thetaPred.length - i - 1].var) + " and EI " + thetaPred[thetaPred.length - i - 1].ei);
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
                 newConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
             }
@@ -193,4 +252,8 @@ public class SMBO extends SearchMethods {
         return theta;
     }
 
+    class ThetaPrediction {
+        double mu, var, ei;
+        int thetaIdx;
+    }
 }
