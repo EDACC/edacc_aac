@@ -18,7 +18,7 @@ public class DecisionTree implements Serializable {
 	private static final long serialVersionUID = 3264367978634L;
 
 	public enum ImpurityMeasure {
-		MISSCLASSIFICATIONINDEX, GINIINDEX, ENTROPYINDEX
+		MISCLASSIFICATIONINDEX, GINIINDEX, ENTROPYINDEX
 	}
 	
 	private Node root;
@@ -85,6 +85,13 @@ public class DecisionTree implements Serializable {
 		return res;
 	}
 	
+	/**
+	 * Calculates the purity gain for the given split.
+	 * @param clustering
+	 * @param left
+	 * @param right
+	 * @return
+	 */
 	public float calculatePurityGain(HashMap<Integer, List<Integer>> clustering, HashMap<Integer, List<Integer>> left, HashMap<Integer, List<Integer>> right) {
 		int num_elems = 0;
 		int num_elems_left = 0;
@@ -106,7 +113,7 @@ public class DecisionTree implements Serializable {
 		float r = (float) num_elems_right / (float) num_elems;
 		
 		switch (impurityMeasure) {
-		case MISSCLASSIFICATIONINDEX:
+		case MISCLASSIFICATIONINDEX:
 			return getMisclassificationIndex(clustering) - l * getMisclassificationIndex(left) - r * getMisclassificationIndex(right);
 		case GINIINDEX:
 			return getGiniIndex(clustering) - l * getGiniIndex(left) - r * getGiniIndex(right);
@@ -121,6 +128,11 @@ public class DecisionTree implements Serializable {
 	
 	// ********* impurity measures **********
 	
+	/**
+	 * Calculates the misclassification index for the values.
+	 * @param values
+	 * @return
+	 */
 	public float getMisclassificationIndex(HashMap<Integer, List<Integer>> values) {
 		// calculate 1 - max p_j
 		
@@ -138,6 +150,11 @@ public class DecisionTree implements Serializable {
 		return 1.f - tmp;
 	}
 	
+	/**
+	 * Calculates the gini index for the values.
+	 * @param values
+	 * @return
+	 */
 	public float getGiniIndex(HashMap<Integer, List<Integer>> values) {
 		// calculate 1 - sum p_j^2
 		
@@ -154,6 +171,11 @@ public class DecisionTree implements Serializable {
 		return res;
 	}
 	
+	/**
+	 * Calculates the entropy index for the values.
+	 * @param values
+	 * @return
+	 */
 	public float getEntropyIndex(HashMap<Integer, List<Integer>> values) {
 		// calculate - sum p_j log p_j
 		
@@ -177,12 +199,12 @@ public class DecisionTree implements Serializable {
 			throw new IllegalArgumentException("Expected at least two clusters.");
 		}
 		
-		
 		float purityGain = -1.f;
 		Pair<HashMap<Integer, List<Integer>>, HashMap<Integer, List<Integer>>> res = null;
 		float res_split_point = 0.f;
 		int split_attribute = -1;
 		
+		// this list will contain all instance ids
 		List<Integer> elements = new LinkedList<Integer>();
 		for (List<Integer> list : clustering.values()) {
 			elements.addAll(list);
@@ -192,6 +214,7 @@ public class DecisionTree implements Serializable {
 			final int f_attr = attr;
 			//System.err.println("CURRENT ATTRIBUTE: " + attr);
 			
+			// sort the list of instance ids by current feature value
 			Collections.sort(elements, new Comparator<Integer>() {
 
 				@Override
@@ -211,6 +234,7 @@ public class DecisionTree implements Serializable {
 
 			});
 			
+			// try every possible split
 			float val1 = 0.f;
 			float val2 = features.get(elements.get(0))[f_attr];
 			
@@ -240,27 +264,33 @@ public class DecisionTree implements Serializable {
 	
 	private void initializeNode(Node node) {
 		if (node.clustering.isEmpty()) {
-			throw new IllegalArgumentException("results.isEmpty() is true");
+			throw new IllegalArgumentException("clustering.isEmpty() is true");
 		}
 		if (node.clustering.size() == 1) {
+			// nothing to split
 			return;
 		}
 		
+		// determine the split attribute
 		SplitAttribute sa = findOptimalSplitAttribute(node.clustering);
 		
+		// set split values for this node
 		node.split = sa.split;
 		node.split_attribute = sa.split_attribute;
 		
 		usedFeatures.add(sa.split_attribute);
 		
+		// create children
 		node.left = new Node(sa.leftClustering);
 		node.right = new Node(sa.rightClustering);
 	}
 	
 	private Pair<Integer, List<Integer>> query(Node node, float[] features) {
 		if (node.clustering.size() == 1) {
+			// return the cluster, there is only one
 			return new Pair<Integer, List<Integer>>(node.clustering.keySet().iterator().next(), node.clustering.entrySet().iterator().next().getValue());
 		} else {
+			// determine the feature value of the feature vector and query the left/right node accordingly
 			float val = features[node.split_attribute];
 			if (val < node.split) {
 				return query(node.left, features);
@@ -270,6 +300,12 @@ public class DecisionTree implements Serializable {
 		}
 	}
 	
+	/**
+	 * Returns the cluster for the requested feature vector as a pair.<br/>
+	 * The first value is the solver configuration id and the second value is a list of instance ids.
+	 * @param features feature vector
+	 * @return class
+	 */
 	public Pair<Integer, List<Integer>> query(float[] features) {
 		if (features.length != num_features) {
 			throw new IllegalArgumentException("Invalid feature vector!");
