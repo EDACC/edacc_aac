@@ -294,9 +294,9 @@ public class DecisionTree implements Serializable {
 		node.right = new Node(sa.rightClustering);
 	}
 	
-	private int query(Node node, float[] features) {
+	private Pair<Integer, List<Integer>> query(Node node, float[] features) {
 		if (node.clustering.size() == 1) {
-			return node.clustering.keySet().iterator().next();
+			return new Pair<Integer, List<Integer>>(node.clustering.keySet().iterator().next(), node.clustering.entrySet().iterator().next().getValue());
 		} else {
 			float val = features[node.split_attribute];
 			if (val < node.split) {
@@ -307,7 +307,7 @@ public class DecisionTree implements Serializable {
 		}
 	}
 	
-	public int query(float[] features) {
+	public Pair<Integer, List<Integer>> query(float[] features) {
 		if (features.length != num_features) {
 			throw new IllegalArgumentException("Invalid feature vector!");
 		}

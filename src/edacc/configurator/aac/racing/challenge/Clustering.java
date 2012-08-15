@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -68,10 +69,10 @@ public class Clustering implements Serializable {
 	private static final long serialVersionUID = 2847802957451633450L;
 	
 	private int n; // number of instances = I.size();
-	transient private HashMap<Integer, Integer> I; // maps instance id to column
+	protected HashMap<Integer, Integer> I; // maps instance id to column
 	
 	transient private HashMap<Integer, float[]> M; // Membership Matrix M, maps sc id to instance row vector
-	transient private HashMap<Integer, float[]> C; // Cost Matrix C, maps sc id to cost for instance vector
+	protected HashMap<Integer, float[]> C; // Cost Matrix C, maps sc id to cost for instance vector
 	//HashMap<Integer, Float> W; // relative weight of sc
 	transient private float[] K; // K_i = sum over solver configs for instance row i (ith instance)
 	
@@ -80,6 +81,7 @@ public class Clustering implements Serializable {
 	
 	transient protected HashMap<Integer, float[]> F; // feature vectors for instances
 	protected HashMap<Integer, String> P; // parameter lines
+	protected HashMap<Integer, Set<Integer>> seeds;
 	
 	
 	protected DecisionTree tree;
@@ -119,6 +121,7 @@ public class Clustering implements Serializable {
 		F = featureMapping;
 
 		P = new HashMap<Integer, String>();
+		seeds = new HashMap<Integer, Set<Integer>>();
 	}
 	
 	private void updateData() {
@@ -165,6 +168,7 @@ public class Clustering implements Serializable {
 		}
 		update_columns.clear();
 	}
+	
 
 	/**
 	 * Updates the cost of the given solver configuration on the given instance.
@@ -259,7 +263,7 @@ public class Clustering implements Serializable {
 				float val = M.get(scid)[I.get(insId)];
 				float max = maxSCIdValues.get(insId).getSecond();
 				// TODO: multiplicator
-				if (val * 1.2f >= max) {
+				if (val * 1.1f >= max) {
 					cluster.add(insId);
 					instanceIds.remove(i);
 					maxSCIdValues.remove(insId);
@@ -606,10 +610,15 @@ public class Clustering implements Serializable {
 	public static void main(String[] args) throws Exception {
 		API api = new APIImpl();
 		
+		if (args.length < 1) {
+			System.out.println("Usage: SolverCreator.jar <settings.properties file>");
+			return;
+		}
+		
 		// load user specified properties
 		Properties properties = new Properties();
 		// general settings
-		File settingsFile = new File("settings.properties");
+		File settingsFile = new File(args[0]);
 		if (settingsFile.exists()) {
 			if (!settingsFile.exists()) {
 				System.err.println("settings.properties not found.");
@@ -642,6 +651,11 @@ public class Clustering implements Serializable {
 			properties.load(in);
 			in.close();
 		}
+		String featuresName = properties.getProperty("FeaturesName");
+		String featuresCacheDirectory = properties.getProperty("FeatureCacheDirectory");
+		File featuresCacheFolder = new File(new File(featuresCacheDirectory), featuresName);
+		
+		boolean loadClustering = Boolean.parseBoolean(properties.getProperty("LoadSerializedClustering"));
 		
 		// extract feature names
 		String[] feature_names = properties.getProperty("Features").split(",");
@@ -651,87 +665,97 @@ public class Clustering implements Serializable {
 		// connect to database
 		api.connect(properties.getProperty("DBHost"), Integer.parseInt(properties.getProperty("DBPort")), properties.getProperty("DB"), properties.getProperty("DBUser"), properties.getProperty("DBPassword"), Boolean.parseBoolean(properties.getProperty("DBCompress")));
 		
-		// load instances and determine instance ids
-		LinkedList<Instance> instances = InstanceDAO.getAllByExperimentId(expid);
-		List<Integer> instanceIds = new LinkedList<Integer>();
-		for (Instance i : instances) {
-			instanceIds.add(i.getId());
-		}
-		
-		HashMap<Integer, float[]> featureMapping = new HashMap<Integer, float[]>();
-		
-		// calculate features
-		if (Boolean.parseBoolean(properties.getProperty("UseFeaturesFromDB"))) {
-			for (Integer id : instanceIds) {
-				float[] f = new float[feature_names.length];
-				HashMap<String, Float> tmp = new HashMap<String, Float>();
-				Instance instance = InstanceDAO.getById(id);
-				for (InstanceHasProperty ihp : instance.getPropertyValues().values()) {
-					try {
-						tmp.put(ihp.getProperty().getName(), Float.parseFloat(ihp.getValue()));
-					} catch (Exception ex) {
-					}
-				}
-				for (int i = 0; i < feature_names.length; i++) {
-					Float val = tmp.get(feature_names[i]);
-					if (val == null) {
-						System.err.println("WARNING: Did not find feature value for name " + feature_names[i] + " and instance " + instance.getId());
-						f[i] = 0.f;
-					} else {
-						f[i] = val;
-					}
-				}
-				featureMapping.put(id, f);
+		LinkedList<Instance> instances = null;
+		Clustering C = null;
+		if (!loadClustering) {
+			// load instances and determine instance ids
+			instances = InstanceDAO.getAllByExperimentId(expid);
+			List<Integer> instanceIds = new LinkedList<Integer>();
+			for (Instance i : instances) {
+				instanceIds.add(i.getId());
 			}
+
+			HashMap<Integer, float[]> featureMapping = new HashMap<Integer, float[]>();
+
+			// calculate features
+			if (Boolean.parseBoolean(properties.getProperty("UseFeaturesFromDB"))) {
+				for (Integer id : instanceIds) {
+					float[] f = new float[feature_names.length];
+					HashMap<String, Float> tmp = new HashMap<String, Float>();
+					Instance instance = InstanceDAO.getById(id);
+					for (InstanceHasProperty ihp : instance.getPropertyValues().values()) {
+						try {
+							tmp.put(ihp.getProperty().getName(), Float.parseFloat(ihp.getValue()));
+						} catch (Exception ex) {
+						}
+					}
+					for (int i = 0; i < feature_names.length; i++) {
+						Float val = tmp.get(feature_names[i]);
+						if (val == null) {
+							System.err.println("WARNING: Did not find feature value for name " + feature_names[i] + " and instance " + instance.getId());
+							f[i] = 0.f;
+						} else {
+							f[i] = val;
+						}
+					}
+					featureMapping.put(id, f);
+				}
+			} else {
+				int count = 0;
+				for (Integer id : instanceIds) {
+					System.out.println("Calculating feature vector " + (++count) + " / " + instanceIds.size());
+					featureMapping.put(id, calculateFeatures(id, new File(featureDirectory), featuresCacheFolder));
+				}
+			}
+
+			// create clustering
+			C = new Clustering(instanceIds, featureMapping);
+			CostFunction f = new PARX(Cost.resultTime, false, 0, 1);
+
+			// load experiment results
+			HashMap<Pair<Integer, Integer>, List<ExperimentResult>> results = new HashMap<Pair<Integer, Integer>, List<ExperimentResult>>();
+			for (ExperimentResult er : ExperimentResultDAO.getAllByExperimentId(expid)) {
+				List<ExperimentResult> tmp = results.get(new Pair<Integer, Integer>(er.getSolverConfigId(), er.getInstanceId()));
+				if (tmp == null) {
+					tmp = new LinkedList<ExperimentResult>();
+					results.put(new Pair<Integer, Integer>(er.getSolverConfigId(), er.getInstanceId()), tmp);
+				}
+				tmp.add(er);
+			}
+
+			// update clustering
+			for (Pair<Integer, Integer> p : results.keySet()) {
+				List<ExperimentResult> r = results.get(p);
+				if (!r.isEmpty()) {
+					boolean inf = true;
+					for (ExperimentResult res : r) {
+						Set<Integer> s = C.seeds.get(res.getInstanceId());
+						if (s == null) {
+							s = new HashSet<Integer>();
+							C.seeds.put(res.getInstanceId(), s);
+						}
+						s.add(res.getSeed());
+
+						if (res.getResultCode().isCorrect()) {
+							inf = false;
+							break;
+						}
+					}
+					float c = inf ? Float.POSITIVE_INFINITY : f.calculateCost(r);
+					C.update(p.getFirst(), p.getSecond(), c);
+					// System.out.println("" + sc.getId() + ":" + i + ":" + c);
+				}
+			}
+			// C.printM();
 		} else {
-			int count = 0;
-			for (Integer id : instanceIds) {
-				System.out.println("Calculating feature vector " + (++count) + " / " + instanceIds.size());
-				featureMapping.put(id, calculateFeatures(id, new File(featureDirectory)));
-			}
+			C = Clustering.deserialize(properties.getProperty("SerializeFilename"));
 		}
-		
-		// create clustering
-		Clustering C = new Clustering(instanceIds, featureMapping);
-		CostFunction f = new PARX(Cost.resultTime, false, 0, 1);
-		
-		// load experiment results
-		HashMap<Pair<Integer, Integer>, List<ExperimentResult>> results = new HashMap<Pair<Integer, Integer>, List<ExperimentResult>>();
-		HashSet<Integer> scids = new HashSet<Integer>();
-		for (ExperimentResult er : ExperimentResultDAO.getAllByExperimentId(expid)) {
-			List<ExperimentResult> tmp = results.get(new Pair<Integer, Integer>(er.getSolverConfigId(), er.getInstanceId()));
-			if (tmp == null) {
-				tmp = new LinkedList<ExperimentResult>();
-				results.put(new Pair<Integer, Integer>(er.getSolverConfigId(), er.getInstanceId()), tmp);
-				scids.add(er.getSolverConfigId());
-			}
-			tmp.add(er);
-		}
-		
-		// update clustering
-		for (Pair<Integer, Integer> p : results.keySet()) {
-			List<ExperimentResult> r = results.get(p);
-			if (!r.isEmpty()) {
-				boolean inf = true;
-				for (ExperimentResult res : r) {
-					if (res.getResultCode().isCorrect()) {
-						inf = false;
-						break;
-					}
-				}
-				float c = inf ? Float.POSITIVE_INFINITY : f.calculateCost(r);
-				C.update(p.getFirst(), p.getSecond(), c);
-				// System.out.println("" + sc.getId() + ":" + i + ":" + c);
-			}
-		}
-		//C.printM();
 		
 		if (Boolean.parseBoolean(properties.getProperty("ShowClustering"))) {
 			System.out.println("Generating clustering for single decision tree using default method..");
 			HashMap<Integer, List<Integer>> c = C.getClustering(false);
 			System.out.println("Clustering size: " + c.size());
-			// C.tree = new DecisionTree(c, C.F,
-			// C.F.values().iterator().next().length);
+
 			for (Entry<Integer, List<Integer>> entry : c.entrySet()) {
 				System.out.print(entry.getKey() + ": ");
 				System.out.println(entry.getValue());
@@ -741,6 +765,9 @@ public class Clustering implements Serializable {
 			}
 			System.out.println();
 		}
+		
+		List<Integer> scids = new LinkedList<Integer>();
+		scids.addAll(C.C.keySet());
 		
 		if (Boolean.parseBoolean(properties.getProperty("ShowWeightedRanking"))) {
 			// weighted ranking
@@ -771,6 +798,13 @@ public class Clustering implements Serializable {
 		//System.out.println(C.getClusteringHierarchical(HierarchicalClusterMethod.AVERAGE_LINKAGE, 10));
 		
 		//C.printM();
+		
+		if (Boolean.parseBoolean(properties.getProperty("BuildDecisionTree"))) {
+			System.out.println("Building decision tree..");
+			HashMap<Integer, List<Integer>> c = C.getClustering(false);
+			C.tree = new DecisionTree(c, C.F, C.F.values().iterator().next().length);
+		}
+		
 		if (Boolean.parseBoolean(properties.getProperty("BuildRandomForest"))) {
 			System.out.println("Generating random forest using greedy clustering method..");
 			C.forest = new RandomForest(C, new Random(0), Integer.parseInt(properties.getProperty("RandomForestTreeCount")));
@@ -837,24 +871,36 @@ public class Clustering implements Serializable {
 		}
 		
 		
-		/*
-		List<Integer> instanceIds2 = new LinkedList<Integer>();
-		instanceIds2.add(1);
-		instanceIds2.add(2);
-		
-		Clustering C2 = new Clustering(instanceIds2);
-		
-		
-		
-		C2.update(1, 1, 18.f);
-		C2.update(2, 1, 60.f);
-		C2.update(3, 1, 200.f);
-		C2.update(4, 1, 300.f);
-		C2.update(5, 1, 300.f);
-		C2.update(6, 1, 300.f);
-		C2.update(7, 2, 10.f);
-		
-		C2.printM();*/
+		if (Boolean.parseBoolean(properties.getProperty("Interactive"))) {
+			interactiveMode(C, new File(featureDirectory));
+		}
+	}
+	
+	
+	public static void interactiveMode(Clustering C, File featuresFolder) throws Exception {
+		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+		String line;
+		while ((line = br.readLine()) != null) {
+			if ("q".equals(line)) {
+				System.out.println("Query Mode");
+				System.out.println("Method?");
+				String method = br.readLine();
+				System.out.println("id?");
+				String id = br.readLine();
+				if (method == null || id == null)
+					break;
+				
+				float[] features = calculateFeatures(Integer.valueOf(id), featuresFolder, null);
+				if ("randomforest".equals(method)) {
+					String params = C.P.get(C.forest.getSolverConfig(features));
+					System.out.println("Params: " + params);
+				} else if ("tree".equals(method)) {
+					String params = C.P.get(C.tree.query(features).getFirst());
+					System.out.println("Params: " + params);
+				}
+			}
+		}
+		br.close();
 	}
 	
 	
@@ -928,7 +974,7 @@ public class Clustering implements Serializable {
 		}
 	}
 	
-	static float[] calculateFeatures(int instanceId, File featureFolder) throws IOException, NoConnectionToDBException, InstanceClassMustBeSourceException, InstanceNotInDBException, InterruptedException, SQLException {
+	static float[] calculateFeatures(int instanceId, File featureFolder, File featuresCacheFolder) throws IOException, NoConnectionToDBException, InstanceClassMustBeSourceException, InstanceNotInDBException, InterruptedException, SQLException {
 		Properties properties = new Properties();
 		File propFile = new File(featureFolder, "features.properties");
 		FileInputStream in = new FileInputStream(propFile);
@@ -937,10 +983,40 @@ public class Clustering implements Serializable {
 		String featuresRunCommand = properties.getProperty("FeaturesRunCommand");
 		String featuresParameters = properties.getProperty("FeaturesParameters");
 		String[] features = properties.getProperty("Features").split(",");
+		Instance instance = InstanceDAO.getById(instanceId);
+		
 		float[] res = new float[features.length];
+		
+		File cacheFile = null;
+		if (featuresCacheFolder != null) {
+			cacheFile = new File(featuresCacheFolder, instance.getMd5());
+		}
+		if (cacheFile != null) {
+			featuresCacheFolder.mkdirs();
+			
+			if (cacheFile.exists()) {
+				System.out.println("Found cached features.");
+				try {
+					BufferedReader br = new BufferedReader(new FileReader(cacheFile));
+					String[] featuresNames = br.readLine().split(",");
+					String[] f_str = br.readLine().split(",");
+					if (f_str.length != features.length || !Arrays.equals(features, featuresNames)) {
+						System.err.println("Features changed? Recalculating!");
+					} else {
+						for (int i = 0; i < res.length; i++) {
+							res[i] = Float.parseFloat(f_str[i]);
+						}
+						return res;
+					}
+				} catch (Exception ex) {
+					System.err.println("Could not load cache file: " + cacheFile.getAbsolutePath() + ". Recalculating features.");
+				}
+			}
+		}
+		
 		new File("tmp").mkdir();
 		File f = File.createTempFile("instance"+instanceId, "instance"+instanceId, new File("tmp"));
-		InstanceDAO.getBinaryFileOfInstance(InstanceDAO.getById(instanceId), f, false, false);
+		InstanceDAO.getBinaryFileOfInstance(instance, f, false, false);
 		
 		
 		//System.out.println("Call: " + featuresRunCommand + " " + featuresParameters + " " + f.getAbsolutePath());
@@ -957,6 +1033,19 @@ public class Clustering implements Serializable {
 		f.delete();
 		
 		//System.out.println("Result: " + Arrays.toString(res));
+		if (cacheFile != null) {
+			cacheFile.delete();
+			BufferedWriter bw = new BufferedWriter(new FileWriter(cacheFile));
+			bw.write(properties.getProperty("Features") + '\n');
+			for (int i = 0; i < res.length; i++) {
+				bw.write(String.valueOf(res[i]));
+				if (i != res.length - 1) {
+					bw.write(',');
+				}
+			}
+			bw.write('\n');
+			bw.close();
+		}
 		
 		return res;
 	}

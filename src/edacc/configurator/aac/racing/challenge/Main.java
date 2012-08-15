@@ -5,14 +5,15 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Properties;
+import java.util.Random;
+import java.util.Set;
 
-public class Main {
-	//static String features_bin = "./features.sh"; //"SAT12_submission/bin/featuresSAT12";
-	//static String features_args = "";//"-base";
-	//static String solver_bin = "./probSATc";
-	//static String clustering = "./clustering";
-	
+import edacc.util.Pair;
+
+public class Main {	
 	public static void main(String[] args) throws Exception {
 		if (args.length != 3) {
 			System.out.println("algorithm instance seed");
@@ -47,19 +48,41 @@ public class Main {
 		Clustering C = Clustering.deserialize(clustering);
 		System.out.println("c getting parameters with " + args[0] + " method..");
 		String params;
+		Integer seed = null;
 		if (args[0].equals("mindist")) {
 			params = MinDist.getParameters(C, features);
 		} else if (args[0].equals("tree")) {
-			params = C.P.get(C.tree.query(features));
+			Random rng = new Random(Integer.parseInt(args[2]));
+			Pair<Integer, List<Integer>> res = C.tree.query(features); 
+			params = C.P.get(res.getFirst());
+			List<Integer> seeds = new LinkedList<Integer>();
+			Integer ins = null;
+			float cost = Float.POSITIVE_INFINITY;
+			for (int instanceId : res.getSecond()) {
+				float tmp = C.C.get(res.getFirst())[C.I.get(instanceId)];
+				if (tmp < cost) {
+					cost = tmp;
+					ins = instanceId;
+				}
+			}
+			
+			if (ins != null) {
+				seeds.addAll(C.seeds.get(ins));
+				seed = seeds.get(rng.nextInt(seeds.size()));
+				System.out.println("c using seed " + seed + " from instance " + ins + " with cost on instance " + cost + ".");
+			}
 		} else if (args[0].equals("randomforest")) {
-			params = C.forest.getParameters(features);
+			params = C.P.get(C.forest.getSolverConfig(features));
 		} else {
 			System.out.println("Did not find algorithm: " + args[0]);
 			return;
 		}
-		
-		params = params.replaceAll("<instance>", args[1].replaceAll("\\\\", "\\\\\\\\")).replaceAll("<seed>", args[2]);
-		
+		if (seed != null) {
+			System.out.println("c using seed from configuration experiment!");
+			params = params.replaceAll("<instance>", args[1].replaceAll("\\\\", "\\\\\\\\")).replaceAll("<seed>", seed.toString());
+		} else {
+			params = params.replaceAll("<instance>", args[1].replaceAll("\\\\", "\\\\\\\\")).replaceAll("<seed>", args[2]);
+		}
 		System.out.println("c Parameters: " + params);
 		
 		p = Runtime.getRuntime().exec(solver_bin + " " + params);

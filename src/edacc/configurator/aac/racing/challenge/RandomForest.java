@@ -14,11 +14,9 @@ public class RandomForest implements Serializable {
 	private static final long serialVersionUID = 23153256236L;
 	private List<DecisionTree> forest;
 	private Random rng;
-	private Clustering clustering;
 	public RandomForest(Clustering clustering, Random rng, int treeCount) {
 		forest = new LinkedList<DecisionTree>();
 		this.rng = rng;
-		this.clustering = clustering;
 		for (int i = 0; i < treeCount; i++) {
 			System.out.println("[RandomForest] Building tree " + (i+1) + " / " + treeCount);
 			HashMap<Integer, List<Integer>> c = clustering.getClusteringGreedy(rng);
@@ -26,10 +24,10 @@ public class RandomForest implements Serializable {
 		}
 	}
 	
-	public String getParameters(float[] features) {
+	public int getSolverConfig(float[] features) {
 		HashMap<Integer, Integer> count = new HashMap<Integer, Integer>();
 		for (DecisionTree tree : forest) {
-			int scid = tree.query(features);
+			int scid = tree.query(features).getFirst();
 			Integer c = count.get(scid);
 			if (c == null) {
 				c = 1;
@@ -53,6 +51,6 @@ public class RandomForest implements Serializable {
 		int scid = scIds.get(rng.nextInt(scIds.size()));
 		System.out.println("c " + scIds.size() + " possible solver configs to choose from with " + max + " votes, choosing " + scid + ".");
 		System.out.println("c " + scIds);
-		return clustering.P.get(scid);
+		return scid;
 	}
 }
