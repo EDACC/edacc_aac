@@ -116,12 +116,12 @@ public class CensoredRandomForestTest {
             }
         }
         
-        CensoredRandomForest rf = new CensoredRandomForest(20, 0, 20000000, 1, catDomainSizes, new Random());
+        CensoredRandomForest rf = new CensoredRandomForest(400, 0, 20000000, 1, catDomainSizes, new Random());
         rf.learnModel(all_theta, all_x, nParams, nFeatures, ixs, y, cens, 0);
         System.out.println("Learned model");
         
         
-        double[][] res = rf.predict(new double[][] {{-4.9, -4.52}});
+        double[][] res = rf.predict(new double[][] {{0, 0}});
         System.out.println(res[0][0] + " " + res[0][1]);
         
         /*
