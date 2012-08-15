@@ -1,6 +1,5 @@
 package edacc.configurator.aac.racing.challenge;
 
-import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
@@ -702,7 +701,6 @@ public class Clustering implements Serializable {
 				}
 			} else {
 				final int size = instanceIds.size();
-				int count = 0;
 				final LinkedList<Integer> instanceIdsToGo = new LinkedList<Integer>();
 				instanceIdsToGo.addAll(instanceIds);
 				int cores = Runtime.getRuntime().availableProcessors();
@@ -711,7 +709,7 @@ public class Clustering implements Serializable {
 				
 				for (int i = 0; i < cores; i++) {
 					threads[i] = new Thread(new Runnable() {
-
+						
 						@Override
 						public void run() {
 							while (true) {
@@ -841,7 +839,7 @@ public class Clustering implements Serializable {
 		if (Boolean.parseBoolean(properties.getProperty("BuildDecisionTree"))) {
 			System.out.println("Building decision tree..");
 			HashMap<Integer, List<Integer>> c = C.getClustering(false);
-			C.tree = new DecisionTree(c, C.F, C.F.values().iterator().next().length);
+			C.tree = new DecisionTree(c, C.F, C.F.values().iterator().next().length, DecisionTree.ImpurityMeasure.ENTROPYINDEX);
 		}
 		
 		if (Boolean.parseBoolean(properties.getProperty("BuildRandomForest"))) {

@@ -20,7 +20,7 @@ public class RandomForest implements Serializable {
 		for (int i = 0; i < treeCount; i++) {
 			System.out.println("[RandomForest] Building tree " + (i+1) + " / " + treeCount);
 			HashMap<Integer, List<Integer>> c = clustering.getClusteringGreedy(rng);
-			forest.add(new DecisionTree(c, clustering.F, clustering.F.values().iterator().next().length));
+			forest.add(new DecisionTree(c, clustering.F, clustering.F.values().iterator().next().length, DecisionTree.ImpurityMeasure.ENTROPYINDEX));
 		}
 	}
 	
