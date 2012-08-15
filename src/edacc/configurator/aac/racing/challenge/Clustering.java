@@ -645,7 +645,7 @@ public class Clustering implements Serializable {
 		}
 		
 		// feature specific settings
-		String featureDirectory = properties.getProperty("FeatureDirectory");
+		final String featureDirectory = properties.getProperty("FeatureDirectory");
 		InputStream in = new FileInputStream(new File(new File(featureDirectory), "features.properties"));
 		if (in != null) {
 			properties.load(in);
@@ -653,7 +653,7 @@ public class Clustering implements Serializable {
 		}
 		String featuresName = properties.getProperty("FeaturesName");
 		String featuresCacheDirectory = properties.getProperty("FeatureCacheDirectory");
-		File featuresCacheFolder = new File(new File(featuresCacheDirectory), featuresName);
+		final File featuresCacheFolder = new File(new File(featuresCacheDirectory), featuresName);
 		
 		boolean loadClustering = Boolean.parseBoolean(properties.getProperty("LoadSerializedClustering"));
 		
@@ -675,7 +675,7 @@ public class Clustering implements Serializable {
 				instanceIds.add(i.getId());
 			}
 
-			HashMap<Integer, float[]> featureMapping = new HashMap<Integer, float[]>();
+			final HashMap<Integer, float[]> featureMapping = new HashMap<Integer, float[]>();
 
 			// calculate features
 			if (Boolean.parseBoolean(properties.getProperty("UseFeaturesFromDB"))) {
@@ -701,11 +701,50 @@ public class Clustering implements Serializable {
 					featureMapping.put(id, f);
 				}
 			} else {
+				final int size = instanceIds.size();
 				int count = 0;
-				for (Integer id : instanceIds) {
-					System.out.println("Calculating feature vector " + (++count) + " / " + instanceIds.size());
-					featureMapping.put(id, calculateFeatures(id, new File(featureDirectory), featuresCacheFolder));
+				final LinkedList<Integer> instanceIdsToGo = new LinkedList<Integer>();
+				instanceIdsToGo.addAll(instanceIds);
+				int cores = Runtime.getRuntime().availableProcessors();
+				Thread[] threads = new Thread[cores];
+				System.out.println("Starting " + cores + " threads for property calculation");
+				
+				for (int i = 0; i < cores; i++) {
+					threads[i] = new Thread(new Runnable() {
+
+						@Override
+						public void run() {
+							while (true) {
+								int id;
+								synchronized (instanceIdsToGo) {
+									if (instanceIdsToGo.isEmpty()) {
+										break;
+									}
+									id = instanceIdsToGo.poll();
+									System.out.println("Calculating feature vector " + (featureMapping.size() + 1) + " / " + size);
+								}
+								try {
+									float[] features = calculateFeatures(id, new File(featureDirectory), featuresCacheFolder);
+									synchronized (instanceIdsToGo) {
+										featureMapping.put(id, features);
+									}
+								} catch (Exception ex) {
+									System.err.println("Error while calculating features for instance " + id);
+								}
+							}
+						}
+						
+					});
 				}
+				
+				for (Thread thread : threads) {
+					thread.start();
+				}
+				
+				for (Thread thread : threads) {
+					thread.join();
+				}
+				System.out.println("Done.");
 			}
 
 			// create clustering
