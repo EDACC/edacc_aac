@@ -16,6 +16,7 @@ import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.configurator.aac.racing.FRace;
 import edacc.configurator.aac.racing.SMFRace;
+import edacc.configurator.math.SamplingSequence;
 import edacc.configurator.models.rf.CensoredRandomForest;
 import edacc.configurator.models.rf.fastrf.utils.Gaussian;
 import edacc.model.ExperimentResult;
@@ -40,10 +41,21 @@ public class SMBO extends SearchMethods {
     private Map<Integer, Integer> instanceFeaturesIx = new HashMap<Integer, Integer>();
     private double[][] instanceFeatures;
     
+    private int maxSamples = 100000;
+    private SamplingSequence sequence;
+    private double sequenceValues[][];
+    
     private CensoredRandomForest model;
 
     public SMBO(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
         super(pacc, api, rng, parameters, firstSCs, referenceSCs);
+
+        
+        String samplingPath = "";
+        String val;
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_samplingPath")) != null)
+            samplingPath = val;
+        
         pspace = api.loadParameterGraphFromDB(parameters.getIdExperiment());
         
         // TODO: Load from configuration?
@@ -84,7 +96,10 @@ public class SMBO extends SearchMethods {
             }
         }
         
-        model = new CensoredRandomForest(80, 0, 5000.0, 1.0, catDomainSizes, rng);
+        model = new CensoredRandomForest(100, 0, 5000.0, 1.0, catDomainSizes, rng);
+        
+        sequence = new SamplingSequence(samplingPath);
+        sequenceValues = sequence.getSequence(configurableParameters.size(), maxSamples);
     }
 
     @Override
@@ -92,10 +107,16 @@ public class SMBO extends SearchMethods {
         if (generatedConfigs.isEmpty()) {
             // start with some random configs
             for (int i = 0; i < num; i++) {
+                ParameterConfiguration pc = mapRealTupleToParameters(sequenceValues[i]);
+                int idSC = api.createSolverConfig(parameters.getIdExperiment(), pc, "SN: " + i);
+                generatedConfigs.add(new SolverConfiguration(idSC, pc, parameters.getStatistics()));
+            }
+            
+            /*for (int i = 0; i < num; i++) {
                 ParameterConfiguration paramConfig = pspace.getRandomConfiguration(rng);
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
                 generatedConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
-            }
+            }*/
             return generatedConfigs;
         } else {
             int numJobs = 0;
@@ -143,12 +164,9 @@ public class SMBO extends SearchMethods {
                 double sigma = Math.sqrt(thetaPred[i].var);
                 double mu = thetaPred[i].mu;
                 double u = (f_min - mu) / sigma;
-                thetaPred[i].ei = (f_min - mu) * Gaussian.phi(u) + sigma * Gaussian.Phi(u);
-                
-                
-                if (i < 10) {
-                    pacc.log("c " + thetaPred[i].mu + " " + thetaPred[i].var + " " + f_min + " " + u + " " + thetaPred[i].ei);
-                }
+                thetaPred[i].ei = (f_min - mu) * Gaussian.Phi(u) + sigma * 0.55 * Gaussian.phi(u);
+                thetaPred[i].t1 = (f_min - mu) * Gaussian.Phi(u);
+                thetaPred[i].t2 = sigma * Gaussian.phi(u);
             }
             Arrays.sort(thetaPred, new Comparator<ThetaPrediction>() {
                 @Override
@@ -158,8 +176,9 @@ public class SMBO extends SearchMethods {
             });
 
             for (int i = 0; i < num - newConfigs.size(); i++) {
-                ParameterConfiguration paramConfig = randomParamConfigs[thetaPred[thetaPred.length - i - 1].thetaIdx];
-                pacc.log("c Using configuration " + api.getCanonicalName(parameters.getIdExperiment(), paramConfig) + " with predicted performance: " + thetaPred[thetaPred.length - i - 1].mu + " and sigma " + Math.sqrt(thetaPred[thetaPred.length - i - 1].var) + " and EI " + thetaPred[thetaPred.length - i - 1].ei);
+                ThetaPrediction theta = thetaPred[thetaPred.length - i - 1];
+                ParameterConfiguration paramConfig = randomParamConfigs[theta.thetaIdx];
+                pacc.log("c Using configuration " + api.getCanonicalName(parameters.getIdExperiment(), paramConfig) + " with predicted performance: " + theta.mu + " and sigma " + Math.sqrt(theta.var) + " and EI " + theta.ei + " t1: " + theta.t1 + " " + theta.t2);
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
                 newConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
             }
@@ -251,8 +270,49 @@ public class SMBO extends SearchMethods {
         
         return theta;
     }
+    
+    /**
+     * Map a real tuple to a parameter configuration. Not the inverse of paramConfigToTuple !!
+     * @param values
+     * @return
+     */
+    private ParameterConfiguration mapRealTupleToParameters(double[] values) {
+        ParameterConfiguration pc = pspace.getRandomConfiguration(rng);
+        int i = 0;
+        for (Parameter p: configurableParameters) {
+            if (pc.getParameterValue(p) == null) continue;
+            double v = values[i++];
+            if (p.getDomain() instanceof RealDomain) {
+                RealDomain dom = (RealDomain)p.getDomain();
+                pc.setParameterValue(p, dom.getLow() + v * (dom.getHigh() - dom.getLow()));
+            } else if (p.getDomain() instanceof IntegerDomain) {
+                IntegerDomain dom = (IntegerDomain)p.getDomain();
+                pc.setParameterValue(p, Math.round(dom.getLow() + v * (dom.getHigh() - dom.getLow())));
+            } else if (p.getDomain() instanceof CategoricalDomain) {
+                CategoricalDomain dom = (CategoricalDomain)p.getDomain();
+                List<String> categories = new LinkedList<String>(dom.getCategories());
+                Collections.sort(categories);
+                int ix = (int) (v * categories.size());
+                if (ix == categories.size()) ix = 0;
+                pc.setParameterValue(p, categories.get(ix));
+            } else if (p.getDomain() instanceof OrdinalDomain) {
+                OrdinalDomain dom = (OrdinalDomain)p.getDomain();
+                int ix = (int) (v * dom.getOrdered_list().size());
+                if (ix == dom.getOrdered_list().size()) ix = 0;
+                pc.setParameterValue(p, dom.getOrdered_list().get(ix));
+            } else if (p.getDomain() instanceof FlagDomain) {
+                if (v < 0.5) {
+                    pc.setParameterValue(p, FlagDomain.FLAGS.ON);
+                } else {
+                    pc.setParameterValue(p, FlagDomain.FLAGS.OFF);
+                }
+            }
+        }
+        return pc;
+    }
 
     class ThetaPrediction {
+        double t1, t2;
         double mu, var, ei;
         int thetaIdx;
     }
