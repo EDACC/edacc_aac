@@ -2,6 +2,8 @@ package edacc.configurator.models.rf;
 
 import java.util.Random;
 
+import org.apache.commons.math.MathException;
+
 import edacc.configurator.models.rf.fastrf.RandomForest;
 import edacc.configurator.models.rf.fastrf.RegtreeBuildParams;
 import edacc.configurator.models.rf.fastrf.RegtreeFit;
@@ -27,7 +29,7 @@ public class CensoredRandomForest {
     }
     
     public void learnModel(double[][] theta, double[][] instance_features, int nParams, int nFeatures,
-            int[][] theta_inst_idxs, double[] y, boolean[] censored, int logModel) {
+            int[][] theta_inst_idxs, double[] y, boolean[] censored, int logModel) throws MathException {
         int nVars = nParams + nFeatures;
         
         this.instanceFeatures = instance_features;
@@ -111,11 +113,11 @@ public class CensoredRandomForest {
     protected void internalLearnModel(double[][] theta, double[][] instance_features, int nVars,
             int[][] theta_inst_idxs, double[] y, boolean[] censored, int logModel) {
         RegtreeBuildParams params = new RegtreeBuildParams();
-        params.ratioFeatures = 1;
+        params.ratioFeatures = 0.2;
         params.catDomainSizes = catDomainSizes;
         params.logModel = logModel;
         params.storeResponses = true;
-        params.splitMin = 10;
+        params.splitMin = 5;
 
         for (int i = 0; i < rf.numTrees; i++) {
             int[] sample = new int[y.length];

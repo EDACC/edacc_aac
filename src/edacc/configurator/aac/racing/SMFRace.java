@@ -17,6 +17,7 @@ import edacc.api.API;
 import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
+import edacc.configurator.aac.util.RInterface;
 import edacc.configurator.math.FamilyTest;
 import edacc.configurator.math.FriedmanTest;
 import edacc.configurator.math.LogrankTest;
@@ -31,7 +32,7 @@ import edacc.model.StatusCode;
  * and Stützle.
  * 
  * Each configuration in the race is evaluated on the same course of instances.
- * As soon as a family-wise Skillings-Mack test indicates that at least one
+ * As soon as a family-wise hypothesis test indicates that at least one
  * configuration is significantly different from at least one other, every
  * configuration that is determined to be worse in a pairwise comparison with
  * the currently best configuration is removed from the race. All surviving
@@ -83,11 +84,7 @@ public class SMFRace extends RacingMethods {
         this.raceSurvivors = new ArrayList<SolverConfiguration>();
         this.lastRoundCost = new HashMap<SolverConfiguration, Float>();
 
-        rengine = new Rengine(new String[] { "--vanilla" }, false, null);
-
-        if (!rengine.waitForR()) {
-            throw new Exception("Could not initialize Rengine");
-        }
+        rengine = RInterface.getRengine();
 
         if (rengine.eval("library(asbio)") == null) {
             rengine.end();

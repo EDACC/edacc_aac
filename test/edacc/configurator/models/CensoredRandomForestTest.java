@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.StringTokenizer;
 
 import edacc.configurator.models.rf.CensoredRandomForest;
+import edacc.configurator.models.rf.fastrf.utils.Gaussian;
 
 public class CensoredRandomForestTest {
     public static void main(String ... args) throws Exception {
@@ -32,7 +33,7 @@ public class CensoredRandomForestTest {
         }*/
         
         
-        int N = 9600;
+        int N = 7360;
         File file = new File("/home/daniel/download/BBO_configuration_runs.csv");
         BufferedReader bufRdr  = new BufferedReader(new FileReader(file));
         bufRdr.readLine(); // read header
@@ -55,7 +56,8 @@ public class CensoredRandomForestTest {
             if (n >= N) break;
             StringTokenizer st = new StringTokenizer(line, ",");
             for (int i = 0; i < nParams+nFeatures+1; i++) data[n][i] = Double.valueOf(st.nextToken());
-            y[n] = data[n][nParams+nFeatures];
+            assert (data[n][nParams+nFeatures] > 0);
+            y[n] = Math.log10(data[n][nParams+nFeatures]);
             cens[n] = Integer.valueOf(st.nextToken()) == 1;
             n++;
         }
@@ -90,7 +92,9 @@ public class CensoredRandomForestTest {
         double[][] all_x = new double[xs.size()][nFeatures];
         ix = 0;
         for (List<Double> x: xs) {
-            for (int j = 0; j < x.size(); j++) all_x[ix][j] = x.get(j);
+            for (int j = 0; j < x.size(); j++) {
+                all_x[ix][j] = x.get(j);
+            }
             ix++;
         }
         
@@ -116,16 +120,42 @@ public class CensoredRandomForestTest {
             }
         }
         
-        CensoredRandomForest rf = new CensoredRandomForest(400, 0, 20000000, 1, catDomainSizes, new Random());
+        CensoredRandomForest rf = new CensoredRandomForest(40, 1, 20000000, 1, catDomainSizes, new Random());
         rf.learnModel(all_theta, all_x, nParams, nFeatures, ixs, y, cens, 0);
         System.out.println("Learned model");
         
-        
-        double[][] res = rf.predict(new double[][] {{0, 0}});
-        System.out.println(res[0][0] + " " + res[0][1]);
-        
         /*
-        double[][] preds = new double[1000*100][2];
+        // ================ 1D ====================
+        double[][] preds = new double[10001][2];
+
+        ix = 0;
+        for (double x1 = -5; x1 < 5; x1 += 0.01) {
+            preds[ix][0] = x1;
+            ix++;
+        }
+        
+        double[][] pred = rf.predict(preds);
+        
+        double f_min = 0.009;
+        
+        ix = 0;
+        for (double x1 = -5; x1 < 5; x1 += 0.01) {
+            double mu = pred[ix][0]; 
+            double sigma = Math.sqrt(pred[ix][1]);
+            double u = (f_min - mu) / sigma;
+            double ei = (f_min - mu) * Gaussian.Phi(u) + sigma * Gaussian.phi(u);
+            System.out.println(x1 + " " + pred[ix][0] + " " + pred[ix][1] + " " + ei);
+            ix++;
+        }
+        */
+        
+        
+        // ==================== 2D ====================
+        double[][] res = rf.predict(new double[][] {{0, 0}});
+        System.out.println(Math.pow(10, res[0][0]) + " " + Math.pow(10, res[0][1]));
+        
+        
+        double[][] preds = new double[1000*1000][2];
         ix = 0;
         for (double x1 = -5; x1 < 5; x1 += 0.1) {
             for (double x2 = -5; x2 < 5; x2 += 0.1) {
@@ -136,13 +166,23 @@ public class CensoredRandomForestTest {
         }
         double[][] pred = rf.predict(preds);
         
+        double f_min = Math.log10(0.104);
+        
         ix = 0;
         for (double x1 = -5; x1 < 5; x1 += 0.1) {
             for (double x2 = -5; x2 < 5; x2 += 0.1) {
+                double mu = pred[ix][0];
+                if (pred[ix][1] < 0) {
+                    System.out.println("negative variance!");
+                }
+                double sigma = Math.sqrt(pred[ix][1]);
+                double u = (f_min - mu) / sigma;
+                double ei = (f_min - mu) * Gaussian.Phi(u) + sigma * Gaussian.phi(u);
                 //System.out.println("model(" + x1 + "," + x2 + ") = " + pred[ix][0] + ", " + pred[ix][1]);
-                System.out.println(x1 + " " + x2 + " " + pred[ix][0] + " " + pred[ix][1]);
+                System.out.println(x1 + " " + x2 + " " + pred[ix][0] + " " + pred[ix][1] + " " + ei);
                 ix++;
             }
-        }*/
+        }
+
     }
 }

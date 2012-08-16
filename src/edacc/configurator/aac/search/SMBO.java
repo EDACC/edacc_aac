@@ -10,12 +10,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import org.apache.commons.math.MathException;
+import org.rosuda.JRI.Rengine;
+
 import edacc.api.API;
 import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.configurator.aac.racing.FRace;
 import edacc.configurator.aac.racing.SMFRace;
+import edacc.configurator.aac.util.RInterface;
+import edacc.configurator.math.PCA;
 import edacc.configurator.math.SamplingSequence;
 import edacc.configurator.models.rf.CensoredRandomForest;
 import edacc.configurator.models.rf.fastrf.utils.Gaussian;
@@ -41,20 +46,28 @@ public class SMBO extends SearchMethods {
     private Map<Integer, Integer> instanceFeaturesIx = new HashMap<Integer, Integer>();
     private double[][] instanceFeatures;
     
+    private Rengine rengine;
+    
     private int maxSamples = 100000;
     private SamplingSequence sequence;
     private double sequenceValues[][];
     
     private CensoredRandomForest model;
+    private boolean logModel = true;
+    
+    private int numPC = 7;
 
     public SMBO(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
         super(pacc, api, rng, parameters, firstSCs, referenceSCs);
 
+        rengine = RInterface.getRengine();
         
         String samplingPath = "";
         String val;
         if ((val = parameters.getSearchMethodParameters().get("SMBO_samplingPath")) != null)
             samplingPath = val;
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_numPC")) != null)
+            numPC = Integer.valueOf(val);;
         
         pspace = api.loadParameterGraphFromDB(parameters.getIdExperiment());
         
@@ -79,14 +92,21 @@ public class SMBO extends SearchMethods {
             }
             
             for (String featureName: instanceFeatureNames) {
-                instanceFeatures[instances.indexOf(instance)][instanceFeatureNames.indexOf(featureName)] = 2; //featureValueByName.get(featureName);
+                instanceFeatures[instances.indexOf(instance)][instanceFeatureNames.indexOf(featureName)] = 2; //TODO: featureValueByName.get(featureName);
             }
         }
         
+        // Project instance features into lower dimensional space using PCA
+        PCA pca = new PCA(rengine);
+        instanceFeatures = pca.transform(instanceFeatures.length, instanceFeatureNames.size(), instanceFeatures, numPC);
+        
+        int numFeatures = instanceFeatureNames.size();
+        instanceFeatureNames.clear();
+        for (int i = 0; i < Math.min(numPC, numFeatures); i++) instanceFeatureNames.add("PC" + (i+1));
+        
+        // Load information about the parameter space
         configurableParameters.addAll(api.getConfigurableParameters(parameters.getIdExperiment()));
-        
         int[] catDomainSizes = new int[configurableParameters.size() + instanceFeatureNames.size()];
-        
         for (Parameter p: configurableParameters) {
             if (p.getDomain() instanceof FlagDomain) {
                 catDomainSizes[configurableParameters.indexOf(p)] = 2;
@@ -96,8 +116,10 @@ public class SMBO extends SearchMethods {
             }
         }
         
-        model = new CensoredRandomForest(100, 0, 5000.0, 1.0, catDomainSizes, rng);
+        // Initialize the predictive model
+        model = new CensoredRandomForest(200, logModel ? 1 : 0, 5000.0, 1.0, catDomainSizes, rng);
         
+        // Initialize pseudo-random sequence for the initial sampling
         sequence = new SamplingSequence(samplingPath);
         sequenceValues = sequence.getSequence(configurableParameters.size(), maxSamples);
     }
@@ -106,7 +128,7 @@ public class SMBO extends SearchMethods {
     public List<SolverConfiguration> generateNewSC(int num) throws Exception {
         if (generatedConfigs.isEmpty()) {
             // start with some random configs
-            for (int i = 0; i < num; i++) {
+            for (int i = 0; i < 100 * configurableParameters.size(); i++) {
                 ParameterConfiguration pc = mapRealTupleToParameters(sequenceValues[i]);
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), pc, "SN: " + i);
                 generatedConfigs.add(new SolverConfiguration(idSC, pc, parameters.getStatistics()));
@@ -125,7 +147,7 @@ public class SMBO extends SearchMethods {
             updateModel();
             pacc.log("c Learning the model from " + generatedConfigs.size() + " configs and " + numJobs + " runs in total took " + (System.currentTimeMillis() - start) + " ms");
             
-            double[][] pred_opt = new double[1][2];
+            /*double[][] pred_opt = new double[1][2];
             pred_opt[0][0] = 1.23;
             pred_opt[0][1] = 1.42;
             pacc.log("c Prediction of x_opt: " + model.predict(pred_opt)[0][0] + " var: " + model.predict(pred_opt)[0][1]);
@@ -133,7 +155,7 @@ public class SMBO extends SearchMethods {
             pred_opt = new double[1][2];
             pred_opt[0][0] = -3.6;
             pred_opt[0][1] = 4.5;
-            pacc.log("c Prediction of -4.8/-4: " + model.predict(pred_opt)[0][0] + " var: " + model.predict(pred_opt)[0][1]);
+            pacc.log("c Prediction of -4.8/-4: " + model.predict(pred_opt)[0][0] + " var: " + model.predict(pred_opt)[0][1]);*/
             
             List<SolverConfiguration> newConfigs = new ArrayList<SolverConfiguration>();
             if (pacc.racing instanceof FRace || pacc.racing instanceof SMFRace) {
@@ -143,19 +165,22 @@ public class SMBO extends SearchMethods {
             }
             
             double f_min = newConfigs.get(0).getCost();
+            if (logModel) f_min = Math.log10(f_min);
             pacc.log("c Current best configuration: " + newConfigs.get(0).toString() + " with cost " + f_min);
             
-            double[][] randomThetas = new double[10000][];
-            ParameterConfiguration[] randomParamConfigs = new ParameterConfiguration[10000]; 
-            for (int i = 0; i < 10000; i++) {
+            int numRandomTheta = 10000;
+            
+            double[][] randomThetas = new double[numRandomTheta][];
+            ParameterConfiguration[] randomParamConfigs = new ParameterConfiguration[numRandomTheta]; 
+            for (int i = 0; i < numRandomTheta; i++) {
                 ParameterConfiguration paramConfig = pspace.getRandomConfiguration(rng);
                 randomThetas[i] = paramConfigToTuple(paramConfig);
                 randomParamConfigs[i] = paramConfig;
             }
             
             double[][] randomThetasPred = model.predict(randomThetas);
-            ThetaPrediction[] thetaPred = new ThetaPrediction[10000];
-            for (int i = 0; i < 10000; i++) {
+            ThetaPrediction[] thetaPred = new ThetaPrediction[numRandomTheta];
+            for (int i = 0; i < numRandomTheta; i++) {
                 thetaPred[i] = new ThetaPrediction();
                 thetaPred[i].mu = randomThetasPred[i][0];
                 thetaPred[i].var = randomThetasPred[i][1];
@@ -164,7 +189,8 @@ public class SMBO extends SearchMethods {
                 double sigma = Math.sqrt(thetaPred[i].var);
                 double mu = thetaPred[i].mu;
                 double u = (f_min - mu) / sigma;
-                thetaPred[i].ei = (f_min - mu) * Gaussian.Phi(u) + sigma * 0.55 * Gaussian.phi(u);
+                thetaPred[i].ei = (f_min - mu) * Gaussian.Phi(u) + sigma * Gaussian.phi(u);
+                
                 thetaPred[i].t1 = (f_min - mu) * Gaussian.Phi(u);
                 thetaPred[i].t2 = sigma * Gaussian.phi(u);
             }
@@ -188,7 +214,7 @@ public class SMBO extends SearchMethods {
         }
     }
     
-    private void updateModel() {
+    private void updateModel() throws MathException {
         double[][] theta = new double[generatedConfigs.size()][];
         Map<SolverConfiguration, Integer> solverConfigTheta = new HashMap<SolverConfiguration, Integer>();
         int countJobs = 0;
@@ -211,6 +237,7 @@ public class SMBO extends SearchMethods {
                 theta_inst_idxs[jIx][1] = instanceFeaturesIx.get(run.getInstanceId());
                 censored[jIx] = !run.getResultCode().isCorrect();
                 y[jIx] = parameters.getStatistics().getCostFunction().singleCost(run);
+                if (logModel) y[jIx] = Math.log10(y[jIx]);
                 jIx++;
             }
         }
@@ -220,8 +247,12 @@ public class SMBO extends SearchMethods {
 
     @Override
     public List<String> getParameters() {
-        // TODO Auto-generated method stub
-        return new ArrayList<String>();
+        List<String> p = new LinkedList<String>();
+        p.add("% --- SMBO parameters ---");
+        p.add("SMBO_samplingPath = <REQUIRED> % (Path to the external sequence generating program)");
+        p.add("SMBO_numPC = "+this.numPC+ " % (How many principal components of the instance features to use)");
+        p.add("% -----------------------\n");
+        return p;
     }
 
     @Override

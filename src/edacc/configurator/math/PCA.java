@@ -18,6 +18,8 @@ public class PCA {
      * @return
      */
     public double[][] transform(int r, int c, double[][] data, int k) {
+        if (r <= 1) return data;
+        
         double[] linData = new double[r*c];
         int l = 0;
         for (int i = 0; i < r; i++) {
