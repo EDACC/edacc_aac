@@ -89,6 +89,7 @@ public class RandomForest implements java.io.Serializable {
             for (int j=0; j < X.length; j++) {
 				double pred = forest.Trees[i].nodepred[result[j]];
                 if (forest.logModel>0) {
+                    if (pred <= 0) pred = 1e-9;
                     pred = Math.log10(pred);
                 }
                 retn[j][0] += pred;
@@ -126,6 +127,7 @@ public class RandomForest implements java.io.Serializable {
             for (int j=0; j < nTheta; j++) {
                 double pred = preds[j];
                 if (forest.logModel>0) {
+                    if (pred <= 0) pred = 1e-9;
                     pred = Math.log10(pred);
                 }
                 retn[j][0] += pred;
