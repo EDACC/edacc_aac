@@ -33,8 +33,8 @@ public class CensoredRandomForestTest {
         }*/
         
         
-        int N = 7360;
-        File file = new File("/home/daniel/download/BBO_configuration_runs.csv");
+        int N = 1300;
+        File file = new File("/home/daniel/download/BBO_configuration_runs(1).csv");
         BufferedReader bufRdr  = new BufferedReader(new FileReader(file));
         bufRdr.readLine(); // read header
         
@@ -42,6 +42,8 @@ public class CensoredRandomForestTest {
         int nFeatures = 8;
         
         int[] catDomainSizes = new int[nParams+nFeatures];
+        
+        int logModel = 1;
         
         
         
@@ -56,8 +58,8 @@ public class CensoredRandomForestTest {
             if (n >= N) break;
             StringTokenizer st = new StringTokenizer(line, ",");
             for (int i = 0; i < nParams+nFeatures+1; i++) data[n][i] = Double.valueOf(st.nextToken());
-            assert (data[n][nParams+nFeatures] > 0);
-            y[n] = Math.log10(data[n][nParams+nFeatures]);
+            y[n] = data[n][nParams+nFeatures];
+            if (logModel>0) y[n] = Math.log10(y[n]);
             cens[n] = Integer.valueOf(st.nextToken()) == 1;
             n++;
         }
@@ -120,8 +122,8 @@ public class CensoredRandomForestTest {
             }
         }
         
-        CensoredRandomForest rf = new CensoredRandomForest(40, 1, 20000000, 1, catDomainSizes, new Random());
-        rf.learnModel(all_theta, all_x, nParams, nFeatures, ixs, y, cens, 0);
+        CensoredRandomForest rf = new CensoredRandomForest(100, logModel, 20000000, 1, catDomainSizes, new Random());
+        rf.learnModel(all_theta, all_x, nParams, nFeatures, ixs, y, cens);
         System.out.println("Learned model");
         
         /*
@@ -136,7 +138,7 @@ public class CensoredRandomForestTest {
         
         double[][] pred = rf.predict(preds);
         
-        double f_min = 0.009;
+        double f_min = Math.log10(0.000129);
         
         ix = 0;
         for (double x1 = -5; x1 < 5; x1 += 0.01) {
@@ -144,6 +146,7 @@ public class CensoredRandomForestTest {
             double sigma = Math.sqrt(pred[ix][1]);
             double u = (f_min - mu) / sigma;
             double ei = (f_min - mu) * Gaussian.Phi(u) + sigma * Gaussian.phi(u);
+            if (ei < 0) ei = 0;
             System.out.println(x1 + " " + pred[ix][0] + " " + pred[ix][1] + " " + ei);
             ix++;
         }
@@ -151,9 +154,6 @@ public class CensoredRandomForestTest {
         
         
         // ==================== 2D ====================
-        double[][] res = rf.predict(new double[][] {{0, 0}});
-        System.out.println(Math.pow(10, res[0][0]) + " " + Math.pow(10, res[0][1]));
-        
         
         double[][] preds = new double[1000*1000][2];
         ix = 0;
@@ -166,7 +166,8 @@ public class CensoredRandomForestTest {
         }
         double[][] pred = rf.predict(preds);
         
-        double f_min = Math.log10(0.104);
+        double f_min = 0.104;
+        if (logModel > 0) f_min = Math.log10(f_min);
         
         ix = 0;
         for (double x1 = -5; x1 < 5; x1 += 0.1) {
@@ -183,6 +184,12 @@ public class CensoredRandomForestTest {
                 ix++;
             }
         }
+        
+        double[] VI = rf.calculateVI();
+        for (int i = 0; i < nParams + nFeatures; i++) {
+            System.out.println("Importance v_" + i + " = " + VI[i]);
+        }
+        
 
     }
 }

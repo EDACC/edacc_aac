@@ -5,10 +5,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 
 import org.apache.commons.math.MathException;
 import org.rosuda.JRI.Rengine;
@@ -39,7 +41,7 @@ import edacc.parameterspace.graph.ParameterGraph;
 
 public class SMBO extends SearchMethods {
     private ParameterGraph pspace;
-    private List<SolverConfiguration> generatedConfigs = new ArrayList<SolverConfiguration>();
+    private Set<SolverConfiguration> generatedConfigs = new HashSet<SolverConfiguration>();
     private List<Parameter> configurableParameters = new ArrayList<Parameter>();
     private List<String> instanceFeatureNames = new LinkedList<String>();
     private List<Instance> instances;
@@ -128,7 +130,7 @@ public class SMBO extends SearchMethods {
     public List<SolverConfiguration> generateNewSC(int num) throws Exception {
         if (generatedConfigs.isEmpty()) {
             // start with some random configs
-            for (int i = 0; i < 100 * configurableParameters.size(); i++) {
+            for (int i = 0; i < 10 * configurableParameters.size(); i++) {
                 ParameterConfiguration pc = mapRealTupleToParameters(sequenceValues[i]);
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), pc, "SN: " + i);
                 generatedConfigs.add(new SolverConfiguration(idSC, pc, parameters.getStatistics()));
@@ -139,23 +141,14 @@ public class SMBO extends SearchMethods {
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
                 generatedConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
             }*/
-            return generatedConfigs;
+            List<SolverConfiguration> newConfigs = new ArrayList<SolverConfiguration>(generatedConfigs);
+            return newConfigs;
         } else {
             int numJobs = 0;
             for (SolverConfiguration config: generatedConfigs) numJobs += config.getNumFinishedJobs();
             long start = System.currentTimeMillis();
             updateModel();
             pacc.log("c Learning the model from " + generatedConfigs.size() + " configs and " + numJobs + " runs in total took " + (System.currentTimeMillis() - start) + " ms");
-            
-            /*double[][] pred_opt = new double[1][2];
-            pred_opt[0][0] = 1.23;
-            pred_opt[0][1] = 1.42;
-            pacc.log("c Prediction of x_opt: " + model.predict(pred_opt)[0][0] + " var: " + model.predict(pred_opt)[0][1]);
-            
-            pred_opt = new double[1][2];
-            pred_opt[0][0] = -3.6;
-            pred_opt[0][1] = 4.5;
-            pacc.log("c Prediction of -4.8/-4: " + model.predict(pred_opt)[0][0] + " var: " + model.predict(pred_opt)[0][1]);*/
             
             List<SolverConfiguration> newConfigs = new ArrayList<SolverConfiguration>();
             if (pacc.racing instanceof FRace || pacc.racing instanceof SMFRace) {
@@ -168,8 +161,13 @@ public class SMBO extends SearchMethods {
             if (logModel) f_min = Math.log10(f_min);
             pacc.log("c Current best configuration: " + newConfigs.get(0).toString() + " with cost " + f_min);
             
-            int numRandomTheta = 10000;
+            double[][] opt_theta = new double[][] {{1.23, 1.42}};
+            double[][] opt_pred = model.predict(opt_theta);
+            double opt_ei = (f_min - opt_pred[0][0]) * Gaussian.Phi((f_min - opt_pred[0][0]) / Math.sqrt(opt_pred[0][1])) + Math.sqrt(opt_pred[0][1]) * Gaussian.phi((f_min - opt_pred[0][0]) / Math.sqrt(opt_pred[0][1]));
+            pacc.log("Prediction of optimum theta: mu=" + opt_pred[0][0] + " sigma=" + Math.sqrt(opt_pred[0][1]) + " EI: " + opt_ei);
             
+            start = System.currentTimeMillis();
+            int numRandomTheta = 10000;
             double[][] randomThetas = new double[numRandomTheta][];
             ParameterConfiguration[] randomParamConfigs = new ParameterConfiguration[numRandomTheta]; 
             for (int i = 0; i < numRandomTheta; i++) {
@@ -179,6 +177,7 @@ public class SMBO extends SearchMethods {
             }
             
             double[][] randomThetasPred = model.predict(randomThetas);
+            pacc.log("c Predicting " + numRandomTheta + " random copnfigurations took " + (System.currentTimeMillis() - start) + " ms");
             ThetaPrediction[] thetaPred = new ThetaPrediction[numRandomTheta];
             for (int i = 0; i < numRandomTheta; i++) {
                 thetaPred[i] = new ThetaPrediction();
@@ -200,6 +199,7 @@ public class SMBO extends SearchMethods {
                     return Double.compare(pred1.ei, pred2.ei);
                 }
             });
+            
 
             for (int i = 0; i < num - newConfigs.size(); i++) {
                 ThetaPrediction theta = thetaPred[thetaPred.length - i - 1];
@@ -214,7 +214,7 @@ public class SMBO extends SearchMethods {
         }
     }
     
-    private void updateModel() throws MathException {
+    private void updateModel() throws Exception {
         double[][] theta = new double[generatedConfigs.size()][];
         Map<SolverConfiguration, Integer> solverConfigTheta = new HashMap<SolverConfiguration, Integer>();
         int countJobs = 0;
@@ -237,12 +237,19 @@ public class SMBO extends SearchMethods {
                 theta_inst_idxs[jIx][1] = instanceFeaturesIx.get(run.getInstanceId());
                 censored[jIx] = !run.getResultCode().isCorrect();
                 y[jIx] = parameters.getStatistics().getCostFunction().singleCost(run);
-                if (logModel) y[jIx] = Math.log10(y[jIx]);
+                if (logModel) {
+                    if (y[jIx] <= 0) {
+                        pacc.log_db("Warning: logarithmic model used with values <= 0. Pruning to 1e-15.");
+                        pacc.log("Warning: logarithmic model used with values <= 0. Pruning to 1e-15.");
+                        y[jIx] = 1e-15;
+                    }
+                    y[jIx] = Math.log10(y[jIx]);
+                }
                 jIx++;
             }
         }
         
-        model.learnModel(theta, instanceFeatures, configurableParameters.size(), instanceFeatureNames.size(), theta_inst_idxs, y, censored, 0);
+        model.learnModel(theta, instanceFeatures, configurableParameters.size(), instanceFeatureNames.size(), theta_inst_idxs, y, censored);
     }
 
     @Override
