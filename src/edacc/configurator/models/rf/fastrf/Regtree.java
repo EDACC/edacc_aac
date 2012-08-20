@@ -26,6 +26,8 @@ public class Regtree implements java.io.Serializable {
     public double[] weightedvar;
     public double[] weights;
     
+    public int[] oob_samples;
+    
     public int logModel;
 
     public Regtree(int numNodes, int logModel) {
