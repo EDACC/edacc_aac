@@ -124,11 +124,11 @@ public class CensoredRandomForest {
     protected void internalLearnModel(double[][] theta, double[][] instance_features, int nVars,
             int[][] theta_inst_idxs, double[] y, boolean[] censored, int logModel) {
         RegtreeBuildParams params = new RegtreeBuildParams();
-        params.ratioFeatures = 0.2;
+        params.ratioFeatures = Math.sqrt(nVars) / nVars;
         params.catDomainSizes = catDomainSizes;
         params.logModel = logModel;
         params.storeResponses = true;
-        params.splitMin = 5;
+        params.splitMin = 7;
         
         // Remember last RF build data
         rf_theta = theta;

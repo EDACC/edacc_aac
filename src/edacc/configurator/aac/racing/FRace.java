@@ -121,7 +121,7 @@ public class FRace extends RacingMethods {
             
             if (changedCost == false) {
                 pacc.log("None of the solver configurations costs changed. This probably means that all configurations always timed out. Aborting race.");
-                raceConfigurations.clear();
+                //raceConfigurations.clear(); // TODO: To clear or not to clear...
                 terminateRace();
                 return;
             }
