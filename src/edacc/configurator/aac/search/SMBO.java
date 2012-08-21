@@ -13,6 +13,7 @@ import java.util.Random;
 import java.util.Set;
 
 import org.apache.commons.math.MathException;
+import org.apache.commons.math3.distribution.ExponentialDistribution;
 import org.rosuda.JRI.Rengine;
 
 import edacc.api.API;
@@ -55,7 +56,8 @@ public class SMBO extends SearchMethods {
     private double sequenceValues[][];
     
     private CensoredRandomForest model;
-    private boolean logModel = true;
+    private boolean logModel = false;
+    private String selectionCriterion = "ocb"; // ei, ocb
     
     private int numPC = 7;
 
@@ -130,7 +132,7 @@ public class SMBO extends SearchMethods {
     public List<SolverConfiguration> generateNewSC(int num) throws Exception {
         if (generatedConfigs.isEmpty()) {
             // start with some random configs
-            for (int i = 0; i < 10 * configurableParameters.size(); i++) {
+            for (int i = 0; i < 20 * configurableParameters.size(); i++) {
                 ParameterConfiguration pc = mapRealTupleToParameters(sequenceValues[i]);
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), pc, "SN: " + i);
                 generatedConfigs.add(new SolverConfiguration(idSC, pc, parameters.getStatistics()));
@@ -157,17 +159,19 @@ public class SMBO extends SearchMethods {
                 Collections.sort(newConfigs);
             }
             
+            int numConfigsToGenerate = num - newConfigs.size();
+            
             double f_min = newConfigs.get(0).getCost();
             if (logModel) f_min = Math.log10(f_min);
             pacc.log("c Current best configuration: " + newConfigs.get(0).toString() + " with cost " + f_min);
             
             double[][] opt_theta = new double[][] {{1.23, 1.42}};
             double[][] opt_pred = model.predict(opt_theta);
-            double opt_ei = (f_min - opt_pred[0][0]) * Gaussian.Phi((f_min - opt_pred[0][0]) / Math.sqrt(opt_pred[0][1])) + Math.sqrt(opt_pred[0][1]) * Gaussian.phi((f_min - opt_pred[0][0]) / Math.sqrt(opt_pred[0][1]));
+            double opt_ei = expectedImprovement(opt_pred[0][0], Math.sqrt(opt_pred[0][1]), f_min);
             pacc.log("Prediction of optimum theta: mu=" + opt_pred[0][0] + " sigma=" + Math.sqrt(opt_pred[0][1]) + " EI: " + opt_ei);
             
             start = System.currentTimeMillis();
-            int numRandomTheta = 10000;
+            int numRandomTheta = 20000;
             double[][] randomThetas = new double[numRandomTheta][];
             ParameterConfiguration[] randomParamConfigs = new ParameterConfiguration[numRandomTheta]; 
             for (int i = 0; i < numRandomTheta; i++) {
@@ -177,37 +181,68 @@ public class SMBO extends SearchMethods {
             }
             
             double[][] randomThetasPred = model.predict(randomThetas);
-            pacc.log("c Predicting " + numRandomTheta + " random copnfigurations took " + (System.currentTimeMillis() - start) + " ms");
+            pacc.log("c Predicting " + numRandomTheta + " random configurations took " + (System.currentTimeMillis() - start) + " ms");
             ThetaPrediction[] thetaPred = new ThetaPrediction[numRandomTheta];
+            ExponentialDistribution expDist = new ExponentialDistribution(1.5);
+            double[] ocb_lambda = expDist.sample(numConfigsToGenerate);
             for (int i = 0; i < numRandomTheta; i++) {
                 thetaPred[i] = new ThetaPrediction();
                 thetaPred[i].mu = randomThetasPred[i][0];
                 thetaPred[i].var = randomThetasPred[i][1];
                 thetaPred[i].thetaIdx = i;
-                
+                thetaPred[i].ocb = new double[numConfigsToGenerate];
+
                 double sigma = Math.sqrt(thetaPred[i].var);
                 double mu = thetaPred[i].mu;
-                double u = (f_min - mu) / sigma;
-                thetaPred[i].ei = (f_min - mu) * Gaussian.Phi(u) + sigma * Gaussian.phi(u);
                 
+                for (int j = 0; j < numConfigsToGenerate; j++) thetaPred[i].ocb[j] = -mu + ocb_lambda[j] * sigma;
+                thetaPred[i].ei = expectedImprovement(mu, sigma, f_min);
+                
+
+                double u = (f_min - mu) / sigma;
                 thetaPred[i].t1 = (f_min - mu) * Gaussian.Phi(u);
                 thetaPred[i].t2 = sigma * Gaussian.phi(u);
             }
-            Arrays.sort(thetaPred, new Comparator<ThetaPrediction>() {
-                @Override
-                public int compare(final ThetaPrediction pred1, final ThetaPrediction pred2) {
-                    return Double.compare(pred1.ei, pred2.ei);
-                }
-            });
-            
 
-            for (int i = 0; i < num - newConfigs.size(); i++) {
-                ThetaPrediction theta = thetaPred[thetaPred.length - i - 1];
-                ParameterConfiguration paramConfig = randomParamConfigs[theta.thetaIdx];
-                pacc.log("c Using configuration " + api.getCanonicalName(parameters.getIdExperiment(), paramConfig) + " with predicted performance: " + theta.mu + " and sigma " + Math.sqrt(theta.var) + " and EI " + theta.ei + " t1: " + theta.t1 + " " + theta.t2);
-                int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
-                newConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
+            if ("ocb".equals(selectionCriterion)) {
+                // Optimistic confidence bound
+                for (int i = 0; i < numConfigsToGenerate; i++) {
+                    final int j = i;
+                    Arrays.sort(thetaPred, new Comparator<ThetaPrediction>() {
+                        @Override
+                        public int compare(final ThetaPrediction pred1, final ThetaPrediction pred2) {
+                            return -Double.compare(pred1.ocb[j], pred2.ocb[j]); // sort in decreasing order
+                        }
+                    });
+                    
+                    int ix = 0;
+                    ThetaPrediction theta = thetaPred[ix];
+                    while (api.exists(parameters.getIdExperiment(), randomParamConfigs[theta.thetaIdx]) != 0 && ix < thetaPred.length) {
+                        theta = thetaPred[++ix];
+                    }
+                    ParameterConfiguration paramConfig = randomParamConfigs[theta.thetaIdx];
+                    pacc.log("c Using configuration " + api.getCanonicalName(parameters.getIdExperiment(), paramConfig) + " with predicted performance: " + theta.mu + " and sigma " + Math.sqrt(theta.var) + " and EI " + theta.ei + " t1: " + theta.t1 + " " + theta.t2 + " OCB " + theta.ocb[i] + " ocb_lambda: " + ocb_lambda[i]);
+                    int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
+                    newConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
+                }
+            } else {
+                // EI
+                Arrays.sort(thetaPred, new Comparator<ThetaPrediction>() {
+                    @Override
+                    public int compare(final ThetaPrediction pred1, final ThetaPrediction pred2) {
+                        return -Double.compare(pred1.ei, pred2.ei);
+                    }
+                });
+                
+                for (int i = 0; i < numConfigsToGenerate; i++) {
+                    ThetaPrediction theta = thetaPred[i];
+                    ParameterConfiguration paramConfig = randomParamConfigs[theta.thetaIdx];
+                    pacc.log("c Using configuration " + api.getCanonicalName(parameters.getIdExperiment(), paramConfig) + " with predicted performance: " + theta.mu + " and sigma " + Math.sqrt(theta.var) + " and EI " + theta.ei + " t1: " + theta.t1 + " " + theta.t2);
+                    int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
+                    newConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
+                }
             }
+            
             
             generatedConfigs.addAll(newConfigs);
             return newConfigs;
@@ -266,6 +301,19 @@ public class SMBO extends SearchMethods {
     public void searchFinished() {
         // TODO Auto-generated method stub
         
+    }
+    
+    private double expectedImprovement(double mu, double sigma, double f_min) throws MathException {
+        int g = 1; // TODO
+        
+        double x = (f_min - mu) / sigma;
+        double ei;
+        if (g == 1) ei = (f_min - mu) * Gaussian.Phi(x) + sigma * Gaussian.phi(x);
+        else if (g == 2) ei = sigma*sigma * ((x*x + 1) * Gaussian.Phi(x) + x * Gaussian.phi(x));
+        else if (g == 3) ei = sigma*sigma*sigma * ((x*x*x + 3*x) * Gaussian.Phi(x) + (2 + x*x) * Gaussian.phi(x));
+        else ei = 0;
+        
+        return ei;
     }
     
     private double[] paramConfigToTuple(ParameterConfiguration paramConfig) {
@@ -353,5 +401,6 @@ public class SMBO extends SearchMethods {
         double t1, t2;
         double mu, var, ei;
         int thetaIdx;
+        double[] ocb;
     }
 }
