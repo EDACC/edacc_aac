@@ -12,6 +12,8 @@ import java.util.Random;
 import java.util.Set;
 import java.util.StringTokenizer;
 
+import org.apache.commons.math.MathException;
+
 import edacc.configurator.models.rf.CensoredRandomForest;
 import edacc.configurator.models.rf.fastrf.utils.Gaussian;
 
@@ -33,7 +35,7 @@ public class CensoredRandomForestTest {
         }*/
         
         
-        int N = 1000;
+        int N = 100;
         File file = new File("/home/daniel/download/BBO_1D_configuration_runs.csv");
         BufferedReader bufRdr  = new BufferedReader(new FileReader(file));
         bufRdr.readLine(); // read header
@@ -45,6 +47,7 @@ public class CensoredRandomForestTest {
         
         int logModel = 0;
         
+        double censoringThreshold = 400;
         
         
         double data[][] = new double[N][nParams+nFeatures+1];
@@ -60,13 +63,19 @@ public class CensoredRandomForestTest {
             if (n >= N) break;
             StringTokenizer st = new StringTokenizer(line, ",");
             for (int i = 0; i < nParams+nFeatures+1; i++) data[n][i] = Double.valueOf(st.nextToken());
+            cens[n] = Integer.valueOf(st.nextToken()) == 1;
             y[n] = data[n][nParams+nFeatures];
+            
+            if (y[n] >= censoringThreshold) {
+                y[n] = censoringThreshold;
+                cens[n] = true;
+            }
             if (logModel>0) {
                 if (y[n] <= 0) y[n] = 1e-20;
                 y[n] = Math.log10(y[n]);
             }
             if (y[n] < f_min) f_min = y[n];
-            cens[n] = Integer.valueOf(st.nextToken()) == 1;
+            
             n++;
         }
         bufRdr.close();
@@ -129,7 +138,7 @@ public class CensoredRandomForestTest {
             }
         }
         
-        CensoredRandomForest rf = new CensoredRandomForest(100, logModel, 20000000, 1, catDomainSizes, new Random());
+        CensoredRandomForest rf = new CensoredRandomForest(100, logModel, censoringThreshold, 1, catDomainSizes, new Random());
         rf.learnModel(all_theta, all_x, nParams, nFeatures, ixs, y, cens);
         System.out.println("Learned model");
         
@@ -150,10 +159,10 @@ public class CensoredRandomForestTest {
         for (double x1 = -5; x1 < 5; x1 += 0.01) {
             double mu = pred[ix][0]; 
             double sigma = Math.sqrt(pred[ix][1]);
-            double u = (f_min - mu) / sigma;
-            double ei = (f_min - mu) * Gaussian.Phi(u) + sigma * Gaussian.phi(u);
+            double ei = expectedImprovement(mu, sigma, f_min);
+            double ocb = -mu + 1 * sigma;
             if (ei < 0) ei = 0;
-            System.out.println(x1 + " " + pred[ix][0] + " " + pred[ix][1] + " " + ei);
+            System.out.println(x1 + " " + pred[ix][0] + " " + pred[ix][1] + " " + ei + " " + ocb);
             ix++;
         }
         
@@ -191,5 +200,18 @@ public class CensoredRandomForestTest {
         }*/
 
         
+    }
+    
+    private static double expectedImprovement(double mu, double sigma, double f_min) throws MathException {
+        int g = 3; // TODO
+        
+        double x = (f_min - mu) / sigma;
+        double ei;
+        if (g == 1) ei = (f_min - mu) * Gaussian.Phi(x) + sigma * Gaussian.phi(x);
+        else if (g == 2) ei = sigma*sigma * ((x*x + 1) * Gaussian.Phi(x) + x * Gaussian.phi(x));
+        else if (g == 3) ei = sigma*sigma*sigma * ((x*x*x + 3*x) * Gaussian.Phi(x) + (2 + x*x) * Gaussian.phi(x));
+        else ei = 0;
+        
+        return ei;
     }
 }
