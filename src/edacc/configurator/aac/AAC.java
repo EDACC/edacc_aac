@@ -20,6 +20,7 @@ import edacc.api.APISimulation;
 import edacc.api.costfunctions.CostFunction;
 import edacc.configurator.aac.racing.RacingMethods;
 import edacc.configurator.aac.search.SearchMethods;
+import edacc.configurator.aac.util.RInterface;
 import edacc.model.ConfigurationScenarioDAO;
 import edacc.model.Course;
 import edacc.model.DatabaseConnector;
@@ -651,6 +652,7 @@ public class AAC {
 		// aac main procedure finished, notify search and racing methods
 		search.searchFinished();
 		racing.raceFinished();
+		RInterface.shutdown();
 	}
 
 	public void addSolverConfigurationToListNewSC(SolverConfiguration sc) {
