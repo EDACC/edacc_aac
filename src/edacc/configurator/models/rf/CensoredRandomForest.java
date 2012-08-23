@@ -13,7 +13,6 @@ import edacc.configurator.models.rf.fastrf.RandomForest;
 import edacc.configurator.models.rf.fastrf.RegtreeBuildParams;
 import edacc.configurator.models.rf.fastrf.RegtreeFit;
 import edacc.configurator.models.rf.fastrf.utils.Gaussian;
-import edacc.configurator.models.rf.fastrf.utils.Utils;
 
 public class CensoredRandomForest {
     public RandomForest rf;
@@ -29,7 +28,7 @@ public class CensoredRandomForest {
     private int[][] rf_theta_inst_idxs;
     private int rf_nVars;
 
-    private int numImputationIterations = 5;
+    private int numImputationIterations = 1;
     
     public CensoredRandomForest(int nTrees, int logModel, double kappaMax, double cutoffPenaltyFactor, int[] catDomainSizes, Random rng) {
         rf = new RandomForest(nTrees, logModel);
@@ -97,6 +96,7 @@ public class CensoredRandomForest {
                 if (impIteration == 0) {
                     for (int i = 0; i < numCensored; i++) oldMeanImputed[i] = cens_pred[i][0];
                 }
+                // TODO: detect when mean doesnt change and abort 
                 
                 double[] mu = new double[numCensored];
                 double[] sigma = new double[numCensored];
@@ -106,7 +106,8 @@ public class CensoredRandomForest {
                     mu[i] = cens_pred[i][0];
                     sigma[i] = Math.sqrt(cens_pred[i][1]);
                     alpha[i] = (y_cens[i] - mu[i]) / sigma[i];
-                    single_y_hal[i] = Math.min(mu[i] + sigma[i] * Gaussian.phi(alpha[i]) / (1-Gaussian.PhiInverse(alpha[i])), maxValue);
+                    //System.out.println(y_cens[i] + " " + mu[i] + " " + sigma[i] + " " +  alpha[i] + " " + Gaussian.phi(alpha[i]) + " " + (1-Gaussian.Phi(alpha[i])));
+                    single_y_hal[i] = Math.min(mu[i] + sigma[i] * Gaussian.phi(alpha[i]) / (1-Gaussian.Phi(alpha[i]) + 1e-20), maxValue);
                 }
                 
                 double[] imp_y = new double[y.length];
@@ -128,7 +129,7 @@ public class CensoredRandomForest {
         params.catDomainSizes = catDomainSizes;
         params.logModel = logModel;
         params.storeResponses = true;
-        params.splitMin = 7;
+        params.splitMin = 5;
         
         // Remember last RF build data
         rf_theta = theta;
@@ -172,6 +173,16 @@ public class CensoredRandomForest {
         int[] tree_used_idxs = new int[rf.numTrees];
         for (int i = 0; i < rf.numTrees; i++) tree_used_idxs[i] = i;
         return RandomForest.applyMarginal(this.rf, tree_used_idxs, theta_inst, instanceFeatures);
+    }
+    
+    public double[][] predictMarginal(double[][] theta_inst, int[] instance_idxs) {
+        int[] tree_used_idxs = new int[rf.numTrees];
+        for (int i = 0; i < rf.numTrees; i++) tree_used_idxs[i] = i;
+        double[][] instance_features = new double[instance_idxs.length][instanceFeatures[0].length];
+        for (int i = 0; i < instance_idxs.length; i++) {
+            for (int j = 0; j < instanceFeatures[0].length; j++) instance_features[i][j] = instanceFeatures[instance_idxs[i]][j];
+        }
+        return RandomForest.applyMarginal(this.rf, tree_used_idxs, theta_inst, instance_features);
     }
     
     public double[] calculateVI() {

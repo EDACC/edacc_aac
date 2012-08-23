@@ -17,4 +17,8 @@ public class RInterface {
         }
         return rengine;
     }
+    
+    public static void shutdown() {
+        if (rengine != null) rengine.end();
+    }
 }
