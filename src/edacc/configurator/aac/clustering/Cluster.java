@@ -88,9 +88,9 @@ public class Cluster{
          * 
          * @param c the cluster to be merged into this cluster
          */
-        public void mergeClusters(Cluster c){
+        public void mergeClusters(Cluster c){                
                 idSeed.addAll(c.idSeed);
-                c.idSeed.clear(); //safety precaution, instances should never be in multiple clusters
+                c.idSeed.clear(); //safety precaution, instances should never be in multiple 
         }
 
         @Override

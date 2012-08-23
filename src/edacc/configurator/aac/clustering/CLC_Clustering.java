@@ -4,23 +4,16 @@ import edacc.api.API;
 import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
-import edacc.model.Course;
 import edacc.model.ExperimentResult;
-import edacc.model.InstanceSeed;
 import java.util.*;
+
+import edacc.util.Pair;
 
 /**
  *
  * @author mugrauer
  */
-public class CLC_Clustering implements ClusterMethods{
-    private Random rng;
-    //private HashMap<Integer, Instance> instanceIDMap;
-    private HashMap<InstanceIdSeed, InstanceData> data;
-    
-    private HashMap<InstanceIdSeed, Integer> instanceClusterMap;
-    private Cluster[] clusters;
-    
+public class CLC_Clustering extends ClusteringTemplate implements ClusterMethods {
     
     //these values determine the number of clusters that will be generated
     //if useVarianceCriterion is set, clusters will be merged until further mergin would create
@@ -30,122 +23,106 @@ public class CLC_Clustering implements ClusterMethods{
     private final int staticClusterNumber = 10;
     private boolean useVarianceCriterion = true;
     
-    //when a random instance is to be selected from a cluster, should
-    //instances with high variance have a higher chance of being picked,
-    //as they are more useful in distinguishing between configurations?
-    private boolean preferHighVarianceInstances = false;
     
     public CLC_Clustering(Parameters params, API api, Random rng, List<SolverConfiguration> scs) throws Exception{
-        this.rng = rng;
-               
-        //initialise data
-        data = new HashMap<InstanceIdSeed, InstanceData>();
-        Course course = api.getCourse(params.getIdExperiment());
-        for(InstanceSeed is : course.getInstanceSeedList()){
-            data.put(new InstanceIdSeed(is.instance.getId(), is.seed), 
-                        new InstanceData(is.instance.getId(), is.seed, params.getStatistics().getCostFunction()));
-        }
-        for(SolverConfiguration s : scs){
-            addData(s);
-        }
+        super(params, api, rng, scs);
+        
         //initialise clustering
-        recalculateClustering();
-    }
-
-    public int[] countRunPerCluster(SolverConfiguration sc) {
-        int[] numInstances = new int[clusters.length];
-        for(int i=0; i<numInstances.length; i++)
-            numInstances[i] = 0;
-        for(ExperimentResult r : sc.getJobs()){
-            numInstances[clusterOfInstance(r)]++;
-        }
-        return numInstances;
-    }
-
-    public int clusterOfInstance(ExperimentResult res) {
-        if(res == null)
-            return -1;
-        InstanceIdSeed inst = new InstanceIdSeed(res.getInstanceId(), res.getSeed());
-        return instanceClusterMap.get(inst);
-    }
-
-    public InstanceIdSeed getInstanceInCluster(int clusterNumber) {
-        return getRandomInstance(clusters[clusterNumber].getInstances());
-    }
-    public InstanceIdSeed getInstanceInCluster(int clusterNr, SolverConfiguration solverConfig){
-        List<InstanceIdSeed> clusterInstances = clusters[clusterNr].getInstances();
-        List<ExperimentResult> resList = solverConfig.getJobs();
-        LinkedList<InstanceIdSeed> tmpList = new LinkedList<InstanceIdSeed>();
-        for(ExperimentResult res : resList){
-            tmpList.add(new InstanceIdSeed(res.getInstanceId(), res.getSeed()));
-        }
-        clusterInstances.removeAll(tmpList);//clusterInstances is a copy of the cluster's list -> no side effects
-        return getRandomInstance(clusterInstances);
+        calculateClustering();
+        visualiseClustering();
     }
     
-    private InstanceIdSeed getRandomInstance(List<InstanceIdSeed> instances){
-        if(instances.isEmpty())
-            return null;
-        LinkedList<InstanceData> datList = new LinkedList<InstanceData>();
-        for(InstanceIdSeed inst : instances)
-            datList.add(data.get(inst));       
-        
-        if(!preferHighVarianceInstances){
-            int index = rng.nextInt(datList.size());
-            return datList.get(index).getInstanceIdSeed();
-        }
-        
-        //randomly select instance; preferring instances with high variance
-        double varianceSum = 0;
-        for(InstanceData id : datList)
-            varianceSum += id.getNormalisedVariance();
-        
-        //this orders the list in _descending_ order!
-        Collections.sort(datList, new InstanceDataComparator());
-        
-        double randomVal = rng.nextDouble()*varianceSum;
-        for(InstanceData id : datList){
-            if(randomVal < id.getNormalisedVariance())
-                return id.getInstanceIdSeed();
-            else
-                randomVal -= id.getNormalisedVariance();
-        }
-        return datList.get(datList.size()-1).getInstanceIdSeed();
-    }
-
+    @Override
     public void addDataForClustering(SolverConfiguration sc) {
         addData(sc);
         long time = System.currentTimeMillis();
-        recalculateClustering();
+        calculateClustering();
         time = System.currentTimeMillis() - time;
         System.out.println("addDataForClustering: Time used to recalculate clustering: "+time+" ms.");
-        //visualiseClustering();
+        //visualiseClustering();        
     }
     
-    public List<InstanceIdSeed> getClusterInstances(int clusterNumber){
-        if(clusterNumber<0 || clusterNumber >= clusters.length)
-            return null;
-        return clusters[clusterNumber].getInstances();
-    }
-    
-    private void addData(SolverConfiguration sc){
-        List<ExperimentResult> resList = sc.getJobs();
-        for(ExperimentResult r : resList){
-            InstanceIdSeed inst = 
-                    new InstanceIdSeed(r.getInstanceId(), r.getSeed());
-            InstanceData id = data.get(inst);
-            id.addValue(r);
+    private void calculateClustering(){
+        System.out.print("Initialising clusters ... ");
+        LinkedList<Pair<Cluster, Integer>> clusterList = new LinkedList<Pair<Cluster,Integer>>();
+        Collection<InstanceData> datList = data.values();
+        int count =0;
+        Cluster c;
+        for(InstanceData i: datList){
+            c = new Cluster(new InstanceIdSeed(i.getInstanceID(), i.getSeed()));
+            clusterList.add(new Pair(c, count));
+            count++;
         }
+        System.out.print("done!\nInitialising distance matrix ... ");
+        //initialise distance matrix (DistanceMatrix class is at the bottom of this file!)
+        DistanceMatrix distMat = new DistanceMatrix(clusterList.size());
+        Double v1, v2;
+        for(Pair<Cluster,Integer> c1 : clusterList){
+            for(Pair<Cluster,Integer> c2 : clusterList){
+                if(c1.getSecond() >= c2.getSecond())
+                    continue;
+                distMat.set(c1.getSecond(), c2.getSecond(), 
+                            calculateClusterDistance(c1.getFirst(), c2.getFirst()));
+            }
+        }
+        System.out.print("done!\n Refining clustering ... ");
+        //calcualte clustering
+        while((!useVarianceCriterion && clusterList.size()>staticClusterNumber)
+                || clusterList.size()>1){//in the unlikely event, that all instances together do not exceed maxVariance
+            Pair<Cluster,Integer> mergeA=null, mergeB=null;
+            Double distance = Double.MAX_VALUE, tmpDist;
+            for(Pair<Cluster,Integer> cA : clusterList){
+                for(Pair<Cluster,Integer> cB : clusterList){
+                    if(cA.getSecond() >= cB.getSecond())
+                        continue;
+                    
+                    tmpDist = distMat.get(cA.getSecond(), cB.getSecond());
+                    if(tmpDist<distance){
+                        mergeA = cA;
+                        mergeB = cB;
+                        distance = tmpDist;
+                    }
+                }
+            }
+            if(useVarianceCriterion && !checkVarianceCriterion(mergeA.getFirst(), mergeB.getFirst()))
+                break;
+            clusterList.remove(mergeB);
+            mergeA.getFirst().mergeClusters(mergeB.getFirst());
+            //update distance matrix:
+            for(Pair<Cluster,Integer> cl: clusterList){
+                if(cl.getSecond()==mergeA.getSecond())
+                    continue;
+                distMat.set(mergeA.getSecond(), cl.getSecond(), 
+                            calculateClusterDistance(mergeA.getFirst(), cl.getFirst()));
+            }
+        }
+        System.out.print("done!\nEstablishing clustering ... ");
+        clusters = new Cluster[clusterList.size()];
+        instanceClusterMap = new HashMap<InstanceIdSeed, Integer>();
+        int clusterPos = 0;
+        for(Pair<Cluster,Integer> cl : clusterList){
+            clusters[clusterPos] = cl.getFirst();            
+            for(InstanceIdSeed i : clusters[clusterPos].getInstances())
+                instanceClusterMap.put(i, clusterPos);
+            
+            clusterPos++;
+        }
+        System.out.println("done!");
     }
-    
+    /*
     private void recalculateClustering(){
+        long timeMerge=0, timeD=0;
+        LinkedList<Long> clMerges = new LinkedList<Long>(), mergeD = new LinkedList<Long>();
+        
         LinkedList<Cluster> clusterList = new LinkedList<Cluster>();
         Collection<InstanceData> datList = data.values();
         for(InstanceData i : datList){
             clusterList.add(new Cluster(new InstanceIdSeed(i.getInstanceID(), i.getSeed())));
         }
+        
         while((!useVarianceCriterion && clusterList.size()>staticClusterNumber) 
                 || clusterList.size()>1){//in the unlikely event, that all instances together do not exceed maxVariance
+            timeMerge = System.currentTimeMillis();
             Cluster mergeA=null, mergeB=null;
             Double distance=Double.MAX_VALUE, tmpDist;
             boolean block;
@@ -157,7 +134,6 @@ public class CLC_Clustering implements ClusterMethods{
                         continue;
                     }    
                     if(block) continue; //we already compared cB to cA, no need to do it again
-                                    
                     tmpDist = calculateClusterDistance(cA, cB);
                     if(tmpDist < distance){
                         mergeA = cA;
@@ -170,8 +146,11 @@ public class CLC_Clustering implements ClusterMethods{
                 break;
             clusterList.remove(mergeA);
             clusterList.remove(mergeB);
+            timeD = System.currentTimeMillis();
             mergeA.mergeClusters(mergeB);
+            mergeD.add(System.currentTimeMillis()-timeD);
             clusterList.add(mergeA);
+            clMerges.add(System.currentTimeMillis()-timeMerge);
         }
         clusters = new Cluster[clusterList.size()];
         clusters = clusterList.toArray(clusters);
@@ -181,7 +160,16 @@ public class CLC_Clustering implements ClusterMethods{
                 instanceClusterMap.put(i, c);
             }
         }
-    }
+        double tM = 0, tD = 0;
+        for(Long i: mergeD)
+            tD += i;
+        tD = tD / ((double)mergeD.size());
+        for(Long i: clMerges)
+            tM += i;
+        tM = tM / clMerges.size();
+        System.out.println("Number of Calculations: "+clMerges.size()+", avg time: "+tM+"ms.");
+        System.out.println("Number of Merges: "+mergeD.size()+", avg time: "+tD+"ms.");
+    }*/
     
     private Double calculateClusterDistance(Cluster cA, Cluster cB) {
         Double distance, tmpDist;
@@ -226,40 +214,41 @@ public class CLC_Clustering implements ClusterMethods{
         return var;
     }
     
-    public void visualiseClustering(){
+    @Override
+    public final void visualiseClustering(){
         System.out.println("---------------CLUSTERING-------------------");
+        System.out.println("Number of Instance-Seed pairs: "+data.size());
         for(int i=0; i<clusters.length; i++){
             List<InstanceIdSeed> iList = clusters[i].getInstances();
             System.out.println("Cluster "+i+" ("+iList.size()+" instances, variance: "+calculateVariance(iList)+"):");            
+            /*
             for(InstanceIdSeed inst : iList){
                 System.out.println("   "+formatDouble(data.get(inst).getAvg())+" ID: "+inst.instanceId+" Seed: "+inst.seed);
-            }
+            }*/
         }        
         System.out.println("---------------CLUSTERING-------------------");
-    }
-    
-    public String formatDouble(double v){
-        v = v*100d;
-        v = Math.round(v);
-        v = v/(100d);
-        String s = ""+v;
-        while(s.length() < 7)
-            s = " "+s;
-        return s;
     }
 }
 
 
-class InstanceDataComparator implements Comparator<InstanceData>{
-    //this comparator is supposed to be used to order elements in _descending_
-    //order
-    public int compare(InstanceData t, InstanceData t1) {
-        if(t.getNormalisedVariance() == t1.getNormalisedVariance())
-            return 0;
-        if(t.getNormalisedVariance() < t1.getNormalisedVariance())
-            return 1;
-        else
-            return -1;
+class DistanceMatrix{
+    private double[][] distMat;
+    
+    public DistanceMatrix(int size){
+        distMat = new double[size][size];
+        for(int i=0; i<size; i++)
+            for(int j=0; j<size; j++)
+                distMat[i][j] = Double.MAX_VALUE;
     }
     
+    public void set(int i, int j, double value){
+        if(i==j)
+            return;
+        distMat[i][j] = value;
+        distMat[j][i] = value;        
+    }
+    
+    public double get(int i, int j){
+        return distMat[i][j];
+    }
 }
