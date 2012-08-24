@@ -10,6 +10,8 @@ import java.util.List;
  * @author mugrauer, schulte
  */
 public interface ClusterMethods {
+    
+        public void debugAnalyseDifferences(SolverConfiguration incumbent, SolverConfiguration challenger);
 	
 	/**
 	 * Number of runs per cluster for a given solver configuration
@@ -39,13 +41,25 @@ public interface ClusterMethods {
          * Returns a random instance from a given cluster that the given solver configuration has
          * not yet completed. Will return null if the configuration has completed all instances in this cluster
          * 
-         * @param clusterNr the cluster the instances will be selected from
+         * @param clusterNr the cluster the instance will be selected from
          * @param solverConfig the Instances this solver configuration has already completed will not be considered
          * 
          * @return random instance from a given cluster that the given solver configuration has
          * not yet completed.
          */
         public InstanceIdSeed getInstanceInCluster(int clusterNr, SolverConfiguration solverConfig);
+        
+        /**
+         * Returns a list of random instances from a given cluster that the given solver configuration has not 
+         * yet completed. Will return null if there are not enough instances left in the cluster
+         * 
+         * @param clusterNr the cluster the instances will be selected from
+         * @param solverConfig the instances this solver configuration has already completed will not be considered
+         * @param numberOfInstances the number of instances the method should return
+         * 
+         * @return list of random instances from a given cluster that the given solver config has not yet completed 
+         */
+        public List<InstanceIdSeed> getInstancesInCluster(int clusterNr, SolverConfiguration sc, int numberOfInstances);
 	
 	/**
 	 * Analyses new provided data for the clusters (Checks if instances should switch 

@@ -35,14 +35,12 @@ public class CLC_Clustering extends ClusteringTemplate implements ClusterMethods
     @Override
     public void addDataForClustering(SolverConfiguration sc) {
         addData(sc);
-        long time = System.currentTimeMillis();
         calculateClustering();
-        time = System.currentTimeMillis() - time;
-        System.out.println("addDataForClustering: Time used to recalculate clustering: "+time+" ms.");
         //visualiseClustering();        
     }
     
     private void calculateClustering(){
+        long time = System.currentTimeMillis();
         System.out.print("Initialising clusters ... ");
         LinkedList<Pair<Cluster, Integer>> clusterList = new LinkedList<Pair<Cluster,Integer>>();
         Collection<InstanceData> datList = data.values();
@@ -107,7 +105,7 @@ public class CLC_Clustering extends ClusteringTemplate implements ClusterMethods
             
             clusterPos++;
         }
-        System.out.println("done!");
+        System.out.println("done! Time elapsed: "+(System.currentTimeMillis()-time)+"ms.");
     }
     /*
     private void recalculateClustering(){

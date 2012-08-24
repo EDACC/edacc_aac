@@ -42,7 +42,48 @@ public abstract class ClusteringTemplate implements ClusterMethods{
             addData(s);
         }        
     }
-
+    
+    public void debugAnalyseDifferences(SolverConfiguration incumbent, SolverConfiguration challenger){
+        if(incumbent.getJobCount() != challenger.getJobCount()){
+            System.out.println("DEBUG: Job Counts do not match! Incumbent "+incumbent.getJobCount()+", Challenger: "+challenger.getJobCount());            
+        }
+        int[] iRuns = countRunPerCluster(incumbent);
+        int[] cRuns = countRunPerCluster(challenger);
+        int iSum =0, cSum=0;
+        for(int i=0; i<clusters.length; i++){
+            iSum += iRuns[i];
+            cSum += cRuns[i];
+            System.out.println("DEBUG: Cluster "+i+" ("+clusters[i].size()+" instances): Incumbent: "+iRuns[i]+", Challenger: "+cRuns[i]);
+            
+        }
+        System.out.println("DEBUG: Incumbent has "+incumbent.getJobCount()+" runs, "+iSum+" are in recognised clusters");
+        System.out.println("DEBUG: Challenger has "+challenger.getJobCount()+" runs, "+cSum+" are in recognised clusters");
+        LinkedList<InstanceIdSeed> iList = new LinkedList<InstanceIdSeed>(), cList = new LinkedList<InstanceIdSeed>();
+        InstanceIdSeed tmp;
+        for(ExperimentResult r : incumbent.getFinishedJobs()){
+            tmp = new InstanceIdSeed(r.getInstanceId(), r.getSeed());
+            if(!iList.contains(tmp))
+                iList.add(tmp);
+        }
+        for(ExperimentResult r : challenger.getFinishedJobs()){
+            tmp = new InstanceIdSeed(r.getInstanceId(), r.getSeed());
+            if(!cList.contains(tmp))
+                cList.add(tmp);
+        }
+        System.out.println("DEBUG: Incumbent has "+incumbent.getJobCount()+" jobs, "
+                +incumbent.getFinishedJobs().size()+" of them finished. "+iList.size()+" of them are unique");
+        System.out.println("DEBUG: Challenger has "+challenger.getJobCount()+" jobs, "
+                +challenger.getFinishedJobs().size()+" of them finished. "+cList.size()+" of them are unique");
+        System.exit(1);
+    }
+    
+    public int[] countRunPerCluster(SolverConfiguration sc){
+        int[] numRuns = new int[clusters.length];
+        for(int i=0; i<clusters.length; i++)
+            numRuns[i] = clusters[i].countRuns(sc);
+        return numRuns;
+    }
+    /*
     public int[] countRunPerCluster(SolverConfiguration sc) {
         int[] numInstances = new int[clusters.length];
         for(int i=0; i<numInstances.length; i++)
@@ -51,7 +92,7 @@ public abstract class ClusteringTemplate implements ClusterMethods{
             numInstances[clusterOfInstance(r)]++;
         }
         return numInstances;
-    }
+    }*/
 
     public int clusterOfInstance(ExperimentResult res) {
         if(res == null)
@@ -65,21 +106,31 @@ public abstract class ClusteringTemplate implements ClusterMethods{
     }
     public InstanceIdSeed getInstanceInCluster(int clusterNr, SolverConfiguration solverConfig){
         List<InstanceIdSeed> clusterInstances = clusters[clusterNr].getInstances();
-        List<ExperimentResult> resList = solverConfig.getJobs();
-        LinkedList<InstanceIdSeed> tmpList = new LinkedList<InstanceIdSeed>();
-        for(ExperimentResult res : resList){
-            InstanceIdSeed ids = new InstanceIdSeed(res.getInstanceId(), res.getSeed());
-            tmpList.add(ids);
-            if(!data.containsKey(ids))
-                System.out.println("ERROR: Inconsistent InstanceIdSeed Pairs!");
-        }
+        List<InstanceIdSeed> tmpList = getInstances(solverConfig);
         clusterInstances.removeAll(tmpList);//clusterInstances is a copy of the cluster's list -> no side effects
         InstanceIdSeed newInstance = getRandomInstance(clusterInstances);
         if(tmpList.contains(newInstance))
             System.out.println("ERROR: getInstanceInCluster returns duplicate Instance!!");
-        if(resList.size() >= data.size() && newInstance != null)
-            System.out.println("ERROR: getInstanceInCluster returns non-null result for finished config!");
+        if(!clusters[clusterNr].contains(newInstance))
+            System.out.println("ERROR: getInstanceInCluster returns an instance not present in this cluster!");
         return newInstance;
+    }
+    
+    public List<InstanceIdSeed> getInstancesInCluster(int clusterNr, SolverConfiguration sc, int numOfConfigs){
+        List<InstanceIdSeed> clusterInstances = clusters[clusterNr].getInstances();
+        List<InstanceIdSeed> tmpList = getInstances(sc);
+        clusterInstances.removeAll(tmpList);
+        if(numOfConfigs > clusterInstances.size())
+            return null;    //expected behaviour, see documentation in ClusterMethods interface
+        
+        LinkedList<InstanceIdSeed> resultList = new LinkedList<InstanceIdSeed>();
+        InstanceIdSeed tmp;
+        for(int i=0; i<numOfConfigs; i++){
+            tmp = getRandomInstance(clusterInstances);
+            resultList.add(tmp);
+            clusterInstances.remove(tmp);
+        }
+        return resultList;
     }
     
     protected InstanceIdSeed getRandomInstance(List<InstanceIdSeed> instances){
@@ -152,6 +203,14 @@ public abstract class ClusteringTemplate implements ClusterMethods{
         while(s.length() < 7)
             s = " "+s;
         return s;
+    }
+    
+    protected List<InstanceIdSeed> getInstances(SolverConfiguration sc){
+        LinkedList<InstanceIdSeed> list = new LinkedList<InstanceIdSeed>();
+        for(ExperimentResult r : sc.getJobs()){
+            list.add(new InstanceIdSeed(r.getInstanceId(), r.getSeed()));
+        }
+        return list;
     }
 }
 class InstanceDataComparator implements Comparator<InstanceData>{

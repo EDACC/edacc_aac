@@ -24,6 +24,23 @@ public class Cluster{
                 idSeed = new HashSet<InstanceIdSeed>();
                 idSeed.add(initialInstance);
         }
+        
+        /**
+         * 
+         * @return the number of instance seed pairs in this cluster
+         */
+        public int size(){
+            return idSeed.size();
+        }
+        /**
+         * Determines whether or not a given instance seed pair is part of this cluster
+         * 
+         * @param i 
+         * @return true if i is in this cluster, otherwise false
+         */
+        public boolean contains(InstanceIdSeed i){
+            return idSeed.contains(i);
+        }
 	
 	/**
 	 * Number of runs for this sc in this cluster
