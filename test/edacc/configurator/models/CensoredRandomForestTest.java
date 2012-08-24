@@ -3,7 +3,9 @@ package edacc.configurator.models;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.FileReader;
+import java.io.OutputStreamWriter;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -35,19 +37,19 @@ public class CensoredRandomForestTest {
         }*/
         
         
-        int N = 100;
-        File file = new File("/home/daniel/download/BBO_1D_configuration_runs.csv");
+        int N = 15655;
+        File file = new File("/home/daniel/download/BBO_configuration_runs(12).csv");
         BufferedReader bufRdr  = new BufferedReader(new FileReader(file));
         bufRdr.readLine(); // read header
         
-        int nParams = 1;
+        int nParams = 2;
         int nFeatures = 8;
         
         int[] catDomainSizes = new int[nParams+nFeatures];
         
-        int logModel = 0;
+        int logModel = 1;
         
-        double censoringThreshold = 400;
+        double censoringThreshold = 1e80;
         
         
         double data[][] = new double[N][nParams+nFeatures+1];
@@ -79,8 +81,7 @@ public class CensoredRandomForestTest {
             n++;
         }
         bufRdr.close();
-        
-        
+
         Set<List<Double>> thetas = new HashSet<List<Double>>();
         for (int i = 0; i < N; i++) {
             List<Double> theta = new LinkedList<Double>();
@@ -142,68 +143,71 @@ public class CensoredRandomForestTest {
         rf.learnModel(all_theta, all_x, nParams, nFeatures, ixs, y, cens);
         System.out.println("Learned model");
         
-        
-        // ================ 1D ====================
-        double[][] preds = new double[10001][2];
-
-        ix = 0;
-        for (double x1 = -5; x1 < 5; x1 += 0.01) {
-            preds[ix][0] = x1;
-            ix++;
-        }
-        
-        double[][] pred = rf.predict(preds);
-        
-        
-        ix = 0;
-        for (double x1 = -5; x1 < 5; x1 += 0.01) {
-            double mu = pred[ix][0]; 
-            double sigma = Math.sqrt(pred[ix][1]);
-            double ei = expectedImprovement(mu, sigma, f_min);
-            double ocb = -mu + 1 * sigma;
-            if (ei < 0) ei = 0;
-            System.out.println(x1 + " " + pred[ix][0] + " " + pred[ix][1] + " " + ei + " " + ocb);
-            ix++;
-        }
-        
-        
-        /*
-        // ==================== 2D ====================
-        
-        double[][] preds = new double[1000*1000][2];
-        ix = 0;
-        for (double x1 = -5; x1 < 5; x1 += 0.1) {
-            for (double x2 = -5; x2 < 5; x2 += 0.1) {
+        if (nParams == 1) {
+            // ================ 1D ====================
+            double[][] preds = new double[10001][2];
+    
+            ix = 0;
+            for (double x1 = -5; x1 < 5; x1 += 0.01) {
                 preds[ix][0] = x1;
-                preds[ix][1] = x2;
+                ix++;
+            }
+            
+            double[][] pred = rf.predict(preds);
+            
+            
+            ix = 0;
+            for (double x1 = -5; x1 < 5; x1 += 0.01) {
+                double mu = pred[ix][0]; 
+                double sigma = Math.sqrt(pred[ix][1]);
+                double ei = expectedImprovement(mu, sigma, f_min);
+                double ocb = -mu + 1 * sigma;
+                System.out.println(x1 + " " + pred[ix][0] + " " + pred[ix][1] + " " + ei + " " + ocb);
                 ix++;
             }
         }
-        double[][] pred = rf.predict(preds);
-        
-        double f_min = 0.104;
-        if (logModel > 0) f_min = Math.log10(f_min);
-        
-        ix = 0;
-        for (double x1 = -5; x1 < 5; x1 += 0.1) {
-            for (double x2 = -5; x2 < 5; x2 += 0.1) {
-                double mu = pred[ix][0];
-                if (pred[ix][1] < 0) {
-                    System.out.println("negative variance!");
+        else {
+            // ==================== 2D ====================
+            double[][] preds = new double[100000][2];
+            ix = 0;
+            for (double x1 = -5; x1 < 5; x1 += 0.05) {
+                for (double x2 = -5; x2 < 5; x2 += 0.05) {
+                    preds[ix][0] = x1;
+                    preds[ix][1] = x2;
+                    ix++;
                 }
-                double sigma = Math.sqrt(pred[ix][1]);
-                double u = (f_min - mu) / sigma;
-                double ei = (f_min - mu) * Gaussian.Phi(u) + sigma * Gaussian.phi(u);
-                System.out.println(x1 + " " + x2 + " " + pred[ix][0] + " " + pred[ix][1] + " " + ei);
-                ix++;
             }
-        }*/
+            double[][] pred = rf.predict(preds);
+            
+            FileOutputStream fos = new FileOutputStream("/home/daniel/test");
+            OutputStreamWriter out = new OutputStreamWriter(fos, "UTF-8"); 
+            
+            ix = 0;
+            for (double x1 = -5; x1 < 5; x1 += 0.05) {
+                for (double x2 = -5; x2 < 5; x2 += 0.05) {
+                    double mu = pred[ix][0];
+                    double sigma = Math.sqrt(pred[ix][1]);
+
+                    double ei = expectedImprovement(mu, sigma, f_min);
+                    double ocb = -mu + 1 * sigma;
+                    out.write(x1 + " " + x2 + " " + pred[ix][0] + " " + pred[ix][1] + " " + ei + " " + ocb + "\n");
+                    ix++;
+                }
+            }
+            
+            rf.calculateVI();
+            
+            out.close();
+            fos.close();
+        }
+        
+        System.out.println("Done.");
 
         
     }
     
     private static double expectedImprovement(double mu, double sigma, double f_min) throws MathException {
-        int g = 3; // TODO
+        int g = 1; // TODO
         
         double x = (f_min - mu) / sigma;
         double ei;
@@ -214,4 +218,48 @@ public class CensoredRandomForestTest {
         
         return ei;
     }
+    
+    private static double expExpectedImprovement(double mu, double sigma, double f_min) {
+        f_min = Math.log(10) * f_min;
+        mu = Math.log(10) * mu;
+        sigma = Math.log(10) * sigma;
+
+        double b = Math.exp(f_min);
+
+        return Math.exp(f_min + normcdfln((f_min - mu) / sigma))
+                - Math.exp(sigma * sigma / 2.0 + mu + normcdfln((f_min - mu) / sigma - sigma));
+    }
+    
+    
+    static double normcdf(double x) {
+        double b1 = 0.319381530;
+        double b2 = -0.356563782;
+        double b3 = 1.781477937;
+        double b4 = -1.821255978;
+        double b5 = 1.330274429;
+        double p = 0.2316419;
+        double c = 0.39894228;
+
+        if (x >= 0.0) {
+            double t = 1.0 / (1.0 + p * x);
+            return (1.0 - c * Math.exp(-x * x / 2.0) * t * (t * (t * (t * (t * b5 + b4) + b3) + b2) + b1));
+        } else {
+            double t = 1.0 / (1.0 - p * x);
+            return (c * Math.exp(-x * x / 2.0) * t * (t * (t * (t * (t * b5 + b4) + b3) + b2) + b1));
+        }
+    }
+    
+    static double normcdfln(double x) {
+        double y, z, pi = 3.14159265358979323846264338327950288419716939937510;
+        if (x > -6.5) {
+            return Math.log(normcdf(x));
+        }
+        z = Math.pow(x, -2);
+        y = z
+                * (-1 + z
+                        * (5.0 / 2 + z
+                                * (-37.0 / 3 + z * (353.0 / 4 + z * (-4081.0 / 5 + z * (55205.0 / 6 + z * -854197.0 / 7))))));
+        return y - 0.5 * Math.log(2 * pi) - 0.5 * x * x - Math.log(-x);
+    }
+    
 }
