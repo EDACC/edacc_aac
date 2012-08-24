@@ -840,7 +840,7 @@ public class RegtreeFit {
         rightside = null;
         
     	if (printDebug)
-    		System.out.println("Building the tree took a total of " + (new Date().getTime() - startTime) + " milliseconds.");   	
+    		System.out.println("Building the tree took a total of " + (new Date().getTime() - startTime) + " milliseconds.");
         return tree;
     }
     

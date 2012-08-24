@@ -50,29 +50,35 @@ public class SMBO extends SearchMethods {
     private Map<Integer, Integer> instanceFeaturesIx = new HashMap<Integer, Integer>();
     private double[][] instanceFeatures;
     
-    private Rengine rengine;
-    
     private int maxSamples = 100000;
     private SamplingSequence sequence;
     private double sequenceValues[][];
     
     private CensoredRandomForest model;
-    private boolean logModel = false;
-    private String selectionCriterion = "ei"; // ei, ocb
     
+    // Configurable parameters
+    private boolean logModel = true;
+    private String selectionCriterion = "ei"; // ei, ocb
     private int numPC = 7;
+    private int numInitialConfigurationsFactor = 20; // how many samples per parameter initially
+    private int numRandomTheta = 100000; // how many random theta to predict for EI/OCB optimization
+    private int maxLocalSearchSteps = 5;
+    private float lsStddev = 0.01f; // stddev used in LS sampling
+    private int lsSamples = 20; // how many samples per parameter for the LS neighbourhood
+    private int nTrees = 400;
+    private double ocbExpMu = 1.0;
+    private int EIg = 1; // global search factor {1,2,3}
 
+    
     public SMBO(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
         super(pacc, api, rng, parameters, firstSCs, referenceSCs);
 
-        rengine = RInterface.getRengine();
-        
         String samplingPath = "";
         String val;
         if ((val = parameters.getSearchMethodParameters().get("SMBO_samplingPath")) != null)
             samplingPath = val;
         if ((val = parameters.getSearchMethodParameters().get("SMBO_numPC")) != null)
-            numPC = Integer.valueOf(val);;
+            numPC = Integer.valueOf(val);
         
         pspace = api.loadParameterGraphFromDB(parameters.getIdExperiment());
         
@@ -101,7 +107,7 @@ public class SMBO extends SearchMethods {
         }
         
         // Project instance features into lower dimensional space using PCA
-        PCA pca = new PCA(rengine);
+        PCA pca = new PCA(RInterface.getRengine());
         instanceFeatures = pca.transform(instanceFeatures.length, instanceFeatureNames.size(), instanceFeatures, numPC);
         
         int numFeatures = instanceFeatureNames.size();
@@ -121,7 +127,7 @@ public class SMBO extends SearchMethods {
         }
         
         // Initialize the predictive model
-        model = new CensoredRandomForest(200, logModel ? 1 : 0, 5000.0, 1.0, catDomainSizes, rng);
+        model = new CensoredRandomForest(nTrees, logModel ? 1 : 0, 1e20, 1.0, catDomainSizes, rng);
         
         // Initialize pseudo-random sequence for the initial sampling
         sequence = new SamplingSequence(samplingPath);
@@ -132,19 +138,12 @@ public class SMBO extends SearchMethods {
     public List<SolverConfiguration> generateNewSC(int num) throws Exception {
         if (generatedConfigs.isEmpty()) {
             // start with some random configs
-            for (int i = 0; i < 80 * configurableParameters.size(); i++) {
+            for (int i = 0; i < numInitialConfigurationsFactor * configurableParameters.size(); i++) {
                 ParameterConfiguration pc = mapRealTupleToParameters(sequenceValues[i]);
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), pc, "SN: " + i);
                 generatedConfigs.add(new SolverConfiguration(idSC, pc, parameters.getStatistics()));
             }
-            
-            /*for (int i = 0; i < num; i++) {
-                ParameterConfiguration paramConfig = pspace.getRandomConfiguration(rng);
-                int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
-                generatedConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
-            }*/
-            List<SolverConfiguration> newConfigs = new ArrayList<SolverConfiguration>(generatedConfigs);
-            return newConfigs;
+            return new ArrayList<SolverConfiguration>(generatedConfigs);
         } else {
             int numJobs = 0;
             for (SolverConfiguration config: generatedConfigs) numJobs += config.getNumFinishedJobs();
@@ -164,16 +163,17 @@ public class SMBO extends SearchMethods {
             
             double f_min = bestConfigs.get(0).getCost();
             if (logModel) f_min = Math.log10(f_min);
+            //double[][] inc_theta_pred = model.predict(new double[][] {paramConfigToTuple(bestConfigs.get(0).getParameterConfiguration())});
+            //f_min = inc_theta_pred[0][0];
             pacc.log("c Current best configuration: " + bestConfigs.get(0).toString() + " with cost " + f_min);
             
-            double[][] opt_theta = new double[][] {{1,1,1,1,1}};
+            double[][] opt_theta = new double[][] {{1,1}};
             double[][] opt_pred = model.predict(opt_theta);
-            double opt_ei = expectedImprovement(opt_pred[0][0], Math.sqrt(opt_pred[0][1]), f_min);
+            double opt_ei = expExpectedImprovement(opt_pred[0][0], Math.sqrt(opt_pred[0][1]), f_min);
             pacc.log("Prediction of optimum theta: mu=" + opt_pred[0][0] + " sigma=" + Math.sqrt(opt_pred[0][1]) + " EI: " + opt_ei);
             
             start = System.currentTimeMillis();
-            int numRandomTheta = 50000;
-            
+             
             // Generate random configurations
             double[][] randomThetas = new double[numRandomTheta][];
             ParameterConfiguration[] randomParamConfigs = new ParameterConfiguration[numRandomTheta]; 
@@ -187,7 +187,7 @@ public class SMBO extends SearchMethods {
             double[][] randomThetasPred = model.predict(randomThetas);
             pacc.log("c Predicting " + numRandomTheta + " random configurations took " + (System.currentTimeMillis() - start) + " ms");
             ThetaPrediction[] thetaPred = new ThetaPrediction[numRandomTheta];
-            ExponentialDistribution expDist = new ExponentialDistribution(1.0);
+            ExponentialDistribution expDist = new ExponentialDistribution(ocbExpMu);
             double[] ocb_lambda = expDist.sample(numConfigsToGenerate);
             for (int i = 0; i < numRandomTheta; i++) {
                 thetaPred[i] = new ThetaPrediction();
@@ -200,12 +200,7 @@ public class SMBO extends SearchMethods {
                 double mu = thetaPred[i].mu;
                 
                 for (int j = 0; j < numConfigsToGenerate; j++) thetaPred[i].ocb[j] = -mu + ocb_lambda[j] * sigma;
-                thetaPred[i].ei = expectedImprovement(mu, sigma, f_min);
-                
-
-                double u = (f_min - mu) / sigma;
-                thetaPred[i].t1 = (f_min - mu) * Gaussian.Phi(u);
-                thetaPred[i].t2 = sigma * Gaussian.phi(u);
+                thetaPred[i].ei = expExpectedImprovement(mu, sigma, f_min);
             }
 
             if ("ocb".equals(selectionCriterion)) {
@@ -259,8 +254,8 @@ public class SMBO extends SearchMethods {
         ParameterConfiguration incumbent = paramConfig;
         int localSearchSteps = 0;
         double incCriterionValue = startCriterionValue;
-        while (localSearchSteps++ < 10) {
-            List<ParameterConfiguration> nbrs = pspace.getGaussianNeighbourhood(incumbent, rng, 0.01f, 10, true);
+        while (localSearchSteps++ < maxLocalSearchSteps) {
+            List<ParameterConfiguration> nbrs = pspace.getGaussianNeighbourhood(incumbent, rng, lsStddev, lsSamples, true);
             double[][] nbrsTheta = new double[nbrs.size()][];
             for (int i = 0; i < nbrs.size(); i++) nbrsTheta[i] = paramConfigToTuple(nbrs.get(i));
             double[][] nbrsThetaPred = model.predict(nbrsTheta);
@@ -276,7 +271,7 @@ public class SMBO extends SearchMethods {
                 if ("ocb".equals(selectionCriterion)) {
                     criterionValue = -mu + ocb_lambda * sigma;
                 } else {
-                    criterionValue = expectedImprovement(mu, sigma, f_min);
+                    criterionValue = expExpectedImprovement(mu, sigma, f_min);
                 }
                 
                 if (criterionValue > bestIxValue) {
@@ -338,6 +333,12 @@ public class SMBO extends SearchMethods {
         p.add("% --- SMBO parameters ---");
         p.add("SMBO_samplingPath = <REQUIRED> % (Path to the external sequence generating program)");
         p.add("SMBO_numPC = "+this.numPC+ " % (How many principal components of the instance features to use)");
+        p.add("SMBO_selectionCriterion = "+this.selectionCriterion+ " % (Improvement criterion {ocb, ei})");
+        p.add("SMBO_numInitialConfigurationsFactor = "+this.numInitialConfigurationsFactor+ " % (How many configurations to sample randomly for the initial model)");
+        p.add("SMBO_numRandomTheta = "+this.numRandomTheta+ " % (How many random configurations should be predicted for criterion optimization)");
+        p.add("SMBO_maxLocalSearchSteps = "+this.maxLocalSearchSteps+ " % (Up to how many steps should each configuration be optimized by LS with the model)");
+        p.add("SMBO_lsStddev = "+this.lsStddev+ " % (Standard deviation to use in LS neighbourhood sampling)");
+        
         p.add("% -----------------------\n");
         return p;
     }
@@ -347,15 +348,53 @@ public class SMBO extends SearchMethods {
         // TODO Auto-generated method stub
         
     }
+
+    private double expExpectedImprovement(double mu, double sigma, double f_min) {
+        f_min = Math.log(10) * f_min;
+        mu = Math.log(10) * mu;
+        sigma = Math.log(10) * sigma;
+
+        return Math.exp(f_min + normcdfln((f_min - mu) / sigma))
+                - Math.exp(sigma * sigma / 2.0 + mu + normcdfln((f_min - mu) / sigma - sigma));
+    }
     
+    double normcdf(double x) {
+        double b1 = 0.319381530;
+        double b2 = -0.356563782;
+        double b3 = 1.781477937;
+        double b4 = -1.821255978;
+        double b5 = 1.330274429;
+        double p = 0.2316419;
+        double c = 0.39894228;
+
+        if (x >= 0.0) {
+            double t = 1.0 / (1.0 + p * x);
+            return (1.0 - c * Math.exp(-x * x / 2.0) * t * (t * (t * (t * (t * b5 + b4) + b3) + b2) + b1));
+        } else {
+            double t = 1.0 / (1.0 - p * x);
+            return (c * Math.exp(-x * x / 2.0) * t * (t * (t * (t * (t * b5 + b4) + b3) + b2) + b1));
+        }
+    }
+    
+    double normcdfln(double x) {
+        double y, z, pi = 3.14159265358979323846264338327950288419716939937510;
+        if (x > -6.5) {
+            return Math.log(normcdf(x));
+        }
+        z = Math.pow(x, -2);
+        y = z
+                * (-1 + z
+                        * (5.0 / 2 + z
+                                * (-37.0 / 3 + z * (353.0 / 4 + z * (-4081.0 / 5 + z * (55205.0 / 6 + z * -854197.0 / 7))))));
+        return y - 0.5 * Math.log(2 * pi) - 0.5 * x * x - Math.log(-x);
+    }
+
     private double expectedImprovement(double mu, double sigma, double f_min) throws MathException {
-        int g = 1; // TODO
-        
         double x = (f_min - mu) / sigma;
         double ei;
-        if (g == 1) ei = (f_min - mu) * Gaussian.Phi(x) + sigma * Gaussian.phi(x);
-        else if (g == 2) ei = sigma*sigma * ((x*x + 1) * Gaussian.Phi(x) + x * Gaussian.phi(x));
-        else if (g == 3) ei = sigma*sigma*sigma * ((x*x*x + 3*x) * Gaussian.Phi(x) + (2 + x*x) * Gaussian.phi(x));
+        if (EIg == 1) ei = (f_min - mu) * Gaussian.Phi(x) + sigma * Gaussian.phi(x);
+        else if (EIg == 2) ei = sigma*sigma * ((x*x + 1) * Gaussian.Phi(x) + x * Gaussian.phi(x));
+        else if (EIg == 3) ei = sigma*sigma*sigma * ((x*x*x + 3*x) * Gaussian.Phi(x) + (2 + x*x) * Gaussian.phi(x));
         else ei = 0;
         
         return ei;
@@ -447,7 +486,6 @@ public class SMBO extends SearchMethods {
     }
 
     class ThetaPrediction {
-        double t1, t2;
         double mu, var, ei;
         int thetaIdx;
         double[] ocb;

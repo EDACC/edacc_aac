@@ -13,6 +13,7 @@ import edacc.configurator.models.rf.fastrf.RandomForest;
 import edacc.configurator.models.rf.fastrf.RegtreeBuildParams;
 import edacc.configurator.models.rf.fastrf.RegtreeFit;
 import edacc.configurator.models.rf.fastrf.utils.Gaussian;
+import edacc.configurator.models.rf.fastrf.utils.Utils;
 
 public class CensoredRandomForest {
     public RandomForest rf;
@@ -125,11 +126,11 @@ public class CensoredRandomForest {
     protected void internalLearnModel(double[][] theta, double[][] instance_features, int nVars,
             int[][] theta_inst_idxs, double[] y, boolean[] censored, int logModel) {
         RegtreeBuildParams params = new RegtreeBuildParams();
-        params.ratioFeatures = Math.sqrt(nVars) / nVars;
+        params.ratioFeatures = 5.0 / 6.0;
         params.catDomainSizes = catDomainSizes;
         params.logModel = logModel;
         params.storeResponses = true;
-        params.splitMin = 5;
+        params.splitMin = 10;
         
         // Remember last RF build data
         rf_theta = theta;
@@ -229,7 +230,7 @@ public class CensoredRandomForest {
             }
         }
         
-        //System.out.println("Mean RSS: " + Utils.mean(RSS_t));
+        System.out.println("Mean RSS: " + Utils.mean(RSS_t));
         
         double[] VI = new double[rf_nVars];
         for (int v = 0; v < rf_nVars; v++) {
