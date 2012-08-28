@@ -1,8 +1,11 @@
 package edacc.configurator.aac.clustering;
 
+import edacc.api.costfunctions.CostFunction;
 import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.model.ExperimentResult;
+
+import java.awt.Point;
 import java.util.List;
 
 /**
@@ -81,4 +84,14 @@ public interface ClusterMethods {
          * Visualises the current clustering in the log file
          */
         public void visualiseClustering();
+        
+        /**
+         * Calculates the costs of two SCs based on the clusters and not on specific instances
+         * 
+         * @param sc
+         * @param competitor
+         * @param costFunc
+         * @return the costs as float values 
+         */
+        public Point costs(SolverConfiguration sc, SolverConfiguration competitor, CostFunction costFunc);
 }
