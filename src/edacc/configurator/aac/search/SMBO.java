@@ -14,7 +14,6 @@ import java.util.Set;
 
 import org.apache.commons.math.MathException;
 import org.apache.commons.math3.distribution.ExponentialDistribution;
-import org.rosuda.JRI.Rengine;
 
 import edacc.api.API;
 import edacc.configurator.aac.AAC;
@@ -27,7 +26,6 @@ import edacc.configurator.math.PCA;
 import edacc.configurator.math.SamplingSequence;
 import edacc.configurator.models.rf.CensoredRandomForest;
 import edacc.configurator.models.rf.fastrf.utils.Gaussian;
-import edacc.configurator.models.rf.fastrf.utils.Utils;
 import edacc.model.ExperimentResult;
 import edacc.model.Instance;
 import edacc.model.InstanceDAO;
@@ -50,22 +48,22 @@ public class SMBO extends SearchMethods {
     private Map<Integer, Integer> instanceFeaturesIx = new HashMap<Integer, Integer>();
     private double[][] instanceFeatures;
     
-    private int maxSamples = 100000;
+    private final int maxSamples = 100000;
     private SamplingSequence sequence;
     private double sequenceValues[][];
     
     private CensoredRandomForest model;
     
     // Configurable parameters
-    private boolean logModel = true;
-    private String selectionCriterion = "ei"; // ei, ocb
+    private boolean logModel = false;
+    private String selectionCriterion = "ocb"; // ei, ocb
     private int numPC = 7;
-    private int numInitialConfigurationsFactor = 20; // how many samples per parameter initially
-    private int numRandomTheta = 100000; // how many random theta to predict for EI/OCB optimization
-    private int maxLocalSearchSteps = 5;
+    private int numInitialConfigurationsFactor = 50; // how many samples per parameter initially
+    private int numRandomTheta = 10000; // how many random theta to predict for EI/OCB optimization
+    private int maxLocalSearchSteps = 10;
     private float lsStddev = 0.01f; // stddev used in LS sampling
-    private int lsSamples = 20; // how many samples per parameter for the LS neighbourhood
-    private int nTrees = 400;
+    private int lsSamples = 10; // how many samples per parameter for the LS neighbourhood
+    private int nTrees = 40;
     private double ocbExpMu = 1.0;
     private int EIg = 1; // global search factor {1,2,3}
 
@@ -79,6 +77,7 @@ public class SMBO extends SearchMethods {
             samplingPath = val;
         if ((val = parameters.getSearchMethodParameters().get("SMBO_numPC")) != null)
             numPC = Integer.valueOf(val);
+        // TODO: all configurable parameters
         
         pspace = api.loadParameterGraphFromDB(parameters.getIdExperiment());
         
@@ -159,7 +158,7 @@ public class SMBO extends SearchMethods {
                 newConfigs.addAll(pacc.racing.getBestSolverConfigurations(num));
             }
             Collections.sort(bestConfigs);
-            int numConfigsToGenerate = num - newConfigs.size();
+            int numConfigsToGenerate = (num - newConfigs.size());
             
             double f_min = bestConfigs.get(0).getCost();
             if (logModel) f_min = Math.log10(f_min);
@@ -167,10 +166,11 @@ public class SMBO extends SearchMethods {
             //f_min = inc_theta_pred[0][0];
             pacc.log("c Current best configuration: " + bestConfigs.get(0).toString() + " with cost " + f_min);
             
-            double[][] opt_theta = new double[][] {{1,1}};
+            /*double[][] opt_theta = new double[][] {{1,1}};
             double[][] opt_pred = model.predict(opt_theta);
             double opt_ei = expExpectedImprovement(opt_pred[0][0], Math.sqrt(opt_pred[0][1]), f_min);
             pacc.log("Prediction of optimum theta: mu=" + opt_pred[0][0] + " sigma=" + Math.sqrt(opt_pred[0][1]) + " EI: " + opt_ei);
+            */
             
             start = System.currentTimeMillis();
              
@@ -200,7 +200,8 @@ public class SMBO extends SearchMethods {
                 double mu = thetaPred[i].mu;
                 
                 for (int j = 0; j < numConfigsToGenerate; j++) thetaPred[i].ocb[j] = -mu + ocb_lambda[j] * sigma;
-                thetaPred[i].ei = expExpectedImprovement(mu, sigma, f_min);
+                if (logModel) thetaPred[i].ei = expExpectedImprovement(mu, sigma, f_min);
+                else thetaPred[i].ei = expectedImprovement(mu, sigma, f_min);
             }
 
             if ("ocb".equals(selectionCriterion)) {
@@ -243,8 +244,7 @@ public class SMBO extends SearchMethods {
                     newConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
                 }
             }
-            
-            
+                       
             generatedConfigs.addAll(newConfigs);
             return newConfigs;
         }
@@ -271,7 +271,8 @@ public class SMBO extends SearchMethods {
                 if ("ocb".equals(selectionCriterion)) {
                     criterionValue = -mu + ocb_lambda * sigma;
                 } else {
-                    criterionValue = expExpectedImprovement(mu, sigma, f_min);
+                    if (logModel) criterionValue = expExpectedImprovement(mu, sigma, f_min);
+                    else criterionValue = expectedImprovement(mu, sigma, f_min);
                 }
                 
                 if (criterionValue > bestIxValue) {
@@ -410,7 +411,7 @@ public class SMBO extends SearchMethods {
                 else theta[pIx] = (Double)paramValue;
             } else if (p.getDomain() instanceof IntegerDomain) {
                 if (paramValue == null) theta[pIx] = ((IntegerDomain)p.getDomain()).getLow() - 1; // TODO: handle missing values
-                else theta[pIx] = (Integer)paramValue;
+                else theta[pIx] = (Long)paramValue;
             } else if (p.getDomain() instanceof CategoricalDomain) {
                 // map categorical parameters to integers 1 through domain.size, 0 = not set
                 Map<String, Integer> valueMap = new HashMap<String, Integer>();

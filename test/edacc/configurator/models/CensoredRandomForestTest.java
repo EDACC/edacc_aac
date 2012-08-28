@@ -37,19 +37,19 @@ public class CensoredRandomForestTest {
         }*/
         
         
-        int N = 15655;
-        File file = new File("/home/daniel/download/BBO_configuration_runs(12).csv");
+        int N = 100;
+        File file = new File("/home/daniel/download/BBO_1D_configuration_runs.csv");
         BufferedReader bufRdr  = new BufferedReader(new FileReader(file));
         bufRdr.readLine(); // read header
         
-        int nParams = 2;
+        int nParams = 1;
         int nFeatures = 8;
         
         int[] catDomainSizes = new int[nParams+nFeatures];
         
-        int logModel = 1;
+        int logModel = 0;
         
-        double censoringThreshold = 1e80;
+        double censoringThreshold = 20;
         
         
         double data[][] = new double[N][nParams+nFeatures+1];
@@ -139,7 +139,7 @@ public class CensoredRandomForestTest {
             }
         }
         
-        CensoredRandomForest rf = new CensoredRandomForest(100, logModel, censoringThreshold, 1, catDomainSizes, new Random());
+        CensoredRandomForest rf = new CensoredRandomForest(1000, logModel, censoringThreshold, 1, catDomainSizes, new Random());
         rf.learnModel(all_theta, all_x, nParams, nFeatures, ixs, y, cens);
         System.out.println("Learned model");
         
@@ -162,7 +162,7 @@ public class CensoredRandomForestTest {
                 double sigma = Math.sqrt(pred[ix][1]);
                 double ei = expectedImprovement(mu, sigma, f_min);
                 double ocb = -mu + 1 * sigma;
-                System.out.println(x1 + " " + pred[ix][0] + " " + pred[ix][1] + " " + ei + " " + ocb);
+                System.out.println(x1 + " " + pred[ix][0] + " " + pred[ix][1] + " " + ei + " " + ocb + " " + expExpectedImprovement(mu, sigma, f_min));
                 ix++;
             }
         }
@@ -190,7 +190,7 @@ public class CensoredRandomForestTest {
 
                     double ei = expectedImprovement(mu, sigma, f_min);
                     double ocb = -mu + 1 * sigma;
-                    out.write(x1 + " " + x2 + " " + pred[ix][0] + " " + pred[ix][1] + " " + ei + " " + ocb + "\n");
+                    out.write(x1 + " " + x2 + " " + pred[ix][0] + " " + pred[ix][1] + " " + ei + " " + ocb + " " + expExpectedImprovement(mu, sigma, f_min) + "\n");
                     ix++;
                 }
             }

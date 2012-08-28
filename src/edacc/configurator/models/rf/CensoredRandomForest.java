@@ -29,7 +29,7 @@ public class CensoredRandomForest {
     private int[][] rf_theta_inst_idxs;
     private int rf_nVars;
 
-    private int numImputationIterations = 1;
+    private final int numImputationIterations = 1;
     
     public CensoredRandomForest(int nTrees, int logModel, double kappaMax, double cutoffPenaltyFactor, int[] catDomainSizes, Random rng) {
         rf = new RandomForest(nTrees, logModel);
@@ -90,15 +90,23 @@ public class CensoredRandomForest {
             }
             
             double maxValue = kappaMax * cutoffPenaltyFactor;
+            if (rf.logModel > 0) maxValue = Math.log10(maxValue);
+            
             double[] oldMeanImputed = new double[numCensored];
+            for (int i = 0; i < numCensored; i++) oldMeanImputed[i] = 0;
+            
             for (int impIteration = 0; impIteration < numImputationIterations; impIteration++) {
                 double[][] cens_pred = predict(X_cens);
                 
-                if (impIteration == 0) {
-                    for (int i = 0; i < numCensored; i++) oldMeanImputed[i] = cens_pred[i][0];
+                if (impIteration > 0) {
+                    boolean oldMeanEqNew = true;
+                    for (int i = 0; i < numCensored; i++) {
+                        if (Math.abs(oldMeanImputed[i] - cens_pred[i][0]) > 1e-10) { oldMeanEqNew = false; break; }
+                    }
+                    if (oldMeanEqNew) break;
                 }
-                // TODO: detect when mean doesnt change and abort 
-                
+                for (int i = 0; i < numCensored; i++) oldMeanImputed[i] = cens_pred[i][0];
+
                 double[] mu = new double[numCensored];
                 double[] sigma = new double[numCensored];
                 double[] alpha = new double[numCensored];
