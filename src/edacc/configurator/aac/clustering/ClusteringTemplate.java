@@ -18,7 +18,7 @@ import java.util.*;
 public abstract class ClusteringTemplate implements ClusterMethods{
     protected Random rng;
     protected HashMap<InstanceIdSeed, InstanceData> data;    
-    protected HashMap<InstanceIdSeed, Integer> instanceClusterMap;
+    //protected HashMap<InstanceIdSeed, Integer> instanceClusterMap;
     protected Cluster[] clusters;   
     
     
@@ -98,7 +98,10 @@ public abstract class ClusteringTemplate implements ClusterMethods{
         if(res == null)
             return -1;
         InstanceIdSeed inst = new InstanceIdSeed(res.getInstanceId(), res.getSeed());
-        return instanceClusterMap.get(inst);
+        for(int i=0; i<clusters.length; i++)
+            if(clusters[i].contains(inst))
+                return i;
+        return -1;
     }
 
     public InstanceIdSeed getInstanceInCluster(int clusterNumber) {

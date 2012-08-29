@@ -96,13 +96,14 @@ public class CLC_Clustering extends ClusteringTemplate implements ClusterMethods
         }
         System.out.print("done!\nEstablishing clustering ... ");
         clusters = new Cluster[clusterList.size()];
-        instanceClusterMap = new HashMap<InstanceIdSeed, Integer>();
+        //instanceClusterMap = new HashMap<InstanceIdSeed, Integer>();
         int clusterPos = 0;
         for(Pair<Cluster,Integer> cl : clusterList){
-            clusters[clusterPos] = cl.getFirst();            
+            clusters[clusterPos] = cl.getFirst(); 
+            /*
             for(InstanceIdSeed i : clusters[clusterPos].getInstances())
                 instanceClusterMap.put(i, clusterPos);
-            
+            */
             clusterPos++;
         }
         System.out.println("done! Time elapsed: "+(System.currentTimeMillis()-time)+"ms.");
