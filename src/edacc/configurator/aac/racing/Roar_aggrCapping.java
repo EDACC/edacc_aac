@@ -23,6 +23,9 @@ import edacc.model.ExperimentResult;
 import edacc.parameterspace.ParameterConfiguration;
 import edacc.parameterspace.graph.ParameterGraph;
 
+/**
+* @author schulte
+*/
 public class Roar_aggrCapping extends RacingMethods {
 	// The incumbent (SC with the best costs)
 	SolverConfiguration bestSC;
@@ -274,9 +277,6 @@ public class Roar_aggrCapping extends RacingMethods {
 		if (listNewSCSize == 0 && res == 0) {
 			res = 1;
 		}
-		pacc.log("i There are " + coreCount + " cores and " + jobs
-				+ " jobs waiting for execution for " + listNewSCSize
-				+ " SCs -> " + res + " new SCs will be started!");
 		return res;
 	}
 
@@ -291,8 +291,7 @@ public class Roar_aggrCapping extends RacingMethods {
 	 *            a list of all solver configurations with running or waiting
 	 *            jobs
 	 */
-	private void aggressiveCapping(
-			HashMap<Integer, SolverConfiguration> listNewSC) {
+	private void aggressiveCapping(HashMap<Integer, SolverConfiguration> listNewSC) {
 		if ((parameters.getStatistics().getCostFunction() instanceof edacc.api.costfunctions.PARX)
 				|| (parameters.getStatistics().getCostFunction() instanceof edacc.api.costfunctions.Average)) {
 			Collection<SolverConfiguration> scs = listNewSC.values();
@@ -301,7 +300,12 @@ public class Roar_aggrCapping extends RacingMethods {
 				SolverConfiguration sc = scsIter.next();
 				if (sc.getFinishedJobs().size() < parameters.getMinRuns())
 					continue;
-				Point costs = getCostsOfTheSolverConfigs(bestSC, sc);
+				Point costs;
+				if(clustering) {
+					costs = clusterHandler.costs(bestSC, sc, parameters.getStatistics().getCostFunction());
+				} else {
+					costs = getCostsOfTheSolverConfigs(bestSC, sc);
+				}
 				double cappingFactor = Math.pow(maxCappingFactor,
 						(1 - (sc.getJobCount() / bestSC.getJobCount())));
 				if (cappingFactor < 1)
@@ -352,10 +356,13 @@ public class Roar_aggrCapping extends RacingMethods {
 		// defines if the incumbent is added to the active SCs (has runs left)
 		boolean runBest = false;
 		for (SolverConfiguration sc : scs) {
-			if (sc == bestSC)
+			if (sc == bestSC || 
+					stopEvalSolverConfigIds.contains(sc.getIdSolverConfiguration())) {
 				continue;
+			}
 			// defines if the competitor SC and the incumbent have the same
 			// amount of jobs in the same clusters
+			numCompCalls++;
 			boolean equalRuns = true;
 			pacc.updateJobsStatus(bestSC);
 			int[] competitor = clusterHandler.countRunPerCluster(sc);
@@ -379,6 +386,9 @@ public class Roar_aggrCapping extends RacingMethods {
 							+ ",n.A. ," + sc.getIdSolverConfiguration()
 							+ ",n.A. ,"
 							+ sc.getParameterConfiguration().toString());
+				} else if(sc.getJobCount() == parameters.getMaxParcoursExpansionFactor()
+						* num_instances) {
+					clusterHandler.addDataForClustering(sc);
 				}
 			} else {
 				int runsToAdd = sc.getJobCount();
@@ -410,16 +420,11 @@ public class Roar_aggrCapping extends RacingMethods {
 							+ sc.getJobCount()
 							+ " jobs but still isnt compared to the incumbent with "
 							+ bestSC.getIdSolverConfiguration() + " jobs");
-					String clusters = "|| ";
-					for (int i = 0; i < best.length; i++) {
-						clusters += best[i] + "-" + competitor[i] + " || ";
-					}
-					pacc.log("e Error: " + clusters);
 				}
 				while (runsToAddInc > 0) {
 					int rand = rng.nextInt(best.length);
 					InstanceIdSeed newRun = clusterHandler
-							.getInstanceInCluster(rand);
+							.getInstanceInCluster(rand, bestSC);
 					if (newRun != null) {
 						pacc.addJob(bestSC, newRun.seed, newRun.instanceId,
 								Integer.MAX_VALUE - bestSC.getNumber());
@@ -431,7 +436,7 @@ public class Roar_aggrCapping extends RacingMethods {
 					int rand = rng.nextInt(competitor.length);
 					if (competitor[rand] < best[rand]) {
 						InstanceIdSeed newRun = clusterHandler
-								.getInstanceInCluster(rand);
+								.getInstanceInCluster(rand, sc);
 						if (newRun != null) {
 							pacc.addJob(sc, newRun.seed, newRun.instanceId,
 									Integer.MAX_VALUE - sc.getNumber());
@@ -459,6 +464,7 @@ public class Roar_aggrCapping extends RacingMethods {
 		for (SolverConfiguration sc : scs) {
 			if (sc == bestSC)
 				continue;
+			numCompCalls++;
 			int comp = compareTo(sc, bestSC);
 			if (!stopEvalSolverConfigIds
 					.contains(sc.getIdSolverConfiguration()) && comp >= 0) {

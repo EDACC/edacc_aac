@@ -1,19 +1,21 @@
 package edacc.configurator.aac.clustering;
 
 import edacc.api.API;
+import edacc.api.costfunctions.CostFunction;
 import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.model.Course;
 import edacc.model.ExperimentResult;
 import edacc.model.InstanceSeed;
+
+import java.awt.Point;
 import java.util.*;
 
 
 
 /**
- *
- * @author mugrauer
+ * @author mugrauer, schulte
  */
 public abstract class ClusteringTemplate implements ClusterMethods{
     protected Random rng;
@@ -186,6 +188,50 @@ public abstract class ClusteringTemplate implements ClusterMethods{
         }
     }
     
+    /**
+     * Calculates the costs of two SCs based on the clusters and not on specific instances
+     * 
+     * @param sc
+     * @param competitor
+     * @param costFunc
+     * @return the costs as float values 
+     */
+    public Point costs(SolverConfiguration sc, SolverConfiguration competitor, CostFunction costFunc) {
+		List<ExperimentResult> scJobs = new LinkedList<ExperimentResult>();
+		List<ExperimentResult> competitorJobs = new LinkedList<ExperimentResult>();
+		for (int i = 0; i < clusters.length; i++) {
+			int scFinishedJobs = 0;
+			int competitorFinishedJobs = 0;
+			List<InstanceIdSeed> clusterI = getClusterInstances(i);
+			List<ExperimentResult> scFinishedRunsInCluster = new ArrayList<ExperimentResult>();
+			List<ExperimentResult> competitorFinishedRunsInCluster = new ArrayList<ExperimentResult>();
+			for (InstanceIdSeed instance : clusterI) {
+				for (int j = 0; j < sc.getFinishedJobs().size(); j++) {
+					if(instance.instanceId == sc.getFinishedJobs().get(j).getInstanceId() &&
+							instance.seed == sc.getFinishedJobs().get(j).getSeed()) {
+						scFinishedJobs++;
+						scFinishedRunsInCluster.add(sc.getFinishedJobs().get(j));
+					}
+				}
+				for (int j = 0; j < competitor.getFinishedJobs().size(); j++) {
+					if(instance.instanceId == competitor.getFinishedJobs().get(j).getInstanceId() &&
+							instance.seed == competitor.getFinishedJobs().get(j).getSeed()) {
+						competitorFinishedJobs++;
+						competitorFinishedRunsInCluster.add(competitor.getFinishedJobs().get(j));
+					}
+				}
+			}
+			for (int j = 0; j < Math.min(scFinishedJobs, competitorFinishedJobs); j++) {
+				scJobs.add(scFinishedRunsInCluster.get(j));
+				competitorJobs.add(competitorFinishedRunsInCluster.get(j));
+			}
+		}
+		Point costs = new Point();
+		float costBest = costFunc.calculateCost(scJobs);
+		float costOther = costFunc.calculateCost(competitorJobs);
+		costs.setLocation(costBest, costOther);
+		return costs;
+    }
     
     
     public void visualiseClustering(){
