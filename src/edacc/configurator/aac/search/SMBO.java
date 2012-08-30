@@ -27,10 +27,12 @@ import edacc.configurator.math.SamplingSequence;
 import edacc.configurator.models.rf.CensoredRandomForest;
 import edacc.configurator.models.rf.fastrf.utils.Gaussian;
 import edacc.configurator.models.rf.fastrf.utils.Utils;
+import edacc.model.ExperimentDAO;
 import edacc.model.ExperimentResult;
 import edacc.model.Instance;
 import edacc.model.InstanceDAO;
 import edacc.model.InstanceHasProperty;
+import edacc.model.Experiment.Cost;
 import edacc.parameterspace.Parameter;
 import edacc.parameterspace.ParameterConfiguration;
 import edacc.parameterspace.domain.CategoricalDomain;
@@ -67,8 +69,8 @@ public class SMBO extends SearchMethods {
     private int nTrees = 10;
     private double ocbExpMu = 1;
     private int EIg = 2; // global search factor {1,2,3}
-    
-    
+    private boolean useInstanceIndexFeature = true; // simply use the index of an instance as instance feature
+
     public SMBO(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
         super(pacc, api, rng, parameters, firstSCs, referenceSCs);
 
@@ -103,7 +105,9 @@ public class SMBO extends SearchMethods {
         pspace = api.loadParameterGraphFromDB(parameters.getIdExperiment());
         
         // TODO: Load from configuration?
-        instanceFeatureNames.add("POSNEG-RATIO-CLAUSE-mean");
+        //instanceFeatureNames.add("POSNEG-RATIO-CLAUSE-mean");
+        
+        if (useInstanceIndexFeature) instanceFeatureNames.add("instance-index");
         
         // Load instance features
         instances = InstanceDAO.getAllByExperimentId(parameters.getIdExperiment());
@@ -121,8 +125,10 @@ public class SMBO extends SearchMethods {
                 }
             }
             
+            if (useInstanceIndexFeature) featureValueByName.put("instance-index", Float.valueOf(instances.indexOf(instance)));
+            
             for (String featureName: instanceFeatureNames) {
-                instanceFeatures[instances.indexOf(instance)][instanceFeatureNames.indexOf(featureName)] = 2;// TODO featureValueByName.get(featureName);
+                instanceFeatures[instances.indexOf(instance)][instanceFeatureNames.indexOf(featureName)] = featureValueByName.get(featureName);
             }
         }
         
@@ -150,8 +156,17 @@ public class SMBO extends SearchMethods {
             }
         }
         
+        double kappaMax = 0;
+        if (ExperimentDAO.getById(parameters.getIdExperiment()).getDefaultCost().equals(Cost.resultTime)) {
+            kappaMax = 1e20;
+        } else if (ExperimentDAO.getById(parameters.getIdExperiment()).getDefaultCost().equals(Cost.wallTime)) {
+            kappaMax = 1e20;
+        } else {
+            kappaMax = ExperimentDAO.getById(parameters.getIdExperiment()).getCostPenalty();
+        }
+        
         // Initialize the predictive model
-        model = new CensoredRandomForest(nTrees, logModel ? 1 : 0, 1e20, 1.0, catDomainSizes, rng);
+        model = new CensoredRandomForest(nTrees, logModel ? 1 : 0, kappaMax, 1.0, catDomainSizes, rng);
         
         // Initialize pseudo-random sequence for the initial sampling
         sequence = new SamplingSequence(samplingPath);
@@ -170,6 +185,11 @@ public class SMBO extends SearchMethods {
             return new ArrayList<SolverConfiguration>(generatedConfigs);
         }
         
+        
+        if (generatedConfigs.size() <= numInitialConfigurationsFactor * configurableParameters.size()) {
+            for (SolverConfiguration sc: generatedConfigs) if (sc.getNumFinishedJobs() == 0) return new ArrayList<SolverConfiguration>();
+        }
+        
         // Update the model
         int numJobs = 0;
         for (SolverConfiguration config: generatedConfigs) numJobs += config.getNumFinishedJobs();
@@ -185,8 +205,9 @@ public class SMBO extends SearchMethods {
             // FRace and SMFRace don't automatically use the old best configurations
             newConfigs.addAll(pacc.racing.getBestSolverConfigurations(num));
         }
+        if (bestConfigs.isEmpty()) bestConfigs.addAll(generatedConfigs);
         Collections.sort(bestConfigs);
-        int numConfigsToGenerate = num - newConfigs.size();
+        int numConfigsToGenerate = Math.min(20, num - newConfigs.size());
         
         double f_min = bestConfigs.get(0).getCost();
         if (logModel) f_min = Math.log10(f_min);
