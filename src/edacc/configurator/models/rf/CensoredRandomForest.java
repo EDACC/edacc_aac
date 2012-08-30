@@ -238,7 +238,7 @@ public class CensoredRandomForest {
             }
         }
         
-        System.out.println("Mean RSS: " + Utils.mean(RSS_t));
+        System.out.println("root Mean RSS: " + Math.sqrt(Utils.mean(RSS_t)));
         
         double[] VI = new double[rf_nVars];
         for (int v = 0; v < rf_nVars; v++) {
