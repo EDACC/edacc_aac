@@ -133,7 +133,6 @@ public class SMFRace extends RacingMethods {
         curFinishedConfigurations.addAll(scs);
         
         if (curFinishedConfigurations.containsAll(raceConfigurations)) {
-    
             for (SolverConfiguration solverConfig : raceConfigurations) {
                 int i = 0; // course entry number
                 for (ExperimentResult run : api.getRuns(parameters.getIdExperiment(), solverConfig.getIdSolverConfiguration())) {
@@ -259,14 +258,13 @@ public class SMFRace extends RacingMethods {
                         LogrankTest lr = new LogrankTest(rengine);
                         double lr_pvalue = lr.pValue(x, y, x_censored, y_censored);
                         pValueByConfiguration.put(raceConfigurations.get(j), lr_pvalue);
-    
                     }
     
                     // Holm-Bonferroni method rejecting as many null-hypothesis as the significance level allows
                     Map<SolverConfiguration, Double> sortedpValueByConfiguration = sortByValue(pValueByConfiguration);
                     int k = raceConfigurations.size() - 1;
                     for (SolverConfiguration sc : sortedpValueByConfiguration.keySet()) {
-                        if (sortedpValueByConfiguration.get(sc).doubleValue() < 2.0*alpha / (float) k) {
+                        if (sortedpValueByConfiguration.get(sc).doubleValue() < alpha / (float) k) {
                             SolverConfiguration worseConfig = sc;
                             if (incumbents.contains(worseConfig)) {
                                 // The worse configuration is one of the current incumbents.
@@ -296,6 +294,10 @@ public class SMFRace extends RacingMethods {
                             
                             k--;
                         } else {
+                            /*pacc.log(sortedpValueByConfiguration.get(sc).doubleValue() + " not smaller than " + (alpha / (float)k) + " when comparing challenger vs best: ");
+                            for (int i = 0; i < courseResults.size(); i++) {
+                                pacc.log(courseResults.get(i).get(sc).getCost() + " " + courseResults.get(i).get(bestConfiguration).getCost());
+                            }*/
                             break;
                         }
                     }
@@ -304,15 +306,19 @@ public class SMFRace extends RacingMethods {
                         // One of the incumbents was protected against elimination of the best
                         // configuration. This means the current best configuration
                         // should get more jobs.
+                        pacc.log("One of the incumbent was protected against elimination of the best configuration. This means the current best configuration should get more jobs");
                         int maxIncumbentEvaluations = 0;
                         for (SolverConfiguration sc : raceConfigurations) {
                             if (incumbents.contains(sc)) {
                                 maxIncumbentEvaluations = Math.max(maxIncumbentEvaluations, sc.getJobCount());
                             }
                         }
+                        // expand by at most the total allowed number of evaluations and at least by two times the current number of evaluations but not more than the number of runs of the incumbents
                         pacc.expandParcoursSC(bestConfiguration,
                                 Math.min(parameters.getMaxParcoursExpansionFactor() * num_instances - bestConfiguration.getJobCount(),
                                         Math.min(2 * bestConfiguration.getJobCount(), maxIncumbentEvaluations)));
+                        bestConfiguration.setFinished(false);
+                        pacc.addSolverConfigurationToListNewSC(bestConfiguration);
                     }
     
                 } else {
@@ -350,6 +356,8 @@ public class SMFRace extends RacingMethods {
                             // this SC needs a new job
                             pacc.expandParcoursSC(solverConfig, 1, parameters.getMaxParcoursExpansionFactor() * num_instances
                                     - solverConfig.getJobCount());
+                            solverConfig.setFinished(false);
+                            pacc.addSolverConfigurationToListNewSC(solverConfig);
                             numAvailableCores--;
                             createdJobs = true;
                         }
@@ -377,6 +385,8 @@ public class SMFRace extends RacingMethods {
                 curFinishedConfigurations.clear();
             }
         }
+        
+        for (SolverConfiguration sc: raceConfigurations) pacc.addSolverConfigurationToListNewSC(sc);
     }
 
     @Override
