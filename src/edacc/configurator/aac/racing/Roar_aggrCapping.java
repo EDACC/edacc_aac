@@ -167,7 +167,7 @@ public class Roar_aggrCapping extends RacingMethods {
 			}
 		}
 		// Initialize Clustering
-		clusterHandler = new CLC_Clustering(parameters, api, rng, startupSCs);
+		clusterHandler = new CLC_Clustering(pacc, parameters, api, rng, startupSCs);
 
 	}
 

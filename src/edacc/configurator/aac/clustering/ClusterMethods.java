@@ -4,7 +4,6 @@ import edacc.api.costfunctions.CostFunction;
 import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.model.ExperimentResult;
-
 import java.awt.Point;
 import java.util.List;
 
@@ -14,7 +13,18 @@ import java.util.List;
  */
 public interface ClusterMethods {
     
-        public void debugAnalyseDifferences(SolverConfiguration incumbent, SolverConfiguration challenger);
+        //public void debugAnalyseDifferences(SolverConfiguration incumbent, SolverConfiguration challenger);
+    
+        
+        /**
+         * Maps the ExperimentResults of a given SolverConfiguration to the clusters their instance-seed-pairs
+         * belong to
+         * 
+         * @param sc the config for which the results should be mapped 
+         * @return An array containing Lists of ExperimentResults. Each position in the array corresponds to one
+         *          cluster, e.g. array[5] would give you the list of Results for cluster 5.
+         */
+        public List<ExperimentResult>[] mapResultsToClusters(SolverConfiguration sc);
 	
 	/**
 	 * Number of runs per cluster for a given solver configuration

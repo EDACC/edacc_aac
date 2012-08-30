@@ -1,19 +1,35 @@
 package edacc.configurator.aac.clustering;
 
 import edacc.api.API;
+import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
-import edacc.model.ExperimentResult;
-import java.util.*;
-
+import edacc.model.Instance;
+import edacc.model.InstanceHasProperty;
+import edacc.model.Property;
 import edacc.util.Pair;
+import java.util.*;
+import java.util.Map.Entry;
 
 /**
  *
  * @author mugrauer
  */
 public class CLC_Clustering extends ClusteringTemplate implements ClusterMethods {
+    //states how much information (= number of solverconfigs) has been added to data since 
+    //the clustering has been calculated
+    private int newDataAvailable = 0;
+    //states how much CPU-Time has been used up by the configurator since the clustering
+    //has ben calculated
+    private double cpuTimeElapsed = 0d;
+    
+    //whether to use time- or data-volume-based recalculatioon
+    private boolean useTimeBasedRecalc = true;
+    //Threshold for when to recalculate the clustering
+    //if useTimeBasedRecalc is set, this means the CPUTime spent since the last recalculation
+    //otherwise, this means the number of solverconfigs whose data has been added since the last recalculation
+    private int recalculationThreshold = 38400;
     
     //these values determine the number of clusters that will be generated
     //if useVarianceCriterion is set, clusters will be merged until further mergin would create
@@ -24,24 +40,55 @@ public class CLC_Clustering extends ClusteringTemplate implements ClusterMethods
     private boolean useVarianceCriterion = true;
     
     
-    public CLC_Clustering(Parameters params, API api, Random rng, List<SolverConfiguration> scs) throws Exception{
-        super(params, api, rng, scs);
+    public CLC_Clustering(AAC aac, Parameters params, API api, Random rng, List<SolverConfiguration> scs) throws Exception{
+        super(aac, params, api, rng, scs);
+        
+        /*
+        //TODO: remove testing code
+        List<Instance> instanceList = api.getExperimentInstances(params.getIdExperiment());
+        HashMap<Integer, InstanceHasProperty> map = instanceList.get(0).getPropertyValues();        
+        Set<Entry<Integer, InstanceHasProperty>> set = map.entrySet();
+        for(Entry<Integer, InstanceHasProperty> entry : set){
+            Integer key = entry.getKey();
+            InstanceHasProperty ihp = entry.getValue();
+            Property p = ihp.getProperty();
+            System.out.println("Property: key="+key+", name="+p.getName()+", type="+p.getPropertyValueTypeName()+", value="+ihp.getValue());
+        }        
+        //END testing code
+        */
         
         //initialise clustering
         calculateClustering();
+        cpuTimeElapsed = getCPUTime();
         visualiseClustering();
     }
     
     @Override
     public void addDataForClustering(SolverConfiguration sc) {
         addData(sc);
-        calculateClustering();
+        newDataAvailable++;
+        if(recalculationCriterion()){
+            calculateClustering();
+            newDataAvailable = 0;
+            cpuTimeElapsed = getCPUTime();
+        }        
         //visualiseClustering();        
+    }
+    
+    private boolean recalculationCriterion(){
+        if(useTimeBasedRecalc){      //current cputime - cputime at last recalc
+            if(recalculationThreshold < (getCPUTime() - cpuTimeElapsed))
+                return true;
+        }else{
+            if(recalculationThreshold < newDataAvailable)
+                return true;
+        }
+        return false;
     }
     
     private void calculateClustering(){
         long time = System.currentTimeMillis();
-        System.out.print("Initialising clusters ... ");
+        log("Initialising clusters ... ");
         LinkedList<Pair<Cluster, Integer>> clusterList = new LinkedList<Pair<Cluster,Integer>>();
         Collection<InstanceData> datList = data.values();
         int count =0;
@@ -51,7 +98,7 @@ public class CLC_Clustering extends ClusteringTemplate implements ClusterMethods
             clusterList.add(new Pair(c, count));
             count++;
         }
-        System.out.print("done!\nInitialising distance matrix ... ");
+        log("Initialising distance matrix ... ");
         //initialise distance matrix (DistanceMatrix class is at the bottom of this file!)
         DistanceMatrix distMat = new DistanceMatrix(clusterList.size());
         Double v1, v2;
@@ -63,7 +110,7 @@ public class CLC_Clustering extends ClusteringTemplate implements ClusterMethods
                             calculateClusterDistance(c1.getFirst(), c2.getFirst()));
             }
         }
-        System.out.print("done!\n Refining clustering ... ");
+        log("Refining clustering ... ");
         //calcualte clustering
         while((!useVarianceCriterion && clusterList.size()>staticClusterNumber)
                 || clusterList.size()>1){//in the unlikely event, that all instances together do not exceed maxVariance
@@ -94,19 +141,19 @@ public class CLC_Clustering extends ClusteringTemplate implements ClusterMethods
                             calculateClusterDistance(mergeA.getFirst(), cl.getFirst()));
             }
         }
-        System.out.print("done!\nEstablishing clustering ... ");
+        log("Establishing clustering ... ");
         clusters = new Cluster[clusterList.size()];
-        //instanceClusterMap = new HashMap<InstanceIdSeed, Integer>();
+        instanceClusterMap = new HashMap<InstanceIdSeed, Integer>();
         int clusterPos = 0;
         for(Pair<Cluster,Integer> cl : clusterList){
             clusters[clusterPos] = cl.getFirst(); 
-            /*
+            
             for(InstanceIdSeed i : clusters[clusterPos].getInstances())
                 instanceClusterMap.put(i, clusterPos);
-            */
+            
             clusterPos++;
         }
-        System.out.println("done! Time elapsed: "+(System.currentTimeMillis()-time)+"ms.");
+        log("Done! Time elapsed: "+(System.currentTimeMillis()-time)+"ms.");
     }
     /*
     private void recalculateClustering(){
@@ -215,17 +262,18 @@ public class CLC_Clustering extends ClusteringTemplate implements ClusterMethods
     
     @Override
     public final void visualiseClustering(){
-        System.out.println("---------------CLUSTERING-------------------");
-        System.out.println("Number of Instance-Seed pairs: "+data.size());
+        log("---------------CLUSTERING-------------------");
+        log("Number of Instance-Seed pairs: "+data.size());
         for(int i=0; i<clusters.length; i++){
             List<InstanceIdSeed> iList = clusters[i].getInstances();
-            System.out.println("Cluster "+i+" ("+iList.size()+" instances, variance: "+calculateVariance(iList)+"):");            
-            /*
-            for(InstanceIdSeed inst : iList){
-                System.out.println("   "+formatDouble(data.get(inst).getAvg())+" ID: "+inst.instanceId+" Seed: "+inst.seed);
-            }*/
+            log("Cluster "+i+" ("+iList.size()+" instances, variance: "+calculateVariance(iList)+"):");
         }        
-        System.out.println("---------------CLUSTERING-------------------");
+        log("---------------CLUSTERING-------------------");
+    }
+    
+    @Override
+    protected void log(String message){
+        aac.log("CLC_Clustering: "+message);
     }
 }
 

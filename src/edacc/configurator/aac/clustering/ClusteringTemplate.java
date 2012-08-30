@@ -2,37 +2,40 @@ package edacc.configurator.aac.clustering;
 
 import edacc.api.API;
 import edacc.api.costfunctions.CostFunction;
+import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.model.Course;
 import edacc.model.ExperimentResult;
 import edacc.model.InstanceSeed;
-
 import java.awt.Point;
 import java.util.*;
-
-
 
 /**
  * @author mugrauer, schulte
  */
 public abstract class ClusteringTemplate implements ClusterMethods{
     protected Random rng;
+    protected AAC aac;
+    protected API api;
+    protected int expID;
     protected HashMap<InstanceIdSeed, InstanceData> data;    
-    //protected HashMap<InstanceIdSeed, Integer> instanceClusterMap;
-    protected Cluster[] clusters;   
+    protected HashMap<InstanceIdSeed, Integer> instanceClusterMap;
+    protected Cluster[] clusters;
     
     
     //when a random instance is to be selected from a cluster, should
     //instances with high variance of cost have a higher chance of being picked?
     //(higher variance in cost means the instance might be more useful in distinguishing
     // between configs with good or poor perfomance)
-    protected boolean preferHighVarianceInstances = false;
+    protected boolean preferHighVarianceInstances = true;
     
-    public ClusteringTemplate(Parameters params, API api, Random rng, List<SolverConfiguration> scs) throws Exception{
+    public ClusteringTemplate(AAC aac, Parameters params, API api, Random rng, List<SolverConfiguration> scs) throws Exception{
         this.rng = rng;
-        
+        this.aac = aac;
+        this.api = api;
+        this.expID = params.getIdExperiment();
         //initialise data
         data = new HashMap<InstanceIdSeed, InstanceData>();
         Course course = api.getCourse(params.getIdExperiment());       
@@ -45,6 +48,31 @@ public abstract class ClusteringTemplate implements ClusterMethods{
         }        
     }
     
+    /**
+         * Maps the ExperimentResults of a given SolverConfiguration to the clusters their instance-seed-pairs
+         * belong to
+         * 
+         * @param sc the config for which the results should be mapped 
+         * @return An array containing Lists of ExperimentResults. Each position in the array corresponds to one
+         *          cluster, e.g. array[5] would give you the list of Results for cluster 5.
+         */
+    public List<ExperimentResult>[] mapResultsToClusters(SolverConfiguration sc){
+        LinkedList<ExperimentResult>[] resultClusterMap = new LinkedList[clusters.length];
+        for(int i=0; i<clusters.length; i++){
+            resultClusterMap[i] = new LinkedList<ExperimentResult>();
+        }
+        
+        int clusterNr;
+        InstanceIdSeed idSeed;
+        for(ExperimentResult r : sc.getFinishedJobs()){
+            idSeed = new InstanceIdSeed(r.getInstanceId(), r.getSeed());
+            clusterNr = instanceClusterMap.get(idSeed);
+            resultClusterMap[clusterNr].add(r);
+        }
+        return resultClusterMap;
+    }
+    
+    /*
     public void debugAnalyseDifferences(SolverConfiguration incumbent, SolverConfiguration challenger){
         if(incumbent.getJobCount() != challenger.getJobCount()){
             System.out.println("DEBUG: Job Counts do not match! Incumbent "+incumbent.getJobCount()+", Challenger: "+challenger.getJobCount());            
@@ -77,7 +105,7 @@ public abstract class ClusteringTemplate implements ClusterMethods{
         System.out.println("DEBUG: Challenger has "+challenger.getJobCount()+" jobs, "
                 +challenger.getFinishedJobs().size()+" of them finished. "+cList.size()+" of them are unique");
         System.exit(1);
-    }
+    }*/
     
     public int[] countRunPerCluster(SolverConfiguration sc){
         int[] numRuns = new int[clusters.length];
@@ -260,6 +288,21 @@ public abstract class ClusteringTemplate implements ClusterMethods{
             list.add(new InstanceIdSeed(r.getInstanceId(), r.getSeed()));
         }
         return list;
+    }
+    
+    protected void log(String message){
+        aac.log("Clustering: "+message);
+    }
+    
+    protected double getCPUTime(){
+        try{
+            return api.getTotalCPUTime(expID);
+        }catch(Exception e){
+            log("Error: Connection to database failed!");
+            e.printStackTrace();
+            System.exit(1);
+            return 1;
+        }
     }
 }
 class InstanceDataComparator implements Comparator<InstanceData>{

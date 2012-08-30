@@ -5,32 +5,28 @@
 package edacc.configurator.aac.clustering;
 
 import edacc.api.API;
+import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
-import edacc.model.ExperimentResult;
 import edacc.model.Instance;
 import edacc.util.Pair;
-import java.util.Collection;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Random;
-import java.util.HashMap;
+import java.util.*;
 
 /**
  *
  * @author fr
  */
 public class PropertyClustering  extends ClusteringTemplate implements ClusterMethods{
-    HashMap<Integer, Instance> instanceMap;
+    HashMap<Integer, Instance> instanceIdMap;
         
-    public PropertyClustering(Parameters params, API api, Random rng, List<SolverConfiguration> scs) throws Exception{
-        super(params, api, rng, scs);
+    public PropertyClustering(AAC aac, Parameters params, API api, Random rng, List<SolverConfiguration> scs) throws Exception{
+        super(aac, params, api, rng, scs);
         
         List<Instance> instanceList = api.getExperimentInstances(params.getIdExperiment());
-        instanceMap = new HashMap<Integer, Instance>();
+        instanceIdMap = new HashMap<Integer, Instance>();
         for(Instance i : instanceList){
-            instanceMap.put(i.getId(), i);
+            instanceIdMap.put(i.getId(), i);
         }
         
         calculateGreedyClustering(instanceList);
@@ -38,7 +34,7 @@ public class PropertyClustering  extends ClusteringTemplate implements ClusterMe
     
     private void calculateGreedyClustering(List<Instance> instanceList){
         long time = System.currentTimeMillis();
-        System.out.print("Initialising clusters ... ");
+        aac.log("Initialising clusters ... ");
         LinkedList<Pair<Cluster, Integer>> clusterList = new LinkedList<Pair<Cluster,Integer>>();
         Collection<InstanceData> datList = data.values();
         int count =0;
@@ -48,7 +44,7 @@ public class PropertyClustering  extends ClusteringTemplate implements ClusterMe
             clusterList.add(new Pair(c, count));
             count++;
         }
-        System.out.print("done!\nInitialising distance matrix ... ");
+        aac.log("Initialising distance matrix ... ");
         //initialise distance matrix (DistanceMatrix class is at the bottom of CLC_Clustering.java!)
         DistanceMatrix distMat = new DistanceMatrix(clusterList.size());
         Double v1, v2;
@@ -60,7 +56,7 @@ public class PropertyClustering  extends ClusteringTemplate implements ClusterMe
                             calculateClusterDistance(c1.getFirst(), c2.getFirst()));
             }
         }
-        System.out.print("done!\n Refining clustering ... ");
+        aac.log("done!\n Refining clustering ... ");
         //calcualte clustering
         while(terminationCriterion(clusterList)){
             Pair<Cluster,Integer> mergeA=null, mergeB=null;
@@ -92,14 +88,9 @@ public class PropertyClustering  extends ClusteringTemplate implements ClusterMe
         }
         System.out.print("done!\nEstablishing clustering ... ");
         clusters = new Cluster[clusterList.size()];
-        //instanceClusterMap = new HashMap<InstanceIdSeed, Integer>();
         int clusterPos = 0;
         for(Pair<Cluster,Integer> cl : clusterList){
             clusters[clusterPos] = cl.getFirst(); 
-            /*
-            for(InstanceIdSeed i : clusters[clusterPos].getInstances())
-                instanceClusterMap.put(i, clusterPos);
-            */
             clusterPos++;
         }
         extendClustersWithSeeds(instanceList);
@@ -114,9 +105,9 @@ public class PropertyClustering  extends ClusteringTemplate implements ClusterMe
         double distance = 0d, tmpDist;
         Instance i1, i2;
         for(InstanceIdSeed idSeed1 : c1.getInstances()){
-            i1 = instanceMap.get(idSeed1.instanceId);
+            i1 = instanceIdMap.get(idSeed1.instanceId);
             for(InstanceIdSeed idSeed2 : c2.getInstances()){
-                i2 = instanceMap.get(idSeed2.instanceId);
+                i2 = instanceIdMap.get(idSeed2.instanceId);
                 
                 tmpDist = calculateInstanceDistance(i1, i2);
                 distance = (tmpDist > distance) ? tmpDist : distance;
@@ -178,11 +169,17 @@ public class PropertyClustering  extends ClusteringTemplate implements ClusterMe
                     for(InstanceData idSeed : datList){
                         if(idSeed.getInstanceID() == inst.getId())
                             clusters[i].addInstance(new InstanceIdSeed(idSeed.getInstanceID(), idSeed.getSeed()));
+                            instanceClusterMap.put(idSeed.getInstanceIdSeed(), i);
                     }
                     clusters[i].removeInstance(inst.getId(), 0); //remove dummy
                     break;
                 }
             }
         }
-    }    
+    }
+    
+    @Override
+    protected void log(String message){
+        aac.log("PropertyClustering: "+message);
+    }
 }
