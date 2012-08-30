@@ -57,4 +57,35 @@ public class Gaussian {
     public static double errorFunctionInverse( double z ) throws MathException {
 		return PhiInverse( 0.5 * z + 0.5 ) / Math.sqrt(2);
 	}
+    
+    public static double normcdf(double x) {
+        double b1 = 0.319381530;
+        double b2 = -0.356563782;
+        double b3 = 1.781477937;
+        double b4 = -1.821255978;
+        double b5 = 1.330274429;
+        double p = 0.2316419;
+        double c = 0.39894228;
+
+        if (x >= 0.0) {
+            double t = 1.0 / (1.0 + p * x);
+            return (1.0 - c * Math.exp(-x * x / 2.0) * t * (t * (t * (t * (t * b5 + b4) + b3) + b2) + b1));
+        } else {
+            double t = 1.0 / (1.0 - p * x);
+            return (c * Math.exp(-x * x / 2.0) * t * (t * (t * (t * (t * b5 + b4) + b3) + b2) + b1));
+        }
+    }
+    
+    public static double normcdfln(double x) {
+        double y, z, pi = 3.14159265358979323846264338327950288419716939937510;
+        if (x > -6.5) {
+            return Math.log(normcdf(x));
+        }
+        z = Math.pow(x, -2);
+        y = z
+                * (-1 + z
+                        * (5.0 / 2 + z
+                                * (-37.0 / 3 + z * (353.0 / 4 + z * (-4081.0 / 5 + z * (55205.0 / 6 + z * -854197.0 / 7))))));
+        return y - 0.5 * Math.log(2 * pi) - 0.5 * x * x - Math.log(-x);
+    }
 }
