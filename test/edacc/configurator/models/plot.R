@@ -58,8 +58,10 @@ x = (f_min - mu) / sigma
 ei = (f_min - mu) * pnorm(x) + sigma * dnorm(x)
 ei2 = sigma*sigma * ((x*x + 1) * pnorm(x) + x * dnorm(x));
 
+ocb = -mu +  sigma
 
-ylim=c(min(data[,2]), max(data[,2]))
+
+ylim=c(min(data[,2]), max(data[,2])+3)
 
 plot(seq(-5, 5, 0.05), log10(f_true), type='l', col='black', xlim=c(-5, 5), ylim=ylim, xlab='', ylab='')
 par(new=T)
@@ -73,6 +75,6 @@ plot(data[,1], mu -  2*sigma, type='l', col='grey', xlim=c(-5, 5),ylim=ylim, xla
 par(new=T)
 plot(data[,1], 10+2*( -mu + 1*sigma), type='l', col='green', xlim=c(-5, 5),ylim=ylim, xlab='', ylab='', axes=F)
 par(new=T)
-plot(data[,1], 1*data[,4], type='l', col='cyan', xlim=c(-5, 5), ylim=ylim, xlab='', ylab='', axes=F)
+plot(data[,1], 3*data[,4], type='l', col='cyan', xlim=c(-5, 5), ylim=ylim, xlab='', ylab='', axes=F)
 par(new=T)
-plot(data[,1], 0.2e6*data[,6], type='l', col='blue', xlim=c(-5, 5), ylim=ylim, xlab='', ylab='', axes=F)
+plot(data[,1], 0.0001*data[,5], type='l', col='blue', xlim=c(-5, 5), ylim=ylim, xlab='', ylab='', axes=F)
