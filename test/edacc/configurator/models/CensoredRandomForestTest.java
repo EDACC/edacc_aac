@@ -47,9 +47,9 @@ public class CensoredRandomForestTest {
         
         int[] catDomainSizes = new int[nParams+nFeatures];
         
-        int logModel = 0;
+        int logModel = 1;
         
-        double censoringThreshold = 20;
+        double censoringThreshold = 1e100;
         
         
         double data[][] = new double[N][nParams+nFeatures+1];
@@ -139,7 +139,7 @@ public class CensoredRandomForestTest {
             }
         }
         
-        CensoredRandomForest rf = new CensoredRandomForest(1000, logModel, censoringThreshold, 1, catDomainSizes, new Random());
+        CensoredRandomForest rf = new CensoredRandomForest(50, logModel, censoringThreshold, 1, catDomainSizes, new Random());
         rf.learnModel(all_theta, all_x, nParams, nFeatures, ixs, y, cens);
         System.out.println("Learned model");
         
@@ -161,7 +161,7 @@ public class CensoredRandomForestTest {
                 double mu = pred[ix][0]; 
                 double sigma = Math.sqrt(pred[ix][1]);
                 double ei = expectedImprovement(mu, sigma, f_min);
-                double ocb = -mu + 1 * sigma;
+                double ocb = -mu + 1*sigma;
                 System.out.println(x1 + " " + pred[ix][0] + " " + pred[ix][1] + " " + ei + " " + ocb + " " + expExpectedImprovement(mu, sigma, f_min));
                 ix++;
             }
@@ -201,6 +201,7 @@ public class CensoredRandomForestTest {
             fos.close();
         }
         
+        rf.calculateVI();
         System.out.println("Done.");
 
         
@@ -248,6 +249,7 @@ public class CensoredRandomForestTest {
             return (c * Math.exp(-x * x / 2.0) * t * (t * (t * (t * (t * b5 + b4) + b3) + b2) + b1));
         }
     }
+
     
     static double normcdfln(double x) {
         double y, z, pi = 3.14159265358979323846264338327950288419716939937510;
