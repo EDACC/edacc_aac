@@ -388,7 +388,10 @@ public class Roar_aggrCapping extends RacingMethods {
 							+ sc.getParameterConfiguration().toString());
 				} else if(sc.getJobCount() == parameters.getMaxParcoursExpansionFactor()
 						* num_instances) {
+					sc.setFinished(true);
 					clusterHandler.addDataForClustering(sc);
+				} else {
+					sc.setFinished(true);
 				}
 			} else {
 				int runsToAdd = sc.getJobCount();
@@ -469,7 +472,7 @@ public class Roar_aggrCapping extends RacingMethods {
 			if (!stopEvalSolverConfigIds
 					.contains(sc.getIdSolverConfiguration()) && comp >= 0) {
 				if (sc.getJobCount() == bestSC.getJobCount()) {
-					sc.setFinished(true);
+					bestSC.setFinished(true);
 					// all jobs from bestSC computed and won against
 					// best:
 					if (comp > 0) {
@@ -480,10 +483,6 @@ public class Roar_aggrCapping extends RacingMethods {
 								+ ",n.A. ,"
 								+ sc.getParameterConfiguration().toString());
 					}
-					// api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(),
-					// sc.getCost(),
-					// statistics.getCostFunction());
-					// listNewSC.remove(i);
 				} else {
 					int generated = pacc.addRandomJob(sc.getJobCount(), sc,
 							bestSC, Integer.MAX_VALUE - sc.getNumber());
