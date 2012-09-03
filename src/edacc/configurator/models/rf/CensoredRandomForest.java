@@ -31,12 +31,21 @@ public class CensoredRandomForest {
 
     private final int numImputationIterations = 1;
     
+    private int[][] condParents = null;
+    private int[][][] condParentVals = null;
+    
     public CensoredRandomForest(int nTrees, int logModel, double kappaMax, double cutoffPenaltyFactor, int[] catDomainSizes, Random rng) {
         rf = new RandomForest(nTrees, logModel);
         this.rng = rng;
         this.kappaMax = kappaMax;
         this.cutoffPenaltyFactor = cutoffPenaltyFactor;
         this.catDomainSizes = catDomainSizes;
+    }
+    
+    public CensoredRandomForest(int nTrees, int logModel, double kappaMax, double cutoffPenaltyFactor, int[] catDomainSizes, Random rng, int[][] condParents, int[][][] condParentVals) {
+        this(nTrees, logModel, kappaMax, cutoffPenaltyFactor, catDomainSizes, rng);
+        this.condParents = condParents;
+        this.condParentVals = condParentVals;
     }
     
     public void learnModel(double[][] theta, double[][] instance_features, int nParams, int nFeatures,
@@ -139,6 +148,8 @@ public class CensoredRandomForest {
         params.logModel = logModel;
         params.storeResponses = true;
         params.splitMin = 10;
+        params.condParents = condParents;
+        params.condParentVals = condParentVals;
         
         // Remember last RF build data
         rf_theta = theta;
