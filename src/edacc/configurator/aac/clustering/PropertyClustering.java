@@ -10,15 +10,26 @@ import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.model.Instance;
+import edacc.model.InstanceHasProperty;
 import edacc.util.Pair;
 import java.util.*;
+import org.apache.commons.math.stat.descriptive.moment.Variance;
 
 /**
  *
  * @author fr
  */
 public class PropertyClustering  extends ClusteringTemplate implements ClusterMethods{
-    HashMap<Integer, Instance> instanceIdMap;
+    protected HashMap<Integer, Instance> instanceIdMap;
+    protected Variance variance;
+    
+    //these values determine the number of clusters that will be generated
+    //if useVarianceCriterion is set, clusters will be merged until further mergin would create
+    //a cluster with a variance > maximumVariance.
+    //Otherwise, clusters will be merged until the number of clusters = staticClusterNumber
+    private final double maximumVariance = 0.1d;
+    private final int staticClusterNumber = 10;
+    private boolean useVarianceCriterion = true;
         
     public PropertyClustering(AAC aac, Parameters params, API api, Random rng, List<SolverConfiguration> scs) throws Exception{
         super(aac, params, api, rng, scs);
@@ -122,22 +133,82 @@ public class PropertyClustering  extends ClusteringTemplate implements ClusterMe
      * @param i2
      * @return distance between the two instances
      */
-    protected double calculateInstanceDistance(Instance i1, Instance i2){
-        //TODO: implement
-        return 0d;
+    protected double calculateInstanceDistance(Instance i1, Instance i2){        
+        HashMap<Integer, InstanceHasProperty> m1 = i1.getPropertyValues();
+        HashMap<Integer, InstanceHasProperty> m2 = i2.getPropertyValues();
+        //only properties 80-133 are properly set up
+        double dist = 0, tmp, val1, val2;
+        for(int i=80; i<134; i++){
+             val1 = Double.parseDouble(m1.get(i).getValue());
+             val2 = Double.parseDouble(m2.get(i).getValue());             
+             tmp = val1-val2;//TODO: rework to avoid rounding errors
+             tmp = tmp * tmp;
+             dist += tmp;
+        }
+        dist = Math.sqrt(dist);
+        return dist;
     }
     
-    /** determines, whether or not a merge between two given clusters is considered viable
+    /*
+    protected double calculateMaxDistance(List<InstanceIdSeed> instances){
+        double maxDist = 0d, tmpDist;
+        int countOuter=0, countInner=0;
+        Instance i1, i2;
+        for(InstanceIdSeed ids1 : instances){
+            for(InstanceIdSeed ids2 : instances){
+                if(countInner > countOuter){
+                    i1 = instanceIdMap.get(ids1.instanceId);
+                    i2 = instanceIdMap.get(ids2.instanceId);
+                    tmpDist = calculateInstanceDistance(i1, i2);
+                    if(tmpDist > maxDist)
+                        maxDist = tmpDist;
+                }
+                countInner++;
+            }
+            countOuter++;
+        }
+        return maxDist;
+    }*/
+    
+    /** determines, whether or not a merge between two given clusters is considered viable based on the
+     * variance of characteristic values in the resulting cluster
+     * will always return true if useVarianceCriterion is false
      * 
      * @param c1
      * @param c2
-     * @return true, if the merge is viable; false, if it isn't
+     * @return true, if useVarianceCriterion is false and/or if the merge is viable; false, if it isn't
      */
     protected boolean isMergeViable(Cluster c1, Cluster c2){
-        /* this could, for instance, check how the distance between the clusters corresponds to the distance within the clusters
-         */
-        //TODO: implement
-        return true;
+        if(!useVarianceCriterion)
+            return true;
+        
+        List<InstanceIdSeed> instances = c1.getInstances();
+        instances.addAll(c2.getInstances());
+        double[] characteristicValues = new double[instances.size()];
+        double average = 0, tmp;
+        int count = 0;
+        for(InstanceIdSeed idSeed : instances){
+            Instance instance = instanceIdMap.get(idSeed.instanceId);
+            tmp = calculateCharacteristicValue(instance);
+            average += tmp;
+            characteristicValues[count] = tmp;
+            count++;
+        }        
+        double var = variance.evaluate(characteristicValues, average);
+        
+        return var < maximumVariance;
+    }
+    
+    
+    protected double calculateCharacteristicValue(Instance inst){
+        HashMap<Integer, InstanceHasProperty> m = inst.getPropertyValues();
+        double val = 0, tmp;
+        for(int i=80; i<134; i++){
+            tmp = Double.parseDouble(m.get(i).getValue());
+            tmp = tmp*tmp;
+            val += tmp;
+        }
+        return Math.sqrt(val);
     }
     
     
@@ -149,6 +220,11 @@ public class PropertyClustering  extends ClusteringTemplate implements ClusterMe
      */
     protected boolean terminationCriterion(List<Pair<Cluster,Integer>> clusterList){
         // false = terminate; true = continue
+        if(!useVarianceCriterion){
+            if(clusterList.size()<=staticClusterNumber)
+                return false;
+        }
+        
         if(clusterList.size() < 2)
             return false;
         return true;

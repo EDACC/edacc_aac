@@ -115,8 +115,8 @@ public class ILS extends SearchMethods {
             int secondaryAvailableConfigs = -1;
             int prim = 0, sec = 0; //counts the number of delivered configs by current and secondary neighbourhood
             if(requiredConfigs <= currentAvailableConfigs){
-                if(debug)
-                    debugLog("current neighbourhood could satisfy need for new configs!");
+                /*if(debug)
+                    debugLog("current neighbourhood could satisfy need for new configs!");*/
                 newConfigs = currentNeighbourhood.getConfigs(requiredConfigs);
                 requiredConfigs = 0;
                 prim = newConfigs.size();
@@ -238,9 +238,9 @@ public class ILS extends SearchMethods {
                 if(secondaryNeighbourhood == null){
                     //ideally, this should never happen
                     //but if it does, it won't cause any problems (other than some wasted cpu time)
-                    if(debug){
+                    /*if(debug){
                         debugLog("Primary neighbourhood evaluation is complete, but no secondary neighbourhood is presen!");
-                    }
+                    }*/
                     startSecondaryNeighbourhood(currentNeighbourhood.getStarter());
                 }
                 currentNeighbourhood = secondaryNeighbourhood;
@@ -464,14 +464,14 @@ public class ILS extends SearchMethods {
             }
             double averageStage = sum/num;
             
-            System.out.println("Stats for ILS:");
-            System.out.println("Number of neighbourhoods searched: "+numberOfNeighbourhoods);
-            System.out.println("Number of local minimums encountered: "+numberOfLocalMinimums
+            log("Stats for ILS:");
+            log("Number of neighbourhoods searched: "+numberOfNeighbourhoods);
+            log("Number of local minimums encountered: "+numberOfLocalMinimums
                         +" (including "+numberOfFakeMinimums+" fake minimums)");
-            System.out.println("Average stage of neighbourhoods: "+averageStage);
-            System.out.println("Number of configurations evaluated: "+numberOfConfigs);
+            log("Average stage of neighbourhoods: "+averageStage);
+            log("Number of configurations evaluated: "+numberOfConfigs);
             //System.out.println();
-            System.out.println("Best configuration found: "
+            log("Best configuration found: "
                         +(currentBest.getName()==null ? "(no name given)" : currentBest.getName())
                         +" (ID: "+currentBest.getIdSolverConfiguration()+")");
         }

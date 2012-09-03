@@ -35,7 +35,7 @@ public class CLC_Clustering extends ClusteringTemplate implements ClusterMethods
     //if useVarianceCriterion is set, clusters will be merged until further mergin would create
     //a cluster with a variance > maximumVariance.
     //Otherwise, clusters will be merged until the number of clusters = staticClusterNumber
-    private final double maximumVariance = 0.1;
+    private final double maximumVariance = 0.1d;
     private final int staticClusterNumber = 10;
     private boolean useVarianceCriterion = true;
     
