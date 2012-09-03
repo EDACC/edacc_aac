@@ -66,7 +66,7 @@ public class SMBO extends SearchMethods {
     private int maxLocalSearchSteps = 5;
     private float lsStddev = 0.001f; // stddev used in LS sampling
     private int lsSamples = 10; // how many samples per parameter for the LS neighbourhood
-    private int nTrees = 10;
+    private int nTrees = 40;
     private double ocbExpMu = 1;
     private int EIg = 2; // global search factor {1,2,3}
     private boolean useInstanceIndexFeature = true; // simply use the index of an instance as instance feature
@@ -142,7 +142,7 @@ public class SMBO extends SearchMethods {
         
         int numFeatures = instanceFeatureNames.size();
         instanceFeatureNames.clear();
-        for (int i = 0; i < Math.min(numPC, numFeatures); i++) instanceFeatureNames.add("PC" + (i+1));
+        for (int i = 0; i < Math.min(numPC, numFeatures); i++) instanceFeatureNames.add("PC" + (i+1)); // rename instance features to reflect PCA transformation
         
         // Load information about the parameter space
         configurableParameters.addAll(api.getConfigurableParameters(parameters.getIdExperiment()));
@@ -158,15 +158,19 @@ public class SMBO extends SearchMethods {
         
         double kappaMax = 0;
         if (ExperimentDAO.getById(parameters.getIdExperiment()).getDefaultCost().equals(Cost.resultTime)) {
-            kappaMax = 1e20;
+            kappaMax = parameters.getJobCPUTimeLimit();
         } else if (ExperimentDAO.getById(parameters.getIdExperiment()).getDefaultCost().equals(Cost.wallTime)) {
-            kappaMax = 1e20;
+            kappaMax = parameters.getJobWallClockTimeLimit();
         } else {
             kappaMax = ExperimentDAO.getById(parameters.getIdExperiment()).getCostPenalty();
         }
         
+        int[][] condParents = null;
+        int[][][] condParentVals = null;
+        pspace.conditionalParentsForRF(configurableParameters, condParents, condParentVals);
+        
         // Initialize the predictive model
-        model = new CensoredRandomForest(nTrees, logModel ? 1 : 0, kappaMax, 1.0, catDomainSizes, rng);
+        model = new CensoredRandomForest(nTrees, logModel ? 1 : 0, kappaMax, 1.0, catDomainSizes, rng, condParents, condParentVals);
         
         // Initialize pseudo-random sequence for the initial sampling
         sequence = new SamplingSequence(samplingPath);
@@ -184,7 +188,6 @@ public class SMBO extends SearchMethods {
             }
             return new ArrayList<SolverConfiguration>(generatedConfigs);
         }
-        
         
         if (generatedConfigs.size() <= numInitialConfigurationsFactor * configurableParameters.size()) {
             for (SolverConfiguration sc: generatedConfigs) if (sc.getNumFinishedJobs() == 0) return new ArrayList<SolverConfiguration>();
@@ -214,11 +217,6 @@ public class SMBO extends SearchMethods {
         //double[][] inc_theta_pred = model.predict(new double[][] {paramConfigToTuple(bestConfigs.get(0).getParameterConfiguration())});
         //f_min = inc_theta_pred[0][0];
         pacc.log("c Current best configuration: " + bestConfigs.get(0).toString() + " with cost " + f_min);
-        
-        /*double[][] opt_theta = new double[][] {{-5,-5}};
-        double[][] opt_pred = model.predict(opt_theta);
-        double opt_ei = expExpectedImprovement(opt_pred[0][0], Math.sqrt(opt_pred[0][1]), f_min);
-        pacc.log("Prediction of optimum theta: mu=" + opt_pred[0][0] + " sigma=" + Math.sqrt(opt_pred[0][1]) + " EI: " + opt_ei);*/
         
         // Samples random parameter configurations
         start = System.currentTimeMillis();
@@ -394,8 +392,8 @@ public class SMBO extends SearchMethods {
         p.add("SMBO_lsStddev = "+this.lsStddev+ " % (Standard deviation to use in LS neighbourhood sampling)");
         p.add("SMBO_lsSamples = "+this.lsSamples+ " % (How many samples per parameter in the LS neighbourhood sampling)");
         p.add("SMBO_nTrees = "+this.nTrees+ " % (The number of regression trees in the random forest)");
-        p.add("SMBO_nTrees = "+this.ocbExpMu+ " % (mean value of the exponential distribution from which the lambda values are sampled, only applies to ocb selectionCriterion)");
-        p.add("SMBO_nTrees = "+this.EIg+ " % (global search parameter g in the expected improvement criterion, integer in {1,2,3}, 1=original criterion, 3=more global search behaviour)");
+        p.add("SMBO_ocbExpMu = "+this.ocbExpMu+ " % (mean value of the exponential distribution from which the lambda values are sampled, only applies to ocb selectionCriterion)");
+        p.add("SMBO_EIg = "+this.EIg+ " % (global search parameter g in the expected improvement criterion, integer in {1,2,3}, 1=original criterion, 3=more global search behaviour)");
         p.add("% -----------------------\n");
         return p;
     }
@@ -446,7 +444,9 @@ public class SMBO extends SearchMethods {
                 // map categorical parameters to integers 1 through domain.size, 0 = not set
                 Map<String, Integer> valueMap = new HashMap<String, Integer>();
                 int intVal = 1;
-                for (String val: ((CategoricalDomain)p.getDomain()).getCategories()) {
+                List<String> sortedValues = new LinkedList<String>(((CategoricalDomain)p.getDomain()).getCategories());
+                Collections.sort(sortedValues);
+                for (String val: sortedValues) {
                     valueMap.put(val, intVal++);
                 }
                 valueMap.put(null, 0);
@@ -463,7 +463,7 @@ public class SMBO extends SearchMethods {
                 
                 theta[pIx] = valueMap.get((String)paramValue);
             } else if (p.getDomain() instanceof FlagDomain) {
-                // map flag parametes to {0, 1}
+                // map flag parameters to {0, 1}
                 if (FlagDomain.FLAGS.ON.equals(paramValue)) theta[pIx] = 1;
                 else theta[pIx] = 0;
             } else {
