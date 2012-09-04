@@ -409,8 +409,14 @@ public class SMBO extends SearchMethods {
 
     @Override
     public void searchFinished() {
-        // TODO Auto-generated method stub
-        
+        pacc.log("Calculating variable importance measures from OOB samples:");
+        double[] VI = model.calculateVI();
+        for (int i = 0; i < configurableParameters.size(); i++) {
+            pacc.log(configurableParameters.get(i).getName() + ": " + VI[i]);
+        }
+        for (int i = 0; i < instanceFeatureNames.size(); i++) {
+            pacc.log(instanceFeatureNames.get(i) + ": " + VI[configurableParameters.size() + i]);
+        }
     }
     
     double calcExpectedImprovement(double mu, double sigma, double f_min) throws MathException {
