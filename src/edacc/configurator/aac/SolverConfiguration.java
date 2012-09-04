@@ -437,7 +437,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 		return statFunc.compare(myJobs, otherJobs);
 	}
 
-	protected void jobResetted(ExperimentResult er) {
+	protected void jobReset(ExperimentResult er) {
 		if (er.getStatus().equals(StatusCode.RUNNING)) {
 			numRunningJobs--;
 		}

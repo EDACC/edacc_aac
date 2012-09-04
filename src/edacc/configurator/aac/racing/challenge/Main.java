@@ -10,6 +10,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.Random;
 
+import edacc.parameterspace.ParameterConfiguration;
 import edacc.util.Pair;
 
 public class Main {	
@@ -48,13 +49,29 @@ public class Main {
 		System.out.println("c getting parameters with " + args[0] + " method..");
 		String params;
 		Integer seed = null;
-		if (args[0].equals("mindist")) {
+		if (args[0].equals("fuzzy")) {
+			List<Integer> scids = new LinkedList<Integer>();
+			scids.addAll(C.M.keySet());
+			float rand = new Random(Integer.parseInt(args[2])).nextFloat();
+			float cur = 0.f;
+			int scid = -1;
+			for (int id : scids) {
+				scid = id;
+				cur += C.getWeight(id);
+				if (cur >= rand) {
+					break;
+				}
+			}
+			params = C.P.get(scid);
+		} else if (args[0].equals("mindist")) {
 			params = MinDist.getParameters(C, features);
+		} else if (args[0].equals("avgdist")) {
+			params = AvgDist.getParameters(C, features);
 		} else if (args[0].equals("tree")) {
-			Random rng = new Random(Integer.parseInt(args[2]));
+			//Random rng = new Random(Integer.parseInt(args[2]));
 			Pair<Integer, List<Integer>> res = C.tree.query(features); 
 			params = C.P.get(res.getFirst());
-			List<Integer> seeds = new LinkedList<Integer>();
+			/*List<Integer> seeds = new LinkedList<Integer>();
 			Integer ins = null;
 			float cost = Float.POSITIVE_INFINITY;
 			for (int instanceId : res.getSecond()) {
@@ -69,9 +86,21 @@ public class Main {
 				seeds.addAll(C.seeds.get(ins));
 				seed = seeds.get(rng.nextInt(seeds.size()));
 				System.out.println("c using seed " + seed + " from instance " + ins + " with cost on instance " + cost + ".");
-			}
+			}*/
 		} else if (args[0].equals("randomforest")) {
 			params = C.P.get(C.forest.getSolverConfig(features));
+		} else if (args[0].equals("regression")) {
+			float membership = -1.f;
+			int scid = -1;
+			for (Pair<ParameterConfiguration, Integer> pc : C.tree2.pconfigs) {
+				Float tmp = C.tree2.getCost(pc.getFirst(), features);
+				if (tmp != null && tmp > membership) {
+					membership = tmp;
+					scid = pc.getSecond();
+				}
+			}
+			System.out.println("c Regression method: Choosing " + scid + " because instance has predicted membership " + membership + " on this solver config.");
+			params = C.P.get(scid);
 		} else {
 			System.out.println("Did not find algorithm: " + args[0]);
 			return;

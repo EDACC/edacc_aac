@@ -1,5 +1,9 @@
 package edacc.configurator.aac.racing.challenge;
 
+import java.io.BufferedWriter;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStreamWriter;
 import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collections;
@@ -8,6 +12,10 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Comparator;
+import java.util.Map.Entry;
+import java.util.Random;
+import java.util.Set;
+
 import edacc.util.Pair;
 
 public class DecisionTree implements Serializable {
@@ -18,7 +26,7 @@ public class DecisionTree implements Serializable {
 	private static final long serialVersionUID = 3264367978634L;
 
 	public enum ImpurityMeasure {
-		MISSCLASSIFICATIONINDEX, GINIINDEX, ENTROPYINDEX
+		MISCLASSIFICATIONINDEX, GINIINDEX, ENTROPYINDEX
 	}
 	
 	private Node root;
@@ -26,24 +34,161 @@ public class DecisionTree implements Serializable {
 	private HashMap<Integer, float[]> features;	
 	private HashSet<Integer> usedFeatures;	
 	private ImpurityMeasure impurityMeasure;
+	private int m;
+	private Random rng;
+	private Clustering clu2;
 	
-	public DecisionTree(HashMap<Integer, List<Integer>> clustering, HashMap<Integer, float[]> features, int num_features, ImpurityMeasure impurityMeasure) {
+	public float performance;
+	
+	public DecisionTree(HashMap<Integer, List<Integer>> _clustering, HashMap<Integer, float[]> features, int num_features, ImpurityMeasure impurityMeasure, Clustering clu, Clustering clu2, int m, Random rng) {
 		
 		// TODO: if there are equal feature vectors for different instances the training process might result in an exception!
+		this.rng = rng;
+		this.m = m;
+		this.clu2 = clu2;
 		
 		this.impurityMeasure = impurityMeasure;
 		this.num_features = num_features;
 		this.features = features;
+		
+		HashMap<Integer, List<Integer>> clustering = new HashMap<Integer, List<Integer>>();
+		for (Entry<Integer, List<Integer>> entry : _clustering.entrySet()) {
+			List<Integer> list = new LinkedList<Integer>();
+			list.addAll(entry.getValue());
+			clustering.put(entry.getKey(), list);
+		}
+		
+		HashMap<Integer, List<Integer>> validationData = new HashMap<Integer, List<Integer>>();
+		
+		for (Entry<Integer, List<Integer>> entry : clustering.entrySet()) {
+			int n = entry.getValue().size() -  (int) Math.round(.8f * entry.getValue().size());
+			if (n > 0) {
+				List<Integer> v = new LinkedList<Integer>();
+				validationData.put(entry.getKey(), v);
+				for (int i = 0; i <n; i++) {
+					int rand = rng.nextInt(entry.getValue().size());
+					v.add(entry.getValue().get(rand));
+					entry.getValue().remove(rand);
+				}
+			}
+		}
 		
 		usedFeatures = new HashSet<Integer>();		
 		root = new Node(clustering);
 		
 		initializeNode(root);
 		train(root);
+		
+		
+		prune(root);
+		
+		
 		Integer[] featureIndexes = usedFeatures.toArray(new Integer[0]);
 		Arrays.sort(featureIndexes);
 		System.out.println("[DecisionTree] Used " + usedFeatures.size() + " features of " + num_features);
 		System.out.println("[DecisionTree] Feature indexes are: " + Arrays.toString(featureIndexes));
+		
+		//float cost_tree = 0.f;
+		//float cost_best = 0.f;
+		
+		float num = 0;
+		float perf = 0;
+		for (Entry<Integer, List<Integer>> entry : validationData.entrySet()) {
+			for (int instanceid : entry.getValue()) {
+				int clazz = this.query(features.get(instanceid), entry.getKey()).getFirst();
+				//if (!entry.getKey().equals(clazz)) {
+				//	wrong+=1;
+				//}
+				//perf += clu.getMembership(clazz, instanceid);
+				//num+= clu.getMaximumMembership(instanceid);
+				System.out.println(instanceid + ".. " + clu.getCost(clazz, instanceid) + " : " + clu.getMinimumCost(instanceid));
+				perf += clu.getCost(clazz, instanceid);
+				num += clu.getMinimumCost(instanceid);
+				/*float cost = clu.getCost(clazz, instanceid);;
+				if (Float.isInfinite(cost))
+					cost_tree += 150.f * 10;
+				else 
+					cost_tree += cost;
+				cost_best += clu.getCost(entry.getKey(), instanceid);*/
+			}
+		}
+		performance = num/perf;// perf/num;
+		System.out.println("[DecisionTree] #all = " + num);
+		System.out.println("[DecisionTree] perf(T) = " + performance);
+		//System.out.println("[DecisionTree] cost best - tree: " + cost_best + " - " + cost_tree);
+	}
+	
+	private void prune(Node node) {
+		if (node.split_attribute != -1) {
+			prune(node.left);
+			prune(node.right);
+		}
+		
+		List<Integer> scids = new LinkedList<Integer>();
+		scids.addAll(node.clustering.keySet());
+		List<Pair<Integer, Float>> possible_scs = new LinkedList<Pair<Integer, Float>>();
+		
+		for (int i = 0; i < scids.size(); i++) {
+			int scid1 = scids.get(i);
+			boolean best = true;
+
+			/*for (int j = 1; j < scids.size(); j++) {
+				if (i == j) {
+					continue;
+				}
+				int scid2 = scids.get(j);*/
+				for (List<Integer> list : node.clustering.values()) {
+					for (int iid : list) {
+						if (clu2.getMembership(scid1, iid) / clu2.getMaximumMembership(iid) < 0.9) {
+							best = false;
+							break;
+						}
+					}
+					if (!best)
+						break;
+				}
+				//if (!best) 
+				//	break;
+				
+		//	}
+			if (best) {
+				// TODO: what if more than one sc is possible here? -> choose best one..
+				float sc1_ms = 0.f;
+				
+				for (List<Integer> list : node.clustering.values()) {
+					for (int iid : list) {
+						sc1_ms += clu2.getMembership(scid1, iid);
+					}
+				}
+				
+				
+				possible_scs.add(new Pair<Integer, Float>(scid1, sc1_ms));
+				break;
+			}
+		}
+		if (!possible_scs.isEmpty()) {
+			System.out.println("[DecisionTree] PRUNING (" + possible_scs.size() + ").");
+			
+			int scid = -1;
+			float ms = -1.f;
+			for (Pair<Integer, Float> p : possible_scs) {
+				if (ms < p.getSecond()) {
+					scid = p.getFirst();
+					ms = p.getSecond();
+				}
+			}
+			
+			List<Integer> cluster = new LinkedList<Integer>();
+			for (List<Integer> list : node.clustering.values()) {
+				cluster.addAll(list);
+			}
+			node.clustering = new HashMap<Integer, List<Integer>>();
+			node.clustering.put(scid, cluster);
+			node.left = null;
+			node.right = null;
+			node.split_attribute = -1;
+			node.split = Float.NaN;
+		} 
 	}
 
 	private void train(Node node) {
@@ -85,8 +230,15 @@ public class DecisionTree implements Serializable {
 		return res;
 	}
 	
+	/**
+	 * Calculates the purity gain for the given split.
+	 * @param clustering
+	 * @param left
+	 * @param right
+	 * @return
+	 */
 	public float calculatePurityGain(HashMap<Integer, List<Integer>> clustering, HashMap<Integer, List<Integer>> left, HashMap<Integer, List<Integer>> right) {
-		int num_elems = 0;
+		/*int num_elems = 0;
 		int num_elems_left = 0;
 		int num_elems_right = 0;
 		
@@ -103,15 +255,34 @@ public class DecisionTree implements Serializable {
 		}
 		
 		float l = (float) num_elems_left / (float) num_elems;
-		float r = (float) num_elems_right / (float) num_elems;
+		float r = (float) num_elems_right / (float) num_elems;*/
 		
+		
+		float l = 0;
+		float r = 0;
+		float a = 0;
+		for (Entry<Integer, List<Integer>> e : left.entrySet()) {
+			for (int iid : e.getValue()) {
+				l += clu2.getMembership(e.getKey(), iid);
+			}
+		}
+		
+		for (Entry<Integer, List<Integer>> e : right.entrySet()) {
+			for (int iid : e.getValue()) {
+				r += clu2.getMembership(e.getKey(), iid);
+			}
+		}
+		a = l+r;
+		l /= a;
+		r /= a;
+                
 		switch (impurityMeasure) {
-		case MISSCLASSIFICATIONINDEX:
+		case MISCLASSIFICATIONINDEX:
 			return getMisclassificationIndex(clustering) - l * getMisclassificationIndex(left) - r * getMisclassificationIndex(right);
 		case GINIINDEX:
 			return getGiniIndex(clustering) - l * getGiniIndex(left) - r * getGiniIndex(right);
 		case ENTROPYINDEX:
-			return getEntropyIndex(clustering) - l * getEntropyIndex(left) - r * getEntropyIndex(right);
+			return getEntropyIndexMemberships(clustering) - l * getEntropyIndexMemberships(left) - r * getEntropyIndexMemberships(right);
 		default:
 			throw new IllegalArgumentException("Unknown impurity measure: " + impurityMeasure.toString());
 		}
@@ -121,6 +292,11 @@ public class DecisionTree implements Serializable {
 	
 	// ********* impurity measures **********
 	
+	/**
+	 * Calculates the misclassification index for the values.
+	 * @param values
+	 * @return
+	 */
 	public float getMisclassificationIndex(HashMap<Integer, List<Integer>> values) {
 		// calculate 1 - max p_j
 		
@@ -138,6 +314,11 @@ public class DecisionTree implements Serializable {
 		return 1.f - tmp;
 	}
 	
+	/**
+	 * Calculates the gini index for the values.
+	 * @param values
+	 * @return
+	 */
 	public float getGiniIndex(HashMap<Integer, List<Integer>> values) {
 		// calculate 1 - sum p_j^2
 		
@@ -153,7 +334,12 @@ public class DecisionTree implements Serializable {
 		}
 		return res;
 	}
-	
+
+	/**
+	 * Calculates the entropy index for the values.
+	 * @param values
+	 * @return
+	 */
 	public float getEntropyIndex(HashMap<Integer, List<Integer>> values) {
 		// calculate - sum p_j log p_j
 		
@@ -165,7 +351,37 @@ public class DecisionTree implements Serializable {
 		
 		for (List<Integer> list : values.values()) {
 			float p = (float) list.size() / (float) num_elems;
-			res -= p * Math.log(p);
+			res -= p * Math.log(p) / Math.log(2);
+		}
+		return res;
+	}
+	
+	/**
+	 * Calculates the entropy index for the values.
+	 * @param values
+	 * @return
+	 */
+	public float getEntropyIndexMemberships(HashMap<Integer, List<Integer>> values) {
+		// calculate - sum p_j log p_j
+		HashMap<Integer, Float> cache = new HashMap<Integer, Float>();
+		float num_elems = 0;
+		for (Entry<Integer, List<Integer>> entry : values.entrySet()) {
+			float mem = 0;
+			for (Integer iid : entry.getValue()) {
+				mem += clu2.getMembership(entry.getKey(), iid);
+			}
+			cache.put(entry.getKey(), mem);
+			num_elems += mem;
+		}
+		float res = 0.f;
+		
+		for (Entry<Integer, List<Integer>> entry : values.entrySet()) {
+			/*float size = 0;
+			for (Integer iid : entry.getValue()) {
+				size += clu2.getMembership(entry.getKey(), iid);
+			}*/
+			float p = cache.get(entry.getKey()) / num_elems;
+			res -= p * Math.log(p) / Math.log(2);
 		}
 		return res;
 	}
@@ -177,21 +393,39 @@ public class DecisionTree implements Serializable {
 			throw new IllegalArgumentException("Expected at least two clusters.");
 		}
 		
-		
 		float purityGain = -1.f;
 		Pair<HashMap<Integer, List<Integer>>, HashMap<Integer, List<Integer>>> res = null;
 		float res_split_point = 0.f;
 		int split_attribute = -1;
 		
+		// this list will contain all instance ids
 		List<Integer> elements = new LinkedList<Integer>();
 		for (List<Integer> list : clustering.values()) {
 			elements.addAll(list);
 		}
 		
+		Set<Integer> possible_attributes = null;
+		if (m != -1) {
+			possible_attributes = new HashSet<Integer>();
+			while (possible_attributes.size() < m) {
+				possible_attributes.add(rng.nextInt(num_features));
+			}
+		}
+		
+		
 		for (int attr = 0; attr < num_features; attr++) {
-			final int f_attr = attr;
+			int tmp_attr = attr;
+			if (m != -1) {
+				if (possible_attributes.isEmpty()) {
+					break;
+				}
+				tmp_attr = possible_attributes.iterator().next();
+				possible_attributes.remove(tmp_attr);
+			}
+			final int f_attr = tmp_attr;
 			//System.err.println("CURRENT ATTRIBUTE: " + attr);
 			
+			// sort the list of instance ids by current feature value
 			Collections.sort(elements, new Comparator<Integer>() {
 
 				@Override
@@ -211,6 +445,7 @@ public class DecisionTree implements Serializable {
 
 			});
 			
+			// try every possible split
 			float val1 = 0.f;
 			float val2 = features.get(elements.get(0))[f_attr];
 			
@@ -235,32 +470,48 @@ public class DecisionTree implements Serializable {
 		}
 		//System.err.println("LEFT SIZE: " + res.getFirst().size() + "  RIGHT SIZE: " + res.getSecond().size());
 		//System.err.println("purity gain = " + purityGain);
-		return new SplitAttribute(res.getFirst(), res.getSecond(), split_attribute, res_split_point);
+		if (res == null) {
+			return null;
+		}
+		return new SplitAttribute(res.getFirst(), res.getSecond(), split_attribute, res_split_point, purityGain);
 	}
 	
 	private void initializeNode(Node node) {
 		if (node.clustering.isEmpty()) {
-			throw new IllegalArgumentException("results.isEmpty() is true");
+			throw new IllegalArgumentException("clustering.isEmpty() is true");
 		}
 		if (node.clustering.size() == 1) {
+			// nothing to split
 			return;
 		}
 		
+		// determine the split attribute
 		SplitAttribute sa = findOptimalSplitAttribute(node.clustering);
 		
+		if (sa == null) {
+			// no possible split
+			return;
+		}
+		
+		// set split values for this node
 		node.split = sa.split;
 		node.split_attribute = sa.split_attribute;
 		
+		node.purityGain = sa.purityGain;
+		
 		usedFeatures.add(sa.split_attribute);
 		
+		// create children
 		node.left = new Node(sa.leftClustering);
 		node.right = new Node(sa.rightClustering);
 	}
 	
 	private Pair<Integer, List<Integer>> query(Node node, float[] features) {
-		if (node.clustering.size() == 1) {
+		if (node.split_attribute == -1) {  //node.clustering.size() == 1) {
+			// return the cluster, there is only one; TODO: <---- this is not true!!!
 			return new Pair<Integer, List<Integer>>(node.clustering.keySet().iterator().next(), node.clustering.entrySet().iterator().next().getValue());
 		} else {
+			// determine the feature value of the feature vector and query the left/right node accordingly
 			float val = features[node.split_attribute];
 			if (val < node.split) {
 				return query(node.left, features);
@@ -270,12 +521,94 @@ public class DecisionTree implements Serializable {
 		}
 	}
 	
+	/**
+	 * Returns the cluster for the requested feature vector as a pair.<br/>
+	 * The first value is the solver configuration id and the second value is a list of instance ids.
+	 * @param features feature vector
+	 * @return class
+	 */
 	public Pair<Integer, List<Integer>> query(float[] features) {
 		if (features.length != num_features) {
 			throw new IllegalArgumentException("Invalid feature vector!");
 		}
 		return query(root, features);
 	}
+	
+	
+	/** REMOVE ME **/
+	
+	private Pair<Integer, List<Integer>> query(Node node, float[] features, int want, int depth) {
+		int all = 0;
+		int correct = 0;
+		
+		for (Entry<Integer, List<Integer>> p : node.clustering.entrySet()) {
+			if (p.getKey().equals(want)) {
+				correct += p.getValue().size();
+			} 
+			all += p.getValue().size();
+		}
+		System.out.println("[Query] purityGain: " + node.purityGain + " classes " + node.clustering.size() + " #correct/#all = " + ((float)correct / (float)all));
+		
+		
+		/*if (depth == 4) {
+			float mincost = Float.POSITIVE_INFINITY;
+			int scid = -1;
+			for (Entry<Integer, List<Integer>> e : node.clustering.entrySet()) {
+				float cost = 0.f;
+				for (List<Integer> instances : node.clustering.values()) {
+					for (Integer ii : instances) {
+						float f = clu2.getCost(e.getKey(), ii);;
+						cost += Float.isInfinite(f) ? 1000.f : f;
+					}
+				}
+				if (cost < mincost) {
+					mincost = cost;
+					scid = e.getKey();
+				}
+			}*
+			System.out.println("[Query] Returning " + scid + " with cost " + mincost);
+			
+			return new Pair<Integer, List<Integer>>(scid, node.clustering.get(scid));
+		}*/
+		
+		/*if (!Float.isNaN(node.purityGain) && node.purityGain < 1.5f) {
+			int max = 0;
+			Pair<Integer, List<Integer>> res = null;
+			for (Entry<Integer, List<Integer>> e : node.clustering.entrySet()) {
+				if (e.getValue().size() > max) {
+					max = e.getValue().size();
+					res = new Pair<Integer, List<Integer>>(e.getKey(), e.getValue());
+				}
+			}
+			return res;
+		}*/
+		
+		if (node.split_attribute == -1) {  //node.clustering.size() == 1) {
+			// return the cluster, there is only one; TODO: <---- this is not true!!!
+			return new Pair<Integer, List<Integer>>(node.clustering.keySet().iterator().next(), node.clustering.entrySet().iterator().next().getValue());
+		} else {
+			// determine the feature value of the feature vector and query the left/right node accordingly
+			float val = features[node.split_attribute];
+			if (val < node.split) {
+				return query(node.left, features, want, depth+1);
+			} else {
+				return query(node.right, features, want, depth+1);
+			}
+		}
+	}
+	
+	public Pair<Integer, List<Integer>> query(float[] features, int want) {
+		System.out.println("[Query] Start " + Arrays.toString(features));
+		if (features.length != num_features) {
+			throw new IllegalArgumentException("Invalid feature vector!");
+		}
+		Pair<Integer, List<Integer>> res = query(root, features, want, 0);
+		System.out.println("[Query] End");
+		return res;
+	}
+	
+	/** ENDOF REMOVE ME **/
+	
 	
 	private class Node implements Serializable {
 		/**
@@ -286,6 +619,7 @@ public class DecisionTree implements Serializable {
 		Node left, right;
 		int split_attribute;
 		float split;
+		float purityGain;
 
 		public Node(HashMap<Integer, List<Integer>> clustering) {
 			this.left = null;
@@ -293,6 +627,7 @@ public class DecisionTree implements Serializable {
 			this.clustering = clustering;
 			this.split_attribute = -1;
 			this.split = Float.NaN;
+			this.purityGain = Float.NaN;
 		}
 	}
 	
@@ -302,12 +637,87 @@ public class DecisionTree implements Serializable {
 		HashMap<Integer, List<Integer>> rightClustering;
 		int split_attribute;
 		float split;
+		float purityGain;
 		
-		public SplitAttribute(HashMap<Integer, List<Integer>> leftClustering, HashMap<Integer, List<Integer>> rightClustering, int split_attribute, float split) {
+		public SplitAttribute(HashMap<Integer, List<Integer>> leftClustering, HashMap<Integer, List<Integer>> rightClustering, int split_attribute, float split, float purityGain) {
 			this.leftClustering = leftClustering;
 			this.rightClustering = rightClustering;
 			this.split_attribute = split_attribute;
 			this.split = split;
+			this.purityGain = purityGain;
 		}
+	}
+	
+	
+	public int printDotNodeDescription(Node node, int nodenum, BufferedWriter br) throws Exception {
+		String name = ""; 
+		//name = "";//node.toString();
+		
+		if (node.left == null) {
+			name += " classes: " + node.clustering.keySet() + " i: [";
+			for (Entry<Integer, List<Integer>> e : node.clustering.entrySet()) {
+				//name += "(" + e.getKey() + "," + e.getValue().size() +")";
+				name += "(" + e.getKey()+ ":";
+				for (Integer ii : e.getValue()) {
+					//name += "(" + ii + "," + clu2.getCost(e.getKey(), ii) + ") ";
+					name += ii + ",";
+				}
+				name += ")";
+			}
+			name += "]";
+		} else {
+			name += "Split: " + node.split + " Attr: " + node.split_attribute;
+		}
+		//name += ", " + node.stddev;
+		br.write("N" + nodenum + " [label=\"" + name + "\"];\n");
+		int nextNode = nodenum+1;
+		if (node.left != null) {
+			int nn = nextNode;
+			nextNode = printDotNodeDescription(node.left, nextNode, br);
+			br.write("N" + nodenum + " -- N" + nn + ";\n");
+			nn = nextNode;
+			nextNode = printDotNodeDescription(node.right, nextNode, br);
+			br.write("N" + nodenum + " -- N" + nn + ";\n");
+			/*if (!node.nullNode.results.isEmpty()) {
+				nn = nextNode;
+				nextNode = printDotNodeDescription(node.nullNode, nextNode, br);
+				br.write("N" + nodenum + " -- N" + nn + ";\n");
+			}*/
+		}
+		return nextNode;
+	}
+	
+	
+	public void printDot(File file) throws Exception {
+		BufferedWriter br = new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file)));
+		br.write("graph g {\n");
+		printDotNodeDescription(root, 1, br);
+		br.write("}\n");
+		br.close();
+	}
+	
+	public static void main(String[] args) throws Exception {
+		HashMap<Integer, List<Integer>> clustering = new HashMap<Integer, List<Integer>>();
+		HashMap<Integer, float[]> features = new HashMap<Integer, float[]>();
+		int n = 2;
+		ImpurityMeasure measure = ImpurityMeasure.ENTROPYINDEX;
+		
+		List<Integer> l1 = new LinkedList<Integer>();
+		l1.add(100);
+		features.put(100, new float[] {0.2f, 0.8f});
+		l1.add(101);
+		features.put(101, new float[] {0.2f, 0.9f});
+		l1.add(102);
+		features.put(102, new float[] {0.2f, 0.1f});
+		List<Integer> l2 = new LinkedList<Integer>();
+		l2.add(103);
+		features.put(103, new float[] {0.2f, 0.2f});
+		l2.add(104);
+		features.put(104, new float[] {0.2f, 0.3f});
+		clustering.put(0, l1);
+		clustering.put(1, l2);
+		
+		//DecisionTree tree = new DecisionTree(clustering, features, n, measure);
+		//tree.printDot(new File("D:\\dot\\bla.dot"));
 	}
 }
