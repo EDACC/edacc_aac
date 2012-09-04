@@ -16,6 +16,8 @@ import org.apache.commons.math.MathException;
 import org.apache.commons.math3.distribution.ExponentialDistribution;
 
 import edacc.api.API;
+import edacc.api.costfunctions.CostFunction;
+import edacc.api.costfunctions.PARX;
 import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
@@ -27,6 +29,7 @@ import edacc.configurator.math.SamplingSequence;
 import edacc.configurator.models.rf.CensoredRandomForest;
 import edacc.configurator.models.rf.fastrf.utils.Gaussian;
 import edacc.configurator.models.rf.fastrf.utils.Utils;
+import edacc.model.Experiment;
 import edacc.model.ExperimentDAO;
 import edacc.model.ExperimentResult;
 import edacc.model.Instance;
@@ -56,6 +59,8 @@ public class SMBO extends SearchMethods {
     private double sequenceValues[][];
     
     private CensoredRandomForest model;
+    
+    private CostFunction par1CostFunc;
     
     // Configurable parameters
     private boolean logModel = true;
@@ -135,6 +140,7 @@ public class SMBO extends SearchMethods {
         // Project instance features into lower dimensional space using PCA
         PCA pca = new PCA(RInterface.getRengine());
         instanceFeatures = pca.transform(instanceFeatures.length, instanceFeatureNames.size(), instanceFeatures, numPC);
+        pacc.log("c Using " + Math.min(numPC, instanceFeatureNames.size()) + " instance features");
         for (int i = 0; i < instanceFeatures.length; i++) {
             for (int j = 0; j < Math.min(numPC, instanceFeatureNames.size()); j++) System.out.print(instanceFeatures[i][j]);
             System.out.println();
@@ -159,10 +165,13 @@ public class SMBO extends SearchMethods {
         double kappaMax = 0;
         if (ExperimentDAO.getById(parameters.getIdExperiment()).getDefaultCost().equals(Cost.resultTime)) {
             kappaMax = parameters.getJobCPUTimeLimit();
+            par1CostFunc = new PARX(Experiment.Cost.resultTime, true, 1.0f);
         } else if (ExperimentDAO.getById(parameters.getIdExperiment()).getDefaultCost().equals(Cost.wallTime)) {
             kappaMax = parameters.getJobWallClockTimeLimit();
+            par1CostFunc = new PARX(Experiment.Cost.wallTime, true, 1.0f);
         } else {
             kappaMax = ExperimentDAO.getById(parameters.getIdExperiment()).getCostPenalty();
+            par1CostFunc = new PARX(Experiment.Cost.cost, true, 1.0f);
         }
         
         int[][] condParents = null;
@@ -363,7 +372,7 @@ public class SMBO extends SearchMethods {
                 theta_inst_idxs[jIx][0] = solverConfigTheta.get(config);
                 theta_inst_idxs[jIx][1] = instanceFeaturesIx.get(run.getInstanceId());
                 censored[jIx] = !run.getResultCode().isCorrect();
-                y[jIx] = parameters.getStatistics().getCostFunction().singleCost(run);
+                y[jIx] = par1CostFunc.singleCost(run);
                 if (logModel) {
                     if (y[jIx] <= 0) {
                         pacc.log_db("Warning: logarithmic model used with values <= 0. Pruning to 1e-15.");
@@ -434,43 +443,42 @@ public class SMBO extends SearchMethods {
         for (Parameter p: configurableParameters) {
             int pIx = configurableParameters.indexOf(p);
             Object paramValue = paramConfig.getParameterValue(p);
-            if (p.getDomain() instanceof RealDomain) {
-                if (paramValue == null) theta[pIx] = ((RealDomain)p.getDomain()).getLow(); // TODO: handle missing values
-                else theta[pIx] = (Double)paramValue;
-            } else if (p.getDomain() instanceof IntegerDomain) {
-                if (paramValue == null) theta[pIx] = ((IntegerDomain)p.getDomain()).getLow() - 1; // TODO: handle missing values
-                else theta[pIx] = (Long)paramValue;
-            } else if (p.getDomain() instanceof CategoricalDomain) {
-                // map categorical parameters to integers 1 through domain.size, 0 = not set
-                Map<String, Integer> valueMap = new HashMap<String, Integer>();
-                int intVal = 1;
-                List<String> sortedValues = new LinkedList<String>(((CategoricalDomain)p.getDomain()).getCategories());
-                Collections.sort(sortedValues);
-                for (String val: sortedValues) {
-                    valueMap.put(val, intVal++);
+            if (paramValue == null) theta[pIx] = Double.NaN;
+            else {
+                if (p.getDomain() instanceof RealDomain) {
+                    theta[pIx] = (Double)paramValue;
+                } else if (p.getDomain() instanceof IntegerDomain) {
+                    theta[pIx] = (Long)paramValue;
+                } else if (p.getDomain() instanceof CategoricalDomain) {
+                    // map categorical parameters to integers 1 through domain.size, 0 = not set
+                    Map<String, Integer> valueMap = new HashMap<String, Integer>();
+                    int intVal = 1;
+                    List<String> sortedValues = new LinkedList<String>(((CategoricalDomain)p.getDomain()).getCategories());
+                    Collections.sort(sortedValues);
+                    for (String val: sortedValues) {
+                        valueMap.put(val, intVal++);
+                    }
+                    
+                    theta[pIx] = valueMap.get((String)paramValue);
+                } else if (p.getDomain() instanceof OrdinalDomain) {
+                    // map ordinal parameters to integers 1 through domain.size, 0 = not set
+                    Map<String, Integer> valueMap = new HashMap<String, Integer>();
+                    int intVal = 1;
+                    for (String val: ((OrdinalDomain)p.getDomain()).getOrdered_list()) {
+                        valueMap.put(val, intVal++);
+                    }
+                    
+                    theta[pIx] = valueMap.get((String)paramValue);
+                } else if (p.getDomain() instanceof FlagDomain) {
+                    // map flag parameters to {0, 1}
+                    if (FlagDomain.FLAGS.ON.equals(paramValue)) theta[pIx] = 1;
+                    else theta[pIx] = 0;
+                } else {
+                    // TODO
+                    theta[pIx] = paramValue.hashCode();
                 }
-                valueMap.put(null, 0);
-                
-                theta[pIx] = valueMap.get((String)paramValue);
-            } else if (p.getDomain() instanceof OrdinalDomain) {
-                // map ordinal parameters to integers 1 through domain.size, 0 = not set
-                Map<String, Integer> valueMap = new HashMap<String, Integer>();
-                int intVal = 1;
-                for (String val: ((OrdinalDomain)p.getDomain()).getOrdered_list()) {
-                    valueMap.put(val, intVal++);
-                }
-                valueMap.put(null, 0);
-                
-                theta[pIx] = valueMap.get((String)paramValue);
-            } else if (p.getDomain() instanceof FlagDomain) {
-                // map flag parameters to {0, 1}
-                if (FlagDomain.FLAGS.ON.equals(paramValue)) theta[pIx] = 1;
-                else theta[pIx] = 0;
-            } else {
-                // TODO
-                if (paramValue == null) theta[pIx] = 0;
-                else theta[pIx] = paramValue.hashCode();
             }
+            
         }
         
         return theta;
