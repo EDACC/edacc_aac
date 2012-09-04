@@ -43,9 +43,11 @@ public abstract class ClusteringTemplate implements ClusterMethods{
             data.put(new InstanceIdSeed(is.instance.getId(), is.seed), 
                         new InstanceData(is.instance.getId(), is.seed, params.getStatistics().getCostFunction()));
         }
-        for(SolverConfiguration s : scs){
-            addData(s);
-        }        
+        if(scs!=null){
+            for(SolverConfiguration s : scs){
+                addData(s);
+            }
+        }
     }
     
     /**
