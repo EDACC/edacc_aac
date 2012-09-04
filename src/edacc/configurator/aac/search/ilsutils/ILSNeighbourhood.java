@@ -102,7 +102,8 @@ public class ILSNeighbourhood {
                     currentBest = c;
             }            
             else{
-                if(first == null) first = c;
+                if(first == null) 
+                    first = c;
                 runningConfigs.offerLast(c);
             }
         }
@@ -246,6 +247,17 @@ public class ILSNeighbourhood {
         System.out.println((secondary) ? "Secondary Neighbourhood:" : "Primary Neighbourhood:");
         System.out.println("Number of configs: pending_"+pendingConfigs.size()+" running_"+runningConfigs.size()+" completed_"+completedConfigs.size());
         System.out.println("Stage: "+stage+", Incumbent found: "+hasNewIncumbent());
+        int count = 0;
+        boolean check = true;
+        for(SolverConfiguration sc : runningConfigs){
+            if(sc.isFinished()){
+                System.out.println("Error: Finished config in runningConfigs list. Index: "+count);
+                check = false;
+            }
+            count++;
+        }
+        if(check)
+            System.out.println("All running configs report isFinished()=false");
     }
     
     public int getStage(){

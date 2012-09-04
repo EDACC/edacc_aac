@@ -4,3 +4,4 @@ bin/
 dist/
 .settings/
 src/edacc/configurator/aac/racing/challenge/private.properties
+/nbproject/private/
