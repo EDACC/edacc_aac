@@ -215,7 +215,7 @@ public class CensoredRandomForest {
             double[][] X = new double[oob_samples.length][rf_nVars];
             for (int i = 0; i < oob_samples.length; i++) {
                 for (int j = 0; j < rf_theta[0].length; j++) X[i][j] = rf_theta[rf_theta_inst_idxs[oob_samples[i]][0]][j];
-                for (int j = 0; j < rf_theta[0].length; j++) X[i][rf_theta[0].length + j] = instanceFeatures[rf_theta_inst_idxs[oob_samples[i]][1]][j];
+                for (int j = 0; j < instanceFeatures[0].length; j++) X[i][rf_theta[0].length + j] = instanceFeatures[rf_theta_inst_idxs[oob_samples[i]][1]][j];
                 oob_y[i] = rf_y[oob_samples[i]];
             }
             
@@ -235,7 +235,7 @@ public class CensoredRandomForest {
                 double[][] perm_X = new double[oob_samples.length][rf_nVars];
                 for (int i = 0; i < oob_samples.length; i++) {
                     for (int j = 0; j < rf_theta[0].length; j++) perm_X[i][j] = rf_theta[rf_theta_inst_idxs[oob_samples[i]][0]][j];
-                    for (int j = 0; j < rf_theta[0].length; j++) perm_X[i][rf_theta[0].length + j] = instanceFeatures[rf_theta_inst_idxs[oob_samples[i]][1]][j];
+                    for (int j = 0; j < instanceFeatures[0].length; j++) perm_X[i][rf_theta[0].length + j] = instanceFeatures[rf_theta_inst_idxs[oob_samples[i]][1]][j];
                     
                     perm_X[perm.get(i)][v] = X[i][v];
                     oob_y[i] = rf_y[oob_samples[i]];
@@ -248,9 +248,7 @@ public class CensoredRandomForest {
                 }
             }
         }
-        
-        System.out.println("root Mean RSS: " + Math.sqrt(Utils.mean(RSS_t)));
-        
+
         double[] VI = new double[rf_nVars];
         for (int v = 0; v < rf_nVars; v++) {
             VI[v] = 0;
