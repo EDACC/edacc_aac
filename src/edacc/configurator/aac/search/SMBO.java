@@ -45,6 +45,10 @@ import edacc.parameterspace.domain.OrdinalDomain;
 import edacc.parameterspace.domain.RealDomain;
 import edacc.parameterspace.graph.ParameterGraph;
 
+/*
+ * TODO:
+ * - revisit known configurations (when the EI optimization gives an already evaluated configuration)
+ */
 public class SMBO extends SearchMethods {
     private ParameterGraph pspace;
     private Set<SolverConfiguration> generatedConfigs = new HashSet<SolverConfiguration>();
@@ -61,6 +65,8 @@ public class SMBO extends SearchMethods {
     private CensoredRandomForest model;
     
     private CostFunction par1CostFunc;
+    
+    private int randomSeqNum = 0;
     
     // Configurable parameters
     private boolean logModel = true;
@@ -188,18 +194,16 @@ public class SMBO extends SearchMethods {
 
     @Override
     public List<SolverConfiguration> generateNewSC(int num) throws Exception {
-        if (generatedConfigs.isEmpty()) {
+        if (generatedConfigs.size() < numInitialConfigurationsFactor * configurableParameters.size()) {
+            List<SolverConfiguration> rssConfigs = new LinkedList<SolverConfiguration>();
             // Start the search with an initial design of random configurations
-            for (int i = 0; i < numInitialConfigurationsFactor * configurableParameters.size(); i++) {
-                ParameterConfiguration pc = mapRealTupleToParameters(sequenceValues[i]);
-                int idSC = api.createSolverConfig(parameters.getIdExperiment(), pc, "SN: " + i);
-                generatedConfigs.add(new SolverConfiguration(idSC, pc, parameters.getStatistics()));
+            for (int i = 0; i < Math.min(num, numInitialConfigurationsFactor * configurableParameters.size() - generatedConfigs.size()); i++) {
+                ParameterConfiguration pc = mapRealTupleToParameters(sequenceValues[randomSeqNum++]);
+                int idSC = api.createSolverConfig(parameters.getIdExperiment(), pc, "SN: " + randomSeqNum);
+                rssConfigs.add(new SolverConfiguration(idSC, pc, parameters.getStatistics()));
             }
-            return new ArrayList<SolverConfiguration>(generatedConfigs);
-        }
-        
-        if (generatedConfigs.size() <= numInitialConfigurationsFactor * configurableParameters.size()) {
-            for (SolverConfiguration sc: generatedConfigs) if (sc.getNumFinishedJobs() == 0) return new ArrayList<SolverConfiguration>();
+            generatedConfigs.addAll(rssConfigs);
+            return rssConfigs;
         }
         
         // Update the model
@@ -219,7 +223,7 @@ public class SMBO extends SearchMethods {
         }
         if (bestConfigs.isEmpty()) bestConfigs.addAll(generatedConfigs);
         Collections.sort(bestConfigs);
-        int numConfigsToGenerate = Math.min(20, num - newConfigs.size());
+        int numConfigsToGenerate = Math.min(40, num - newConfigs.size());
         
         double f_min = bestConfigs.get(0).getCost();
         if (logModel) f_min = Math.log10(f_min);

@@ -26,10 +26,7 @@ import edacc.model.ExperimentResult;
 import edacc.model.StatusCode;
 
 /**
- * SMFRace configuration racing method. See
- * "On the use of a Friedman-type statistic in balanced and unbalanced block designs. by Skillings JH, Mack GA."
- * and "F-Race and iterated F-Race: An overview" by Birattari, Yuan, Balaprakash
- * and Stützle.
+ * SMFRace racing method.
  * 
  * Each configuration in the race is evaluated on the same course of instances.
  * As soon as a family-wise hypothesis test indicates that at least one
@@ -39,7 +36,9 @@ import edacc.model.StatusCode;
  * configurations are further evaluated until <code>min_survive</code>
  * configurations remain at which point the race is over.
  * 
- * TODO: make it work
+ * TODO:
+ * - instance specific timeouts
+ * - use stratified cluster course
  * 
  * @author daniel
  * 
@@ -117,9 +116,7 @@ public class SMFRace extends RacingMethods {
     @Override
     public int compareTo(SolverConfiguration sc1, SolverConfiguration sc2) {
         this.numCompCalls++;
-        return sc1.compareTo(sc2); // this isn't actually used within FRace but
-                                   // let's provide it for other search
-                                   // procedures
+        return sc1.compareTo(sc2);
     }
 
     @Override
@@ -159,6 +156,7 @@ public class SMFRace extends RacingMethods {
                 double[] c2 = new double[courseResults.size()];
                 boolean[] x1_censored = new boolean[courseResults.size()];
                 boolean[] x2_censored = new boolean[courseResults.size()];
+                boolean anyCensored = false;
                 for (int i = 0; i < courseResults.size(); i++) {
                     c1[i] = parameters.getStatistics().getCostFunction()
                             .singleCost(courseResults.get(i).get(raceConfigurations.get(0)));
@@ -168,17 +166,31 @@ public class SMFRace extends RacingMethods {
                             .singleCost(courseResults.get(i).get(raceConfigurations.get(1)));
                     x2_censored[i] = courseResults.get(i).get(raceConfigurations.get(1)).getStatus()
                             .equals(StatusCode.TIMELIMIT);
+                    anyCensored |= x1_censored[i] | x2_censored[i];
                 }
     
-                LogrankTest lr = new LogrankTest(rengine);
-                if (lr.pValue(c1, c2, x1_censored, x2_censored) < alpha) {
-                    if (raceConfigurations.get(0).compareTo(raceConfigurations.get(1)) == 1) {
-                        raceConfigurations.remove(1);
+                if (anyCensored) {
+                    LogrankTest lr = new LogrankTest(rengine);
+                    if (lr.pValue(c1, c2, x1_censored, x2_censored) < alpha) {
+                        if (raceConfigurations.get(0).compareTo(raceConfigurations.get(1)) == 1) {
+                            raceConfigurations.remove(1);
+                        } else {
+                            raceConfigurations.remove(0);
+                        }
                     } else {
-                        raceConfigurations.remove(0);
+                        pacc.log("Test didn't find a significant difference between the two solver configurations");
                     }
                 } else {
-                    pacc.log("Test didn't find a significant difference between the two solver configurations");
+                    WilcoxonSignedRankTest wtest = new WilcoxonSignedRankTest();
+                    if (wtest.wilcoxonSignedRankTest(c1, c2, false) < alpha) {
+                        if (raceConfigurations.get(0).compareTo(raceConfigurations.get(1)) == 1) {
+                            raceConfigurations.remove(1);
+                        } else {
+                            raceConfigurations.remove(0);
+                        }
+                    } else {
+                        pacc.log("Test didn't find a significant difference between the two solver configurations");
+                    }
                 }
             } else {
                 boolean[][] censored = new boolean[courseResults.size()][raceConfigurations.size()];
@@ -220,7 +232,8 @@ public class SMFRace extends RacingMethods {
                     int bestConfigurationIx = raceConfigurations.indexOf(bestConfiguration);
                     int bestConfigEvaluations = bestConfiguration.getNumFinishedJobs();
                     boolean expandBest = false;
-    
+                    boolean anyXcensored = false;
+                    
                     // Prepare the data of the best configuration
                     double[] x = new double[courseResults.size()];
                     boolean[] x_censored = new boolean[courseResults.size()];
@@ -232,6 +245,7 @@ public class SMFRace extends RacingMethods {
                             x[i] = Double.valueOf(parameters.getStatistics().getCostFunction()
                                     .singleCost(courseResults.get(i).get(bestConfiguration)));
                             x_censored[i] = !courseResults.get(i).get(bestConfiguration).getResultCode().isCorrect();
+                            anyXcensored |= x_censored[i];
                         }
                     }
     
@@ -243,6 +257,7 @@ public class SMFRace extends RacingMethods {
     
                         double[] y = new double[courseResults.size()];
                         boolean[] y_censored = new boolean[courseResults.size()];
+                        boolean anyYcensored = false;
     
                         for (int i = 0; i < courseResults.size(); i++) {
                             if (courseResults.get(i).get(raceConfigurations.get(j)) == null) {
@@ -252,19 +267,25 @@ public class SMFRace extends RacingMethods {
                                 y[i] = Double.valueOf(parameters.getStatistics().getCostFunction()
                                         .singleCost(courseResults.get(i).get(raceConfigurations.get(j))));
                                 y_censored[i] = !courseResults.get(i).get(raceConfigurations.get(j)).getResultCode().isCorrect();
+                                anyYcensored |= y_censored[i];
                             }
                         }
     
-                        LogrankTest lr = new LogrankTest(rengine);
-                        double lr_pvalue = lr.pValue(x, y, x_censored, y_censored);
-                        pValueByConfiguration.put(raceConfigurations.get(j), lr_pvalue);
+                        if (anyXcensored || anyYcensored) {
+                            LogrankTest lr = new LogrankTest(rengine);
+                            double lr_pvalue = lr.pValue(x, y, x_censored, y_censored);
+                            pValueByConfiguration.put(raceConfigurations.get(j), lr_pvalue);
+                        } else {
+                            WilcoxonSignedRankTest wtest = new WilcoxonSignedRankTest();
+                            pValueByConfiguration.put(raceConfigurations.get(j), wtest.wilcoxonSignedRankTest(x, y, false));
+                        }
                     }
     
                     // Holm-Bonferroni method rejecting as many null-hypothesis as the significance level allows
                     Map<SolverConfiguration, Double> sortedpValueByConfiguration = sortByValue(pValueByConfiguration);
                     int k = raceConfigurations.size() - 1;
                     for (SolverConfiguration sc : sortedpValueByConfiguration.keySet()) {
-                        if (sortedpValueByConfiguration.get(sc).doubleValue() < alpha / (float) k) {
+                        if (sortedpValueByConfiguration.get(sc).doubleValue() < alpha) { /// (float) k) { // TODO
                             SolverConfiguration worseConfig = sc;
                             if (incumbents.contains(worseConfig)) {
                                 // The worse configuration is one of the current incumbents.
