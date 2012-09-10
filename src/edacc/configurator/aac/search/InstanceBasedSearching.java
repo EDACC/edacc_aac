@@ -115,18 +115,20 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 	}
 
 	@Override
-	public void jobFinished(ExperimentResult result) {
-		HashMap<Integer, List<ExperimentResult>> resultMap = instanceSCMap.get(result.getInstanceId());
-		if (resultMap == null) {
-			resultMap = new HashMap<Integer, List<ExperimentResult>>();
-			instanceSCMap.put(result.getInstanceId(), resultMap);
+	public void jobsFinished(List<ExperimentResult> _results) {
+		for (ExperimentResult result : _results) {
+			HashMap<Integer, List<ExperimentResult>> resultMap = instanceSCMap.get(result.getInstanceId());
+			if (resultMap == null) {
+				resultMap = new HashMap<Integer, List<ExperimentResult>>();
+				instanceSCMap.put(result.getInstanceId(), resultMap);
+			}
+			List<ExperimentResult> results = resultMap.get(result.getSolverConfigId());
+			if (results == null) {
+				results = new LinkedList<ExperimentResult>();
+				resultMap.put(result.getSolverConfigId(), results);
+			}
+			results.add(result);
 		}
-		List<ExperimentResult> results = resultMap.get(result.getSolverConfigId());
-		if (results == null) {
-			results = new LinkedList<ExperimentResult>();
-			resultMap.put(result.getSolverConfigId(), results);
-		}
-		results.add(result);
 	}
 
 }

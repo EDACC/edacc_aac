@@ -917,7 +917,7 @@ public class Clustering implements Serializable {
 				Thread[] threads = new Thread[cores];
 				System.out.println("Starting " + cores + " threads for property calculation");
 				
-				for (int i = 0; i < cores; i++) {
+			/*	for (int i = 0; i < cores; i++) {
 					threads[i] = new Thread(new Runnable() {
 						
 						@Override
@@ -929,12 +929,12 @@ public class Clustering implements Serializable {
 										break;
 									}
 									id = instanceIdsToGo.poll();
-									System.out.println("Calculating feature vector " + (featureMapping.size() + 1) + " / " + size);
 								}
 								try {
 									float[] features = calculateFeatures(id, new File(featureDirectory), featuresCacheFolder);
 									synchronized (instanceIdsToGo) {
 										featureMapping.put(id, features);
+										System.out.println("Calculated feature vector " + featureMapping.size() + " / " + size);
 									}
 								} catch (Exception ex) {
 									ex.printStackTrace();
@@ -952,7 +952,7 @@ public class Clustering implements Serializable {
 				
 				for (Thread thread : threads) {
 					thread.join();
-				}
+				}*/
 				System.out.println("Done.");
 				
 				// remove me
@@ -1053,7 +1053,6 @@ public class Clustering implements Serializable {
 							break;
 						}
 					}
-					inf = false;
 					float c = inf ? Float.POSITIVE_INFINITY : f.calculateCost(r);
 					C.update(p.getFirst(), p.getSecond(), c);
 					// System.out.println("" + sc.getId() + ":" + i + ":" + c);
@@ -1071,9 +1070,12 @@ public class Clustering implements Serializable {
 				C.remove(scid);
 			}
 		}
-		
-		System.out.println(C.performance(C.getClustering(false, 0.9f)));
-		System.out.println(C.getClustering(false, 0.9f).size());
+		HashMap<Integer, List<Integer>> clu = C.getClustering(false);//, 0.9f);
+		System.out.println(C.performance(clu));
+		System.out.println(clu.keySet());
+		for (int scid: clu.keySet()) {
+			System.out.println(SolverConfigurationDAO.getSolverConfigurationById(scid).getName());
+		}
 		
 		if (Boolean.parseBoolean(properties.getProperty("ShowClustering"))) {
 			System.out.println("Generating clustering for single decision tree using default method..");
@@ -1195,7 +1197,7 @@ public class Clustering implements Serializable {
 					scidWeight.remove(0);
 				}
 			}
-			List<Integer> rem_scids = new LinkedList<Integer>();
+			/*List<Integer> rem_scids = new LinkedList<Integer>();
 			for (int scid : C.M.keySet()) {
 				if (!(scid == 1048 || scid == 1047)) {
 					rem_scids.add(scid);
@@ -1204,7 +1206,7 @@ public class Clustering implements Serializable {
 			}
 			for (int scid : rem_scids) {
 				C.remove(scid);
-			}
+			}*/
 			C.printM();
 
 			/*HashMap<Integer, List<Integer>> c = new HashMap<Integer, List<Integer>>(); //C.getClustering(false);
@@ -1220,12 +1222,12 @@ public class Clustering implements Serializable {
 			}
 			c.put(1048, k5instances);
 			c.put(1047, k7instances);	*/		
-			HashMap<Integer, List<Integer>> c = C.getClustering(false);
+			HashMap<Integer, List<Integer>> c = C.getClustering(false, 0.9f);
 			
 			BufferedReader input = new BufferedReader(new InputStreamReader(System.in));
-			float max_perf = 0.f;
+			float max_perf = -1.f;
 			float min_perf = Float.POSITIVE_INFINITY;
-			for (int tr = 0; tr < 20; tr++) {
+			for (int tr = 0; tr < 1; tr++) {
 
 				System.out.println("Building decision tree..");
 				/*
@@ -1251,7 +1253,7 @@ public class Clustering implements Serializable {
 			System.out.println("Performance(T) = [" + min_perf + "," + max_perf + "]");
 			//while (input.readLine() != null);
 			
-			C.tree.printDot(new File("D:\\proar\\bla.dot"));
+			//C.tree.printDot(new File("D:\\proar\\bla.dot"));
 			
 		}
 		

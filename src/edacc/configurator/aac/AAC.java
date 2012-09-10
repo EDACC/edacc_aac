@@ -712,9 +712,7 @@ public class AAC {
 	
 	private void notifyJobListeners(List<ExperimentResult> jobs) throws Exception {
 		for (JobListener listener : jobListeners) {
-			for (ExperimentResult er : jobs) {
-				listener.jobFinished(er);
-			}
+			listener.jobsFinished(jobs);
 		}
 	}
 	/**
