@@ -31,8 +31,8 @@ public class PropertyClustering  extends ClusteringTemplate implements ClusterMe
     private final int staticClusterNumber = 10;
     private boolean useVarianceCriterion = true;
         
-    public PropertyClustering(AAC aac, Parameters params, API api, Random rng, List<SolverConfiguration> scs) throws Exception{
-        super(aac, params, api, rng, scs);
+    public PropertyClustering(AAC aac, Parameters params, API api, Random rng) throws Exception{
+        super(aac, params, api, rng, null);
         
         List<Instance> instanceList = api.getExperimentInstances(params.getIdExperiment());
         instanceIdMap = new HashMap<Integer, Instance>();
