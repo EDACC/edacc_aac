@@ -1041,22 +1041,24 @@ public class Challenge extends RacingMethods implements JobListener {
 	}
 
 	@Override
-	public void jobFinished(ExperimentResult result) {
-		SolverConfigurationMetaData sc = allSolverConfigs.get(result.getSolverConfigId());
-		if (sc == null) {
-			return;
-		}
-		List<ExperimentResult> results = new LinkedList<ExperimentResult>(); 
-		boolean hasCost = false;
-		for (ExperimentResult r : sc.solverConfig.getJobs()) {
-			if (r.getInstanceId() == result.getInstanceId()) {
-				results.add(r);
-				if (r.getResultCode().isCorrect()) {
-					hasCost = true;
+	public void jobsFinished(List<ExperimentResult> _results) {
+		for (ExperimentResult result : _results) {
+			SolverConfigurationMetaData sc = allSolverConfigs.get(result.getSolverConfigId());
+			if (sc == null) {
+				return;
+			}
+			List<ExperimentResult> results = new LinkedList<ExperimentResult>();
+			boolean hasCost = false;
+			for (ExperimentResult r : sc.solverConfig.getJobs()) {
+				if (r.getInstanceId() == result.getInstanceId()) {
+					results.add(r);
+					if (r.getResultCode().isCorrect()) {
+						hasCost = true;
+					}
 				}
 			}
+			float cost = hasCost ? parameters.getStatistics().getCostFunction().calculateCost(results) : Float.POSITIVE_INFINITY;
+			clustering.update(result.getSolverConfigId(), result.getInstanceId(), cost);
 		}
-		float cost = hasCost ? parameters.getStatistics().getCostFunction().calculateCost(results) : Float.POSITIVE_INFINITY;
-		clustering.update(result.getSolverConfigId(), result.getInstanceId(), cost);
 	}
 }

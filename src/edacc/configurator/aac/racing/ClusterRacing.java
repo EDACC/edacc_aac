@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.Random;
 
 import edacc.api.API;
@@ -29,6 +30,8 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 	private HashSet<Integer> removedSCIds;
 	private HashMap<Integer, List<ExperimentResult>> instanceJobs;
 	private HashSet<Integer> instanceJobsLowerLimit;
+	
+	private PARX par1 = new PARX(Experiment.Cost.resultTime, true, 0, 1);
 	
 	private boolean useAdaptiveInstanceTimeouts = true;
 	private int instanceTimeoutsMinNumJobs = 11;
@@ -115,7 +118,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 				pacc.addSolverConfigurationToListNewSC(sc);
 			} 
 
-			if (data.racingScs.isEmpty() && !c.containsKey(data.sc.getIdSolverConfiguration())) {
+			if (data.racingScs.isEmpty() && data.competitors.isEmpty() && !c.containsKey(data.sc.getIdSolverConfiguration())) {
 				pacc.log("Removing " + data.sc.getIdSolverConfiguration() + ".");
 				removedSCIds.add(data.sc.getIdSolverConfiguration());
 				clustering.remove(data.sc.getIdSolverConfiguration());
@@ -175,7 +178,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 	}
 	
 	public void updateName(SolverConfigurationMetaData data) {		
-		data.sc.setNameRacing("Num races: " + data.racingScs.size() + (removedSCIds.contains(data.sc.getIdSolverConfiguration()) ? " (removed)" : ""));
+		data.sc.setNameRacing("Num races: " + data.racingScs.size() + " Num competitors: " + data.competitors.size() + (removedSCIds.contains(data.sc.getIdSolverConfiguration()) ? " (removed)" : ""));
 	}
 	
 	private void addRuns(SolverConfiguration sc, int instanceid, int priority) throws Exception {
@@ -251,9 +254,10 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 			int instanceid = instanceIds.get(rng.nextInt(instanceIds.size()));
 			addRuns(data.sc, instanceid, Integer.MAX_VALUE - data.sc.getIdSolverConfiguration());
 		} else {
-			//boolean removeSc = false;
-			//boolean removeInc = false;
+			boolean removeScFromRace = false;
 			if (parameters.getStatistics().compare(hisJobsAll, myJobsAll) <= 0) {
+				// race goes on..
+				
 				LinkedList<Integer> possibleInstances = new LinkedList<Integer>();
 				int icount = 0;
 				for (int id : instanceIds) {
@@ -266,7 +270,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 				
 				if (possibleInstances.isEmpty()) {
 					pacc.log("No more instances for " + data.sc.getIdSolverConfiguration() + " vs " + incumbent.getIdSolverConfiguration());
-					//removeInc = true;
+					removeScFromRace = true;
 				} else {
 					for (int i = 0; i < icount && !possibleInstances.isEmpty(); i++) {
 						int rand = rng.nextInt(possibleInstances.size());
@@ -284,22 +288,27 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 					d.unsolved.remove(rand);
 				}
 				pacc.log("Solver Configuration " + data.sc.getIdSolverConfiguration() + " lost against " + incumbent.getIdSolverConfiguration());
-				//removeSc = true;
+				removeScFromRace = true;
 			}
-			/*if (removeSc) {
-				for (int i = 0; i < data.racingScs.size(); i++) {
+			if (removeScFromRace) {
+				data.racingScs.remove(new Integer(incumbent.getIdSolverConfiguration()));
+				/*for (int i = 0; i < data.racingScs.size(); i++) {
 					if (data.racingScs.get(i) == incumbent.getIdSolverConfiguration()) {
 						data.racingScs.remove(i);
 						break;
 					}
-				}
-				if (data.racingScs.isEmpty()) {
-					pacc.log("Removing solver configuration " + data.sc.getIdSolverConfiguration() + " from list.");
-					removedSCIds.add(data.sc.getIdSolverConfiguration());
-					clustering.remove(data.sc.getIdSolverConfiguration());
-				}
-			}*/
+				}*/
+				scs.get(incumbent.getIdSolverConfiguration()).competitors.remove(new Integer(data.sc.getIdSolverConfiguration()));
+			}
 			
+			
+			// TODO: delete config? (inc and/or racing)
+			/*
+			if (data.racingScs.isEmpty()) {
+				pacc.log("Removing solver configuration " + data.sc.getIdSolverConfiguration() + " from list.");
+				removedSCIds.add(data.sc.getIdSolverConfiguration());
+				clustering.remove(data.sc.getIdSolverConfiguration());
+			}*/
 		}
 	}
 	
@@ -309,13 +318,19 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		List<Integer> unsolved;
 		HashMap<Integer, List<Integer>> c;
 		List<Integer> racingScs;
+		List<Integer> competitors;
 		
 		public SolverConfigurationMetaData(SolverConfiguration sc, List<Integer> unsolved, HashMap<Integer, List<Integer>> c) {
 			this.sc = sc;
 			this.unsolved = unsolved;
 			this.c = c;
 			this.racingScs = new LinkedList<Integer>();
-			this.racingScs.addAll(c.keySet());
+			this.racingScs.addAll(c.keySet());			
+			this.competitors = new LinkedList<Integer>();
+			
+			for (Integer i : racingScs) {
+				scs.get(i).competitors.add(sc.getIdSolverConfiguration());
+			}
 		}
 	}
 	
@@ -360,74 +375,85 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 				solved |= er.getResultCode().isCorrect();
 			}
 		}
-		float cost = (solved ? new PARX(Experiment.Cost.resultTime, true, 0, 1).calculateCost(list) : Float.POSITIVE_INFINITY);
+		float cost = (solved ? par1.calculateCost(list) : Float.POSITIVE_INFINITY);
 		clustering.update(sc.getIdSolverConfiguration(), instanceId, cost);
 	}
 
 
 	@Override
-	public void jobFinished(ExperimentResult result) throws Exception {
-		updateModel(scs.get(result.getSolverConfigId()).sc, result.getInstanceId());
+	public void jobsFinished(List<ExperimentResult> results) throws Exception {
+		for (ExperimentResult result: results) {
+			updateModel(scs.get(result.getSolverConfigId()).sc, result.getInstanceId());
+		}
 		
 		if (useAdaptiveInstanceTimeouts) {
-			List<ExperimentResult> jobs = instanceJobs.get(result.getInstanceId());
-			if (jobs == null) {
-				jobs = new LinkedList<ExperimentResult>();
-				instanceJobs.put(result.getInstanceId(), jobs);
-			}
-			jobs.add(result);
-			for (int i = jobs.size()-1; i >= 0; i--) {
-				if (removedSCIds.contains(jobs.get(i).getSolverConfigId())) {
-					jobs.remove(i);
+			HashSet<Integer> instanceIds = new HashSet<Integer>();
+			for (ExperimentResult result : results) {
+				instanceIds.add(result.getInstanceId());
+
+				List<ExperimentResult> jobs = instanceJobs.get(result.getInstanceId());
+				if (jobs == null) {
+					jobs = new LinkedList<ExperimentResult>();
+					instanceJobs.put(result.getInstanceId(), jobs);
 				}
+				jobs.add(result);
 			}
 			
-			if (jobs.size() > instanceTimeoutsMinNumJobs) {
-				int current_limit = pacc.getCPUTimeLimit(result.getInstanceId());
-				int m = Math.round(median(jobs) * instanceTimeoutFactor);
-				if (m < 1)
-					m = 1;
-				if (m < current_limit) {
-					List<SolverConfiguration> tmp = new LinkedList<SolverConfiguration>();
-					for (SolverConfigurationMetaData data : scs.values()) {
-						if (!removedSCIds.contains(data.sc.getIdSolverConfiguration())) {
-							tmp.add(data.sc);
-						}
-					}
-					pacc.log("Setting CPU Timelimit of " + result.getInstanceId() + " to " + m + " (lower).");
-					for (SolverConfiguration config : pacc.changeCPUTimeLimit(result.getInstanceId(), m, tmp, true, true)) {
-						pacc.addSolverConfigurationToListNewSC(config);
-					}
-					
-					for (SolverConfiguration config : tmp) {
-						updateModel(config, result.getInstanceId());
-					}
-					
-					instanceJobsLowerLimit.add(result.getInstanceId());
-				} else if (!instanceJobsLowerLimit.contains(result.getInstanceId())) {
-					List<SolverConfiguration> tmp = new LinkedList<SolverConfiguration>();
-					for (SolverConfigurationMetaData data : scs.values()) {
-						if (!removedSCIds.contains(data.sc.getIdSolverConfiguration())) {
-							tmp.add(data.sc);
-						}
-					}
-					m = Math.min(limitCPUTimeMaxCPUTime, Math.round(current_limit * instanceTimeoutFactor));
-					if (m > current_limit) {
-						pacc.log("Setting CPU Timelimit of " + result.getInstanceId() + " to " + m + " (higher).");
-						for (SolverConfiguration config : pacc.changeCPUTimeLimit(result.getInstanceId(), m, tmp, true, true)) {
-							pacc.addSolverConfigurationToListNewSC(config);
-						}
-						
-						for (SolverConfiguration config : tmp) {
-							updateModel(config, result.getInstanceId());
-						}
+			for (int instanceId : instanceIds) {
+				List<ExperimentResult> jobs = instanceJobs.get(instanceId);
+				for (int i = jobs.size() - 1; i >= 0; i--) {
+					if (removedSCIds.contains(jobs.get(i).getSolverConfigId())) {
+						jobs.remove(i);
 					}
 				}
 				
-				// remove restarted jobs
-				for (int i = jobs.size()-1; i>=0; i--) {
-					if (jobs.get(i).getStatus().equals(StatusCode.NOT_STARTED)) {
-						jobs.remove(i);
+				if (jobs.size() > instanceTimeoutsMinNumJobs) {
+					int current_limit = pacc.getCPUTimeLimit(instanceId);
+					int m = Math.round(median(jobs) * instanceTimeoutFactor);
+					if (m < 1)
+						m = 1;
+					if (m < current_limit) {
+						List<SolverConfiguration> tmp = new LinkedList<SolverConfiguration>();
+						for (SolverConfigurationMetaData data : scs.values()) {
+							if (!removedSCIds.contains(data.sc.getIdSolverConfiguration())) {
+								tmp.add(data.sc);
+							}
+						}
+						pacc.log("Setting CPU Timelimit of " + instanceId + " to " + m + " (lower).");
+						for (SolverConfiguration config : pacc.changeCPUTimeLimit(instanceId, m, tmp, true, true)) {
+							pacc.addSolverConfigurationToListNewSC(config);
+						}
+						
+						for (SolverConfiguration sc : tmp) {
+							updateModel(sc, instanceId);
+						}
+
+						instanceJobsLowerLimit.add(instanceId);
+					} else if (!instanceJobsLowerLimit.contains(instanceId)) {
+						List<SolverConfiguration> tmp = new LinkedList<SolverConfiguration>();
+						for (SolverConfigurationMetaData data : scs.values()) {
+							if (!removedSCIds.contains(data.sc.getIdSolverConfiguration())) {
+								tmp.add(data.sc);
+							}
+						}
+						m = Math.min(limitCPUTimeMaxCPUTime, Math.round(current_limit * instanceTimeoutFactor));
+						if (m > current_limit) {
+							pacc.log("Setting CPU Timelimit of " + instanceId + " to " + m + " (higher).");
+							for (SolverConfiguration config : pacc.changeCPUTimeLimit(instanceId, m, tmp, true, true)) {
+								pacc.addSolverConfigurationToListNewSC(config);
+							}
+							
+							for (SolverConfiguration sc : tmp) {
+								updateModel(sc, instanceId);
+							}
+						}
+					}
+
+					// remove restarted jobs
+					for (int i = jobs.size() - 1; i >= 0; i--) {
+						if (jobs.get(i).getStatus().equals(StatusCode.NOT_STARTED)) {
+							jobs.remove(i);
+						}
 					}
 				}
 			}
