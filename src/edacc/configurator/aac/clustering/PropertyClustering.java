@@ -17,7 +17,7 @@ import org.apache.commons.math.stat.descriptive.moment.Variance;
 
 /**
  *
- * @author fr
+ * @author mugrauer
  */
 public class PropertyClustering  extends ClusteringTemplate implements ClusterMethods{
     protected HashMap<Integer, Instance> instanceIdMap;
