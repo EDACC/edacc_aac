@@ -1,9 +1,9 @@
-package edacc.configurator.aac.racing.challenge;
+package edacc.configurator.aac.solvercreator;
 
 import java.util.HashMap;
 import java.util.List;
 
-public class AvgDist {
+public class MinDist {
 	public static String getParameters(Clustering C, float[] features) {
 		HashMap<Integer, List<Integer>> c = C.getClustering(true);
 		float[] normalize = new float[features.length];
@@ -30,7 +30,6 @@ public class AvgDist {
 		String params = null;
 		float mindist = Float.POSITIVE_INFINITY;
 		for (int scid : c.keySet()) {
-			float d = 0.f;
 			for (int iid : c.get(scid)) {
 				float[] f = C.F.get(iid);
 				for (int i = 0; i < f.length; i++) {
@@ -38,15 +37,14 @@ public class AvgDist {
 						f[i] /= normalize[i];
 				}
 				
-				d += dist(f, features);
-			}
-			d /= (float) c.get(scid).size();
-			if (d < mindist) {
-				mindist = d;
-				params = C.P.get(scid);
+				float d = dist(f, features);
+				if (d < mindist) {
+					mindist = d;
+					params = C.P.get(scid);
+				}
 			}
 		}
-		System.out.println("c avgdist: " + mindist);
+		System.out.println("c mindist: " + mindist);
 		return params;
 	}
 	
@@ -61,4 +59,5 @@ public class AvgDist {
 	private static float dist(float f1, float f2) {
 		return Math.abs(f1 - f2);
 	}
+	
 }

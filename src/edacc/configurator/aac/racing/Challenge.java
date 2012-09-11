@@ -16,7 +16,7 @@ import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.JobListener;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
-import edacc.configurator.aac.racing.challenge.Clustering;
+import edacc.configurator.aac.solvercreator.Clustering;
 import edacc.model.Experiment;
 import edacc.model.ExperimentResult;
 import edacc.model.Instance;

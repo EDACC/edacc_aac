@@ -1,4 +1,4 @@
-package edacc.configurator.aac.racing.challenge.test;
+package edacc.configurator.aac.solvercreator.test;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -13,7 +13,7 @@ import java.util.Set;
 import java.util.Comparator;
 import java.util.Map.Entry;
 
-import edacc.configurator.aac.racing.challenge.Clustering;
+import edacc.configurator.aac.solvercreator.Clustering;
 import edacc.parameterspace.Parameter;
 import edacc.parameterspace.ParameterConfiguration;
 import edacc.parameterspace.domain.*;

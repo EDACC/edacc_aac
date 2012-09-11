@@ -1,16 +1,26 @@
 package edacc.configurator.aac;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.math.BigInteger;
 
+import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Properties;
 
 import java.util.Random;
 import java.util.Scanner;
@@ -24,6 +34,11 @@ import edacc.configurator.aac.search.SearchMethods;
 import edacc.model.ConfigurationScenarioDAO;
 import edacc.model.Course;
 import edacc.model.DatabaseConnector;
+import edacc.model.Instance;
+import edacc.model.InstanceClassMustBeSourceException;
+import edacc.model.InstanceDAO;
+import edacc.model.InstanceNotInDBException;
+import edacc.model.NoConnectionToDBException;
 import edacc.model.ResultCode;
 import edacc.model.StatusCode;
 //import edacc.model.ExperimentDAO;
@@ -902,5 +917,87 @@ public class AAC {
 	 */
 	public void log_db(String message) throws Exception {
 		api.addOutput(parameters.getIdExperiment(), "[Date: " + new Date() + ",Walltime: " + getWallTime() + ",CPUTime: " + cumulatedCPUTime + ",NumSC: " + statNumSolverConfigs + ",NumJobs: " + statNumJobs + "] " + message + "\n");
+	}
+	
+	
+	public static float[] calculateFeatures(int instanceId, File featureFolder, File featuresCacheFolder) throws IOException, NoConnectionToDBException, InstanceClassMustBeSourceException, InstanceNotInDBException, InterruptedException, SQLException {
+		Properties properties = new Properties();
+		File propFile = new File(featureFolder, "features.properties");
+		FileInputStream in = new FileInputStream(propFile);
+		properties.load(in);
+		in.close();
+		String featuresRunCommand = properties.getProperty("FeaturesRunCommand");
+		String featuresParameters = properties.getProperty("FeaturesParameters");
+		String[] features = properties.getProperty("Features").split(",");
+		Instance instance = InstanceDAO.getById(instanceId);
+		
+		float[] res = new float[features.length];
+		
+		File cacheFile = null;
+		if (featuresCacheFolder != null) {
+			cacheFile = new File(featuresCacheFolder, instance.getMd5());
+		}
+		if (cacheFile != null) {
+			featuresCacheFolder.mkdirs();
+			
+			if (cacheFile.exists()) {
+				System.out.println("Found cached features.");
+				try {
+					BufferedReader br = new BufferedReader(new FileReader(cacheFile));
+					String[] featuresNames = br.readLine().split(",");
+					String[] f_str = br.readLine().split(",");
+					br.close();
+					if (f_str.length != features.length || !Arrays.equals(features, featuresNames)) {
+						System.err.println("Features changed? Recalculating!");
+					} else {
+						for (int i = 0; i < res.length; i++) {
+							res[i] = Float.parseFloat(f_str[i]);
+						}
+						return res;
+					}
+					
+				} catch (Exception ex) {
+					System.err.println("Could not load cache file: " + cacheFile.getAbsolutePath() + ". Recalculating features.");
+				}
+			}
+		}
+		
+		new File("tmp").mkdir();
+		File f = File.createTempFile("instance"+instanceId, "instance"+instanceId, new File("tmp"));
+		InstanceDAO.getBinaryFileOfInstance(instance, f, false, false);
+		
+		
+		//System.out.println("Call: " + featuresRunCommand + " " + featuresParameters + " " + f.getAbsolutePath());
+		
+		Process p = Runtime.getRuntime().exec(featuresRunCommand + " " + featuresParameters + " " + f.getAbsolutePath(), null, featureFolder);
+		BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
+		
+		String line;
+		while (((line = br.readLine()) != null) && line.startsWith("c "));
+		
+		String[] features_str = br.readLine().split(",");
+		for (int i = 0; i < features_str.length; i++) {
+			res[i] = Float.valueOf(features_str[i]);
+		}
+		br.close();
+		p.destroy();
+		f.delete();
+		
+		//System.out.println("Result: " + Arrays.toString(res));
+		if (cacheFile != null) {
+			cacheFile.delete();
+			BufferedWriter bw = new BufferedWriter(new FileWriter(cacheFile));
+			bw.write(properties.getProperty("Features") + '\n');
+			for (int i = 0; i < res.length; i++) {
+				bw.write(String.valueOf(res[i]));
+				if (i != res.length - 1) {
+					bw.write(',');
+				}
+			}
+			bw.write('\n');
+			bw.close();
+		}
+		
+		return res;
 	}
 }

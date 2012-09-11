@@ -1,16 +1,16 @@
-package edacc.configurator.aac.racing.challenge;
+package edacc.configurator.aac.solvercreator;
 
 import java.io.Serializable;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Random;
 
+import edacc.model.SolverConfigurationDAO;
 import edacc.util.Pair;
 
 public class RandomForest implements Serializable {
@@ -21,7 +21,7 @@ public class RandomForest implements Serializable {
 	private List<DecisionTree> forest;
 	private Random rng;
 	private float performance;
-	public RandomForest(Clustering clustering, Random rng, int treeCount, int n) {
+	public RandomForest(Clustering clustering, Random rng, int treeCount, int n) throws Exception {
 		forest = new LinkedList<DecisionTree>();
 		this.rng = rng;
 		List<Pair<Integer, Float>> scidWeight = new LinkedList<Pair<Integer, Float>>();
@@ -47,7 +47,17 @@ public class RandomForest implements Serializable {
 		});
 		
 		Clustering C_orig = new Clustering(clustering);
-	/*	int numConfigs =  Integer.parseInt("12");
+		
+		List<Integer> scids2 = new LinkedList<Integer>();
+		scids2.addAll(clustering.M.keySet());
+		
+		for (int scid : scids2) {
+			if (!SolverConfigurationDAO.getSolverConfigurationById(scid).getName().contains("BEST")) {
+				clustering.remove(scid);
+			}
+		}
+		
+		/*int numConfigs =  Integer.parseInt("10");
 		if (numConfigs != -1) {
 			while (scidWeight.size() > numConfigs) {
 				Pair<Integer, Float> p = scidWeight.get(0);
@@ -63,11 +73,13 @@ public class RandomForest implements Serializable {
 			instances.addAll(list);
 		}
 		
+		int num_valid_instances = Math.round(instances.size() * 0.2f);
+		
 		List<Integer> validationInstances = new LinkedList<Integer>();
-		while (validationInstances.size() < 125) {
+		while (validationInstances.size() < num_valid_instances) {
 			int rand = rng.nextInt(instances.size());
 			validationInstances.add(instances.get(rand));
-			instances.remove(rand);
+			//instances.remove(rand);
 		}
 		
 		while (forest.size() < treeCount) {
@@ -90,23 +102,29 @@ public class RandomForest implements Serializable {
 					tmp_c.put(e.getKey(), tmp);
 				}
 			}
-			DecisionTree tree = new DecisionTree(tmp_c, clustering.F, clustering.F.values().iterator().next().length, DecisionTree.ImpurityMeasure.ENTROPYINDEX, C_orig, clustering, 6, rng);
+			DecisionTree tree = new DecisionTree(tmp_c, DecisionTree.ImpurityMeasure.GINIINDEX, C_orig, clustering, 6, rng, 0.f);
+			tree.cleanup();
 			//if (tree.performance > 0.8f) {
 				forest.add(tree);
 			//}
 		}
 		float perf = 0.f;
 		float num = 0.f;
+		int timeouts = 0;
 		for (int iid: validationInstances) {
 			int clazz = getSolverConfig(C_orig.F.get(iid));
+			if (Float.isInfinite(C_orig.getCost(clazz, iid))) {
+				timeouts++;
+			} else {
+				perf += C_orig.getCost(clazz, iid);
+				num += C_orig.getMinimumCost(iid);
+			}
 			
-			perf += C_orig.getMembership(clazz, iid);
-			num+= C_orig.getMaximumMembership(iid);
-			
-			System.out.println(C_orig.getMembership(clazz, iid) + ":" + C_orig.getMaximumMembership(iid));
+			System.out.println(C_orig.getCost(clazz, iid) + ":" + C_orig.getMinimumCost(iid));
 		}
 		
-		performance = perf/num;
+		performance = num/perf;
+		System.out.println("[RandomForest] Timeouts: " + timeouts + " / " + validationInstances.size());
 		System.out.println("[RandomForest] #all = " + num);
 		System.out.println("[RandomForest] perf(RF) = " + performance);
 		

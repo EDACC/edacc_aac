@@ -1,4 +1,4 @@
-package edacc.configurator.aac.racing.challenge;
+package edacc.configurator.aac.solvercreator;
 
 import java.io.BufferedWriter;
 import java.io.File;
@@ -31,25 +31,22 @@ public class DecisionTree implements Serializable {
 	
 	private Node root;
 	private int num_features;
-	private HashMap<Integer, float[]> features;	
+	private transient HashMap<Integer, float[]> features;	
 	private HashSet<Integer> usedFeatures;	
 	private ImpurityMeasure impurityMeasure;
 	private int m;
 	private Random rng;
-	private Clustering clu2;
 	
 	public float performance;
 	
-	public DecisionTree(HashMap<Integer, List<Integer>> _clustering, HashMap<Integer, float[]> features, int num_features, ImpurityMeasure impurityMeasure, Clustering clu, Clustering clu2, int m, Random rng) {
-		
+	public DecisionTree(HashMap<Integer, List<Integer>> _clustering, ImpurityMeasure impurityMeasure, Clustering clustering_original, Clustering clu2, int m, Random rng, float validationInstancesFactor) {
 		// TODO: if there are equal feature vectors for different instances the training process might result in an exception!
 		this.rng = rng;
 		this.m = m;
-		this.clu2 = clu2;
 		
 		this.impurityMeasure = impurityMeasure;
-		this.num_features = num_features;
-		this.features = features;
+		this.num_features = clu2.getFeaturesCount();
+		this.features = clu2.getFeatures();
 		
 		HashMap<Integer, List<Integer>> clustering = new HashMap<Integer, List<Integer>>();
 		for (Entry<Integer, List<Integer>> entry : _clustering.entrySet()) {
@@ -60,68 +57,62 @@ public class DecisionTree implements Serializable {
 		
 		HashMap<Integer, List<Integer>> validationData = new HashMap<Integer, List<Integer>>();
 		
-		for (Entry<Integer, List<Integer>> entry : clustering.entrySet()) {
-			int n = entry.getValue().size() -  (int) Math.round(.8f * entry.getValue().size());
-			if (n > 0) {
-				List<Integer> v = new LinkedList<Integer>();
-				validationData.put(entry.getKey(), v);
-				for (int i = 0; i <n; i++) {
-					int rand = rng.nextInt(entry.getValue().size());
-					v.add(entry.getValue().get(rand));
-					entry.getValue().remove(rand);
+		if (validationInstancesFactor > 0.f) {
+			for (Entry<Integer, List<Integer>> entry : clustering.entrySet()) {
+				int n = Math.round(validationInstancesFactor * entry.getValue().size());
+				if (n > 0) {
+					List<Integer> v = new LinkedList<Integer>();
+					validationData.put(entry.getKey(), v);
+					for (int i = 0; i < n; i++) {
+						int rand = rng.nextInt(entry.getValue().size());
+						v.add(entry.getValue().get(rand));
+						entry.getValue().remove(rand);
+					}
 				}
 			}
 		}
-		
 		usedFeatures = new HashSet<Integer>();		
 		root = new Node(clustering);
 		
 		initializeNode(root);
 		train(root);
 		
-		
-		prune(root);
-		
+		//prune(root);
 		
 		Integer[] featureIndexes = usedFeatures.toArray(new Integer[0]);
 		Arrays.sort(featureIndexes);
 		System.out.println("[DecisionTree] Used " + usedFeatures.size() + " features of " + num_features);
 		System.out.println("[DecisionTree] Feature indexes are: " + Arrays.toString(featureIndexes));
-		
-		//float cost_tree = 0.f;
-		//float cost_best = 0.f;
-		
-		float num = 0;
-		float perf = 0;
-		for (Entry<Integer, List<Integer>> entry : validationData.entrySet()) {
-			for (int instanceid : entry.getValue()) {
-				int clazz = this.query(features.get(instanceid), entry.getKey()).getFirst();
-				//if (!entry.getKey().equals(clazz)) {
-				//	wrong+=1;
-				//}
-				//perf += clu.getMembership(clazz, instanceid);
-				//num+= clu.getMaximumMembership(instanceid);
-				System.out.println(instanceid + ".. " + clu.getCost(clazz, instanceid) + " : " + clu.getMinimumCost(instanceid));
-				perf += clu.getCost(clazz, instanceid);
-				num += clu.getMinimumCost(instanceid);
-				/*float cost = clu.getCost(clazz, instanceid);;
-				if (Float.isInfinite(cost))
-					cost_tree += 150.f * 10;
-				else 
-					cost_tree += cost;
-				cost_best += clu.getCost(entry.getKey(), instanceid);*/
+		if (validationData.size() > 0) {
+			float num = 0;
+			float perf = 0;
+			int timeouts = 0;
+			int num_i = 0;
+			for (Entry<Integer, List<Integer>> entry : validationData.entrySet()) {
+				for (int instanceid : entry.getValue()) {
+					int clazz = this.query(features.get(instanceid)).getFirst();
+					System.out.println(instanceid + ".. " + clustering_original.getCost(clazz, instanceid) + " : " + clustering_original.getMinimumCost(instanceid));
+					if (Float.isInfinite(clustering_original.getCost(clazz, instanceid))) {
+						timeouts++;
+					} else {
+						perf += clustering_original.getCost(clazz, instanceid);
+						num += clustering_original.getMinimumCost(instanceid);
+					}
+					num_i++;
+				}
 			}
+			performance = num / perf;// perf/num;
+			System.out.println("[DecisionTree] Timeouts: " + timeouts + " / " + num_i);
+			System.out.println("[DecisionTree] #all = " + num);
+			System.out.println("[DecisionTree] perf(T) = " + performance);
 		}
-		performance = num/perf;// perf/num;
-		System.out.println("[DecisionTree] #all = " + num);
-		System.out.println("[DecisionTree] perf(T) = " + performance);
 		//System.out.println("[DecisionTree] cost best - tree: " + cost_best + " - " + cost_tree);
 	}
 	
-	private void prune(Node node) {
+	private void prune(Node node, Clustering clu2) {
 		if (node.split_attribute != -1) {
-			prune(node.left);
-			prune(node.right);
+			prune(node.left, clu2);
+			prune(node.right, clu2);
 		}
 		
 		List<Integer> scids = new LinkedList<Integer>();
@@ -231,6 +222,23 @@ public class DecisionTree implements Serializable {
 	}
 	
 	/**
+	 * Cleans up all unnecessary data from the tree.
+	 */
+	public void cleanup() {
+		cleanup(root);
+	}
+	
+	private void cleanup(Node node) {
+		if (node.split_attribute == -1) {
+			return;
+		} else {
+			node.clustering = null;
+			cleanup(node.left);
+			cleanup(node.right);
+		}
+	}
+	
+	/**
 	 * Calculates the purity gain for the given split.
 	 * @param clustering
 	 * @param left
@@ -238,7 +246,7 @@ public class DecisionTree implements Serializable {
 	 * @return
 	 */
 	public float calculatePurityGain(HashMap<Integer, List<Integer>> clustering, HashMap<Integer, List<Integer>> left, HashMap<Integer, List<Integer>> right) {
-		/*int num_elems = 0;
+		int num_elems = 0;
 		int num_elems_left = 0;
 		int num_elems_right = 0;
 		
@@ -255,26 +263,7 @@ public class DecisionTree implements Serializable {
 		}
 		
 		float l = (float) num_elems_left / (float) num_elems;
-		float r = (float) num_elems_right / (float) num_elems;*/
-		
-		
-		float l = 0;
-		float r = 0;
-		float a = 0;
-		for (Entry<Integer, List<Integer>> e : left.entrySet()) {
-			for (int iid : e.getValue()) {
-				l += clu2.getMembership(e.getKey(), iid);
-			}
-		}
-		
-		for (Entry<Integer, List<Integer>> e : right.entrySet()) {
-			for (int iid : e.getValue()) {
-				r += clu2.getMembership(e.getKey(), iid);
-			}
-		}
-		a = l+r;
-		l /= a;
-		r /= a;
+		float r = (float) num_elems_right / (float) num_elems;
                 
 		switch (impurityMeasure) {
 		case MISCLASSIFICATIONINDEX:
@@ -282,7 +271,7 @@ public class DecisionTree implements Serializable {
 		case GINIINDEX:
 			return getGiniIndex(clustering) - l * getGiniIndex(left) - r * getGiniIndex(right);
 		case ENTROPYINDEX:
-			return getEntropyIndexMemberships(clustering) - l * getEntropyIndexMemberships(left) - r * getEntropyIndexMemberships(right);
+			return getEntropyIndex(clustering) - l * getEntropyIndex(left) - r * getEntropyIndex(right);
 		default:
 			throw new IllegalArgumentException("Unknown impurity measure: " + impurityMeasure.toString());
 		}
@@ -351,36 +340,6 @@ public class DecisionTree implements Serializable {
 		
 		for (List<Integer> list : values.values()) {
 			float p = (float) list.size() / (float) num_elems;
-			res -= p * Math.log(p) / Math.log(2);
-		}
-		return res;
-	}
-	
-	/**
-	 * Calculates the entropy index for the values.
-	 * @param values
-	 * @return
-	 */
-	public float getEntropyIndexMemberships(HashMap<Integer, List<Integer>> values) {
-		// calculate - sum p_j log p_j
-		HashMap<Integer, Float> cache = new HashMap<Integer, Float>();
-		float num_elems = 0;
-		for (Entry<Integer, List<Integer>> entry : values.entrySet()) {
-			float mem = 0;
-			for (Integer iid : entry.getValue()) {
-				mem += clu2.getMembership(entry.getKey(), iid);
-			}
-			cache.put(entry.getKey(), mem);
-			num_elems += mem;
-		}
-		float res = 0.f;
-		
-		for (Entry<Integer, List<Integer>> entry : values.entrySet()) {
-			/*float size = 0;
-			for (Integer iid : entry.getValue()) {
-				size += clu2.getMembership(entry.getKey(), iid);
-			}*/
-			float p = cache.get(entry.getKey()) / num_elems;
 			res -= p * Math.log(p) / Math.log(2);
 		}
 		return res;
@@ -532,83 +491,7 @@ public class DecisionTree implements Serializable {
 			throw new IllegalArgumentException("Invalid feature vector!");
 		}
 		return query(root, features);
-	}
-	
-	
-	/** REMOVE ME **/
-	
-	private Pair<Integer, List<Integer>> query(Node node, float[] features, int want, int depth) {
-		int all = 0;
-		int correct = 0;
-		
-		for (Entry<Integer, List<Integer>> p : node.clustering.entrySet()) {
-			if (p.getKey().equals(want)) {
-				correct += p.getValue().size();
-			} 
-			all += p.getValue().size();
-		}
-		System.out.println("[Query] purityGain: " + node.purityGain + " classes " + node.clustering.size() + " #correct/#all = " + ((float)correct / (float)all));
-		
-		
-		/*if (depth == 4) {
-			float mincost = Float.POSITIVE_INFINITY;
-			int scid = -1;
-			for (Entry<Integer, List<Integer>> e : node.clustering.entrySet()) {
-				float cost = 0.f;
-				for (List<Integer> instances : node.clustering.values()) {
-					for (Integer ii : instances) {
-						float f = clu2.getCost(e.getKey(), ii);;
-						cost += Float.isInfinite(f) ? 1000.f : f;
-					}
-				}
-				if (cost < mincost) {
-					mincost = cost;
-					scid = e.getKey();
-				}
-			}*
-			System.out.println("[Query] Returning " + scid + " with cost " + mincost);
-			
-			return new Pair<Integer, List<Integer>>(scid, node.clustering.get(scid));
-		}*/
-		
-		/*if (!Float.isNaN(node.purityGain) && node.purityGain < 1.5f) {
-			int max = 0;
-			Pair<Integer, List<Integer>> res = null;
-			for (Entry<Integer, List<Integer>> e : node.clustering.entrySet()) {
-				if (e.getValue().size() > max) {
-					max = e.getValue().size();
-					res = new Pair<Integer, List<Integer>>(e.getKey(), e.getValue());
-				}
-			}
-			return res;
-		}*/
-		
-		if (node.split_attribute == -1) {  //node.clustering.size() == 1) {
-			// return the cluster, there is only one; TODO: <---- this is not true!!!
-			return new Pair<Integer, List<Integer>>(node.clustering.keySet().iterator().next(), node.clustering.entrySet().iterator().next().getValue());
-		} else {
-			// determine the feature value of the feature vector and query the left/right node accordingly
-			float val = features[node.split_attribute];
-			if (val < node.split) {
-				return query(node.left, features, want, depth+1);
-			} else {
-				return query(node.right, features, want, depth+1);
-			}
-		}
-	}
-	
-	public Pair<Integer, List<Integer>> query(float[] features, int want) {
-		System.out.println("[Query] Start " + Arrays.toString(features));
-		if (features.length != num_features) {
-			throw new IllegalArgumentException("Invalid feature vector!");
-		}
-		Pair<Integer, List<Integer>> res = query(root, features, want, 0);
-		System.out.println("[Query] End");
-		return res;
-	}
-	
-	/** ENDOF REMOVE ME **/
-	
+	}	
 	
 	private class Node implements Serializable {
 		/**
@@ -716,7 +599,6 @@ public class DecisionTree implements Serializable {
 		features.put(104, new float[] {0.2f, 0.3f});
 		clustering.put(0, l1);
 		clustering.put(1, l2);
-		
 		//DecisionTree tree = new DecisionTree(clustering, features, n, measure);
 		//tree.printDot(new File("D:\\dot\\bla.dot"));
 	}
