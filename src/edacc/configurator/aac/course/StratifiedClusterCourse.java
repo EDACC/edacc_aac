@@ -41,7 +41,7 @@ public class StratifiedClusterCourse {
         if (maxExpansionFactor <= 0) throw new IllegalArgumentException("maxExpansionFactor has to be >= 1.");
         this.course = new ArrayList<InstanceIdSeed>(maxExpansionFactor * instances.size());
         
-        if (instanceFeatureNames.size() == 0) {
+        if (instanceFeatureNames == null || instanceFeatureNames.size() == 0) {
             // no features given, shuffle instances
             List<Instance> shuffledInstances = new LinkedList<Instance>(instances);
             Collections.shuffle(shuffledInstances);

@@ -36,8 +36,13 @@ public class LogrankTest {
         rengine.assign("combinedData", combinedData);
         rengine.assign("group", group);
         rengine.assign("combinedCensored", combinedCensored);
-        REXP res = rengine.eval("1 - pchisq(survdiff(Surv(combinedData, combinedCensored) ~ group)$chisq, 1)");
-        
+        Double propHazardPval = rengine.eval("proprate2.gs(Surv(combinedData, combinedCensored), group)$pval").asDouble();
+        REXP res;
+        if (propHazardPval != null && propHazardPval < 0.05) {
+            res = rengine.eval("1 - pchisq(survdiff(Surv(combinedData, combinedCensored) ~ group)$chisq, 1)");
+        } else {
+            res = rengine.eval("surv2.ks(Surv(combinedData, combinedCensored), group)$pval.cm");
+        }
         if (res == null) return 1.0;
         return res.asDouble();
     }
@@ -58,21 +63,26 @@ public class LogrankTest {
             rengine.end();
             throw new Exception("Did not find R library survival (should come with R though).");
         }
+        
+        if (rengine.eval("library(surv2sample)") == null) {
+            rengine.end();
+            throw new Exception("Did not find R library survival (should come with R though).");
+        }
      
         
         double[][] data = new double[][] {
-                { 14.0529, 8.0258, 20.0000, 10.8883, 14.3998, 11.1753, 7.2069 },
-                { 1.4008, 1.5558, 1.1308, 2.2377, 1.2768, 1.0938, 2.3126 },
-                { 15.8646, 18.3512, 6.4770, 20.0000, 9.9655, 20.0000, 20.0000 },
-                { 1.0398, 1.7137, 0.7949, 1.3318, 1.3318, 1.0298, 1.4838 },
-                { 1.9127, 2.2607, 1.9077, 1.7307, 4.6773, 1.4038, 3.4375 },
-                { 9.4316, 11.9912, 8.8107, 7.3149, 20.0000, 8.0458, 20.0000 },
-                { 12.6331, 15.0207, 20.0000, 20.0000, 20.0000, 11.2303, 19.4190 },
-                { 1.1388, 1.7977, 0.9569, 1.2418, 1.1178, 1.5078, 1.2428 },
-                { 15.8016, 17.3934, 9.6395, 12.2351, 20.0000, 9.1326, 20.0000 },
-                { 9.1556, 3.1325, 1.5868, 2.1987, 6.3770, 2.9146, 2.3066 },
-                { 1.9547, 5.1412, 3.9104, 12.1032, 2.5736, 10.7674, 13.4570 },
-                { 6.4070, 20.0000, 20.0000, 10.0855, 20.0000, 1.0000, 3.5455 },
+                { 14.0529, 8.0258, 20.0000, 10.8883, 14.3998,   1.1753,    7.2069 },
+                { 1.4008, 1.5558, 1.1308, 2.2377, 1.2768,       1.0938,     2.3126 },
+                { 15.8646, 18.3512, 6.4770, 20.0000, 9.9655,    18.0000,    20.0000 },
+                { 1.0398, 1.7137, 0.7949, 1.3318, 1.3318,       1.0298,     1.4838 },
+                { 1.9127, 2.2607, 1.9077, 1.7307, 4.6773,       1.4038,     3.4375 },
+                { 9.4316, 11.9912, 8.8107, 7.3149, 20.0000,     8.0458,     20.0000 },
+                { 12.6331, 15.0207, 20.0000, 20.0000, 20.0000,  11.2303,    20.0000 },
+                { 1.1388, 1.7977, 0.9569, 1.2418, 1.1178,       1.2078,     1.2428 },
+                { 15.8016, 17.3934, 9.6395, 12.2351, 20.0000,   9.1326,     20.0000 },
+                { 9.1556, 3.1325, 1.5868, 2.1987, 6.3770,       2.1146,     2.3066 },
+                { 1.9547, 5.1412, 3.9104, 12.1032, 2.5736,      10.7674,    13.4570 },
+                { 6.4070, 20.0000, 20.0000, 10.0855, 20.0000,   1.0000,     3.5455 },
         };
         
         for (int i = 0; i < data[0].length; i++) {

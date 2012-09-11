@@ -15,14 +15,17 @@ import org.rosuda.JRI.Rengine;
 
 import edacc.api.API;
 import edacc.configurator.aac.AAC;
+import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
+import edacc.configurator.aac.course.StratifiedClusterCourse;
 import edacc.configurator.aac.util.RInterface;
 import edacc.configurator.math.FamilyTest;
 import edacc.configurator.math.FriedmanTest;
 import edacc.configurator.math.LogrankTest;
 import edacc.configurator.math.RankTransformationTest;
 import edacc.model.ExperimentResult;
+import edacc.model.Instance;
 import edacc.model.StatusCode;
 
 /**
@@ -52,6 +55,7 @@ public class SMFRace extends RacingMethods {
     private List<SolverConfiguration> incumbents;
     private Map<Integer, Map<SolverConfiguration, ExperimentResult>> courseResults;
     private Map<SolverConfiguration, Float> lastRoundCost;
+    private List<InstanceIdSeed> completeCourse;
     private SolverConfiguration bestSC = null;
     private int level = 0; // current level (no. of jobs per config in the race)
     private int starts = 0;
@@ -111,6 +115,8 @@ public class SMFRace extends RacingMethods {
         this.initialRaceRuns = (int) Math.max(1, Math.round(initialRunsFactor * num_instances));
         this.numRaceConfigurations = (int) Math.max(1,
                 Math.round(numRaceConfigurationsFactor * api.getConfigurableParameters(parameters.getIdExperiment()).size()));
+        
+        this.completeCourse = new StratifiedClusterCourse(rengine, api.getExperimentInstances(parameters.getIdExperiment()), null, null, parameters.getMaxParcoursExpansionFactor(), rng).getCourse();
     }
 
     @Override
@@ -132,7 +138,7 @@ public class SMFRace extends RacingMethods {
         if (curFinishedConfigurations.containsAll(raceConfigurations)) {
             for (SolverConfiguration solverConfig : raceConfigurations) {
                 int i = 0; // course entry number
-                for (ExperimentResult run : api.getRuns(parameters.getIdExperiment(), solverConfig.getIdSolverConfiguration())) {
+                for (ExperimentResult run : solverConfig.getJobs()) {
                     if (i > level)
                         break; // only consider runs up until the current level
                                // (already existing configurations might have more)
@@ -213,7 +219,7 @@ public class SMFRace extends RacingMethods {
     
                 FamilyTest fmt = new RankTransformationTest(courseResults.size(), raceConfigurations.size(), data, censored);
                 pacc.log("Statistic: " + fmt.familyTestStatistic() + ", critical Value: " + fmt.criticalValue(alpha));
-                if (fmt.isFamilyTestSignificant(fmt.familyTestStatistic(), alpha)) {
+                if (true) { //fmt.isFamilyTestSignificant(fmt.familyTestStatistic(), alpha)) {
                     // There is evidence that at least one configuration is significantly different from the others
                     SolverConfiguration bestConfiguration = null;
                     for (SolverConfiguration solverConfig : raceConfigurations) {
@@ -287,9 +293,10 @@ public class SMFRace extends RacingMethods {
                     for (SolverConfiguration sc : sortedpValueByConfiguration.keySet()) {
                         if (sortedpValueByConfiguration.get(sc).doubleValue() < alpha) { /// (float) k) { // TODO
                             SolverConfiguration worseConfig = sc;
-                            if (incumbents.contains(worseConfig)) {
+                            if (incumbents.contains(worseConfig) && !incumbents.contains(bestConfiguration)) {
                                 // The worse configuration is one of the current incumbents.
                                 // Protect the incumbent if the best configuration does not have as many evaluations.
+                                // Incumbents eliminating other incumbents is fine.
                                 System.out.println("Comparing best configuration against an incumbent "
                                         + worseConfig.getIdSolverConfiguration());
                                 if (bestConfigEvaluations < worseConfig.getNumFinishedJobs()) {
@@ -323,11 +330,11 @@ public class SMFRace extends RacingMethods {
                         }
                     }
     
-                    if (expandBest) {
+                    /*if (expandBest) {
                         // One of the incumbents was protected against elimination of the best
                         // configuration. This means the current best configuration
                         // should get more jobs.
-                        pacc.log("One of the incumbent was protected against elimination of the best configuration. This means the current best configuration should get more jobs");
+                        pacc.log("One of the incumbents was protected against elimination of the best configuration. This means the current best configuration should get more jobs");
                         int maxIncumbentEvaluations = 0;
                         for (SolverConfiguration sc : raceConfigurations) {
                             if (incumbents.contains(sc)) {
@@ -335,12 +342,18 @@ public class SMFRace extends RacingMethods {
                             }
                         }
                         // expand by at most the total allowed number of evaluations and at least by two times the current number of evaluations but not more than the number of runs of the incumbents
-                        pacc.expandParcoursSC(bestConfiguration,
-                                Math.min(parameters.getMaxParcoursExpansionFactor() * num_instances - bestConfiguration.getJobCount(),
-                                        Math.min(2 * bestConfiguration.getJobCount(), maxIncumbentEvaluations)));
-                        bestConfiguration.setFinished(false);
-                        pacc.addSolverConfigurationToListNewSC(bestConfiguration);
-                    }
+                        int numToAdd = Math.min(parameters.getMaxParcoursExpansionFactor() * num_instances - bestConfiguration.getJobCount(),
+                                Math.min(2 * bestConfiguration.getJobCount(), maxIncumbentEvaluations - bestConfiguration.getJobCount()));
+                        
+                        for (int i = 0; i < numToAdd; i++) {
+                            InstanceIdSeed nextEntry = completeCourse.get(bestConfiguration.getJobCount());
+                            pacc.addJob(bestConfiguration, nextEntry.seed, nextEntry.instanceId, 0);
+                        }
+                        if (numToAdd > 0) {
+                            bestConfiguration.setFinished(false);
+                            pacc.addSolverConfigurationToListNewSC(bestConfiguration);
+                        }
+                    }*/
     
                 } else {
                     pacc.log("family-wise comparison test indicated no significant differences between the configurations");
@@ -375,8 +388,11 @@ public class SMFRace extends RacingMethods {
                         int numJobs = solverConfig.getJobs().size();
                         if (numJobs == level + 1 && level + 1 < parameters.getMaxParcoursExpansionFactor() * num_instances) {
                             // this SC needs a new job
-                            pacc.expandParcoursSC(solverConfig, 1, parameters.getMaxParcoursExpansionFactor() * num_instances
-                                    - solverConfig.getJobCount());
+                            pacc.addJob(solverConfig, completeCourse.get(solverConfig.getJobCount()).seed,
+                                    completeCourse.get(solverConfig.getJobCount()).instanceId,
+                                    parameters.getMaxParcoursExpansionFactor() * num_instances - solverConfig.getJobCount());
+                            //pacc.expandParcoursSC(solverConfig, 1, parameters.getMaxParcoursExpansionFactor() * num_instances
+                            //        - solverConfig.getJobCount());
                             solverConfig.setFinished(false);
                             pacc.addSolverConfigurationToListNewSC(solverConfig);
                             numAvailableCores--;
@@ -444,9 +460,34 @@ public class SMFRace extends RacingMethods {
         race += 1;
         round = 1;
         pacc.log("Initial race runs: " + initialRaceRuns);
+        
+        // Adapt instance specific time limits
+        for (Instance instance: api.getExperimentInstances(parameters.getIdExperiment())) {
+            float worstIncumbentCost = Float.NEGATIVE_INFINITY;
+            boolean hasResults = false;
+            for (SolverConfiguration incumbent: incumbents) {
+                for (ExperimentResult run: incumbent.getFinishedJobs()) {
+                    if (run.getInstanceId() == instance.getId()) {
+                        worstIncumbentCost = Math.max(worstIncumbentCost, run.getResultTime());
+                        hasResults = true;
+                    }
+                }
+            }
+            
+            if (hasResults) {
+                int newLimit = Math.max(1, Math.min((int)Math.ceil(1.5 * worstIncumbentCost), parameters.getJobCPUTimeLimit()));
+                pacc.changeCPUTimeLimit(instance.getId(), newLimit, null, false, false);
+            }
+        }
+        
         for (SolverConfiguration solverConfig : raceConfigurations) {
             solverConfig.setFinished(false);
-            pacc.expandParcoursSC(solverConfig, Math.max(0, Math.min(initialRaceRuns, parameters.getMaxParcoursExpansionFactor() * num_instances - solverConfig.getJobCount())), parameters.getMaxParcoursExpansionFactor() * num_instances);
+            int numToAdd = Math.max(0, Math.min(initialRaceRuns, parameters.getMaxParcoursExpansionFactor() * num_instances - solverConfig.getJobCount()) - solverConfig.getJobCount());
+            for (int i = 0; i < numToAdd; i++) {
+                InstanceIdSeed nextEntry = completeCourse.get(solverConfig.getJobCount());
+                pacc.addJob(solverConfig, nextEntry.seed, nextEntry.instanceId, Integer.MAX_VALUE);
+            }
+            //pacc.expandParcoursSC(solverConfig, Math.max(0, Math.min(initialRaceRuns, parameters.getMaxParcoursExpansionFactor() * num_instances - solverConfig.getJobCount())), parameters.getMaxParcoursExpansionFactor() * num_instances);
             pacc.addSolverConfigurationToListNewSC(solverConfig);
             solverConfig.setNameRacing((referenceSCs.contains(solverConfig) ? "REF-" : "")
                     + (incumbents.contains(solverConfig) ? "INC-" : "") + starts + "-" + race + "-" + round);

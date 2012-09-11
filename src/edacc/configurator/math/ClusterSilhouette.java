@@ -30,7 +30,6 @@ public class ClusterSilhouette {
         rengine.eval("data <- matrix(data, nrow=" + r + ", ncol=" + c + ", byrow=T)");
         rengine.eval("data_dist = dist(data)");
         rengine.eval("hc = hclust(data_dist)");
-        
         double maxSil = 0.0;
         int bestK = 2;
         for (int k = 2; k < maxK; k++) {
@@ -41,5 +40,13 @@ public class ClusterSilhouette {
             }
         }
         return bestK;
+    }
+    
+    public int[] clusterData(int k) {
+        rengine.assign("data", linearizedData);
+        rengine.eval("data <- matrix(data, nrow=" + r + ", ncol=" + c + ", byrow=T)");
+        rengine.eval("data_dist = dist(data)");
+        rengine.eval("hc = hclust(data_dist)");
+        return rengine.eval("cutree(hc, " + k + ") - 1").asIntArray();
     }
 }

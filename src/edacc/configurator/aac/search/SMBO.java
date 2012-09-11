@@ -196,8 +196,13 @@ public class SMBO extends SearchMethods {
     public List<SolverConfiguration> generateNewSC(int num) throws Exception {
         if (generatedConfigs.size() < numInitialConfigurationsFactor * configurableParameters.size()) {
             List<SolverConfiguration> rssConfigs = new LinkedList<SolverConfiguration>();
+            if (pacc.racing instanceof FRace || pacc.racing instanceof SMFRace) {
+                // FRace and SMFRace don't automatically use the old best configurations
+                rssConfigs.addAll(pacc.racing.getBestSolverConfigurations(num));
+            }
+            int sampledConfigs = Math.min(num, numInitialConfigurationsFactor * configurableParameters.size() - generatedConfigs.size());
             // Start the search with an initial design of random configurations
-            for (int i = 0; i < Math.min(num, numInitialConfigurationsFactor * configurableParameters.size() - generatedConfigs.size()); i++) {
+            for (int i = 0; i < sampledConfigs; i++) {
                 ParameterConfiguration pc = mapRealTupleToParameters(sequenceValues[randomSeqNum++]);
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), pc, "SN: " + randomSeqNum);
                 rssConfigs.add(new SolverConfiguration(idSC, pc, parameters.getStatistics()));
@@ -223,7 +228,7 @@ public class SMBO extends SearchMethods {
         }
         if (bestConfigs.isEmpty()) bestConfigs.addAll(generatedConfigs);
         Collections.sort(bestConfigs);
-        int numConfigsToGenerate = Math.min(40, num - newConfigs.size());
+        int numConfigsToGenerate = Math.min(40, num - newConfigs.size()) / 2;
         
         double f_min = bestConfigs.get(0).getCost();
         if (logModel) f_min = Math.log10(f_min);
@@ -297,17 +302,24 @@ public class SMBO extends SearchMethods {
                 ParameterConfiguration paramConfig = randomParamConfigs[theta.thetaIdx];
                 pacc.log("c EI: Selected configuration " + api.getCanonicalName(parameters.getIdExperiment(), paramConfig) + " with predicted performance: " + theta.mu + " and sigma " + Math.sqrt(theta.var) + " and EI: " + theta.ei);
                 paramConfig = optimizeLocally(paramConfig, theta.ei, 0.0, f_min);
-                int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
-                newConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
+                if (api.exists(parameters.getIdExperiment(), paramConfig) != 0) {
+                    pacc.log("c WARNING: Selected existing configuration. Reusing old.");
+                    newConfigs.add(new SolverConfiguration(api.exists(parameters.getIdExperiment(), paramConfig), paramConfig, parameters.getStatistics()));
+                } else {
+                    int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
+                    newConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
+                }
             }
         }
         
-        /*for (int i = 0; i < numConfigsToGenerate; i++) {
+        for (int i = 0; i < numConfigsToGenerate; i++) {
             ParameterConfiguration paramConfig = pspace.getRandomConfiguration(rng);
+            int iter = 0;
+            while (api.exists(parameters.getIdExperiment(), paramConfig) != 0 && iter++ < 100) paramConfig = pspace.getRandomConfiguration(rng);
             pacc.log("c Also selected random configuration " + api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
             int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
             newConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
-        }*/
+        }
 
         Collections.shuffle(newConfigs);
         generatedConfigs.addAll(newConfigs);
