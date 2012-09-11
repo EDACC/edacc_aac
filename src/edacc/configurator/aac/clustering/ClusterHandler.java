@@ -15,7 +15,7 @@ import java.util.*;
 /**
  * @author mugrauer, schulte
  */
-public abstract class ClusteringTemplate implements ClusterMethods{
+public abstract class ClusterHandler implements ClusterMethods{
     protected Random rng;
     protected AAC aac;
     protected API api;
@@ -24,6 +24,23 @@ public abstract class ClusteringTemplate implements ClusterMethods{
     protected HashMap<InstanceIdSeed, Integer> instanceClusterMap;
     protected Cluster[] clusters;
     
+    private ClusteringAlgorithm algorithm;
+    private ClusteringResources resources;
+    
+    //states how much information (= number of solverconfigs) has been added to data since 
+    //the clustering has been calculated
+    private int newDataAvailable = 0;
+    //states how much CPU-Time has been used up by the configurator since the clustering
+    //has ben calculated
+    private double cpuTimeElapsed = 0d;
+    
+    //whether to use time- or data-volume-based recalculatioon
+    private boolean useTimeBasedRecalc = true;
+    //Threshold for when to recalculate the clustering
+    //if useTimeBasedRecalc is set, this means the CPUTime spent since the last recalculation
+    //otherwise, this means the number of solverconfigs whose data has been added since the last recalculation
+    private int recalculationThreshold = 38400;
+    
     
     //when a random instance is to be selected from a cluster, should
     //instances with high variance of cost have a higher chance of being picked?
@@ -31,11 +48,14 @@ public abstract class ClusteringTemplate implements ClusterMethods{
     // between configs with good or poor perfomance)
     protected boolean preferHighVarianceInstances = true;
     
-    public ClusteringTemplate(AAC aac, Parameters params, API api, Random rng, List<SolverConfiguration> scs) throws Exception{
+    public ClusterHandler(AAC aac, Parameters params, API api, Random rng, List<SolverConfiguration> scs,
+                        ClusteringAlgorithm algorithm, ClusteringResources resources) throws Exception{
         this.rng = rng;
         this.aac = aac;
         this.api = api;
         this.expID = params.getIdExperiment();
+        this.algorithm = algorithm;
+        this.resources = resources;
         //initialise data
         data = new HashMap<InstanceIdSeed, InstanceData>();
         Course course = api.getCourse(params.getIdExperiment());       
@@ -48,6 +68,15 @@ public abstract class ClusteringTemplate implements ClusterMethods{
                 addData(s);
             }
         }
+        
+        calculateClustering();
+        cpuTimeElapsed = getCPUTime();
+        visualiseClustering();
+    }
+    
+    private void calculateClustering(){
+	clusters = algorithm.calculateClustering(resources.prepareInstances());
+	clusters = resources.establishClustering(clusters);
     }
     
     /**
@@ -186,7 +215,7 @@ public abstract class ClusteringTemplate implements ClusterMethods{
             varianceSum += id.getNormalisedVariance();
         
         //this orders the list in _descending_ order!
-        Collections.sort(datList, new InstanceComparator());
+        Collections.sort(datList, new InstanceDataComparator());
         
         double randomVal = rng.nextDouble()*varianceSum;
         for(InstanceData id : datList){
@@ -199,7 +228,33 @@ public abstract class ClusteringTemplate implements ClusterMethods{
     }
 
     public void addDataForClustering(SolverConfiguration sc) {
-        addData(sc);        
+        addData(sc);
+        newDataAvailable++;
+        if(resources.recalculateOnNewData() && recalculationCriterion()){
+            log("Recalculating clustering: "+newDataAvailable
+                    +" new solverConfigs since last clustering was established");
+            calculateClustering();            
+            newDataAvailable = 0;
+            cpuTimeElapsed = getCPUTime();
+        }        
+        //visualiseClustering();        
+    }
+    
+    /** determines whether or not the criterion for recalculation of the clustering has been met
+     * (currently, this can mean that either a sufficient amount of new data is available, or that some new data
+     * is available and a sufficient amount of cpu-time has passed.
+     * 
+     * @return true, if the clustering needs to be recalculated, false otherwise
+     */
+    private boolean recalculationCriterion(){
+        if(useTimeBasedRecalc){      //current cputime - cputime at last recalc
+            if(recalculationThreshold < (getCPUTime() - cpuTimeElapsed))
+                return true;
+        }else{
+            if(recalculationThreshold < newDataAvailable)
+                return true;
+        }
+        return false;
     }
     
     public List<InstanceIdSeed> getClusterInstances(int clusterNumber){
@@ -296,7 +351,7 @@ public abstract class ClusteringTemplate implements ClusterMethods{
         aac.log("Clustering: "+message);
     }
     
-    protected double getCPUTime(){
+    protected final double getCPUTime(){
         try{
             return api.getTotalCPUTime(expID);
         }catch(Exception e){
@@ -314,7 +369,8 @@ public abstract class ClusteringTemplate implements ClusterMethods{
         return data;
     }
 }
-class InstanceComparator implements Comparator<InstanceData>{
+
+class InstanceDataComparator implements Comparator<InstanceData>{
     //this comparator is supposed to be used to order elements in _descending_
     //order
     public int compare(InstanceData t, InstanceData t1) {
