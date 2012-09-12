@@ -275,23 +275,15 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 	private void race(SolverConfiguration incumbent, SolverConfigurationMetaData data) throws Exception {
 		List<Integer> instanceIds = data.c.get(incumbent.getIdSolverConfiguration());
 		
-		HashMap<Integer, List<ExperimentResult>> hisJobs = new HashMap<Integer, List<ExperimentResult>>();
 		HashMap<Integer, List<ExperimentResult>> myJobs = new HashMap<Integer, List<ExperimentResult>>();
 		
 		List<ExperimentResult> hisJobsAll = new LinkedList<ExperimentResult>();
 		List<ExperimentResult> myJobsAll = new LinkedList<ExperimentResult>();
 		
 		for (int id : instanceIds) {
-			hisJobs.put(id, new LinkedList<ExperimentResult>());
 			myJobs.put(id, new LinkedList<ExperimentResult>());
 		}
 		
-		for (ExperimentResult er : incumbent.getJobs()) {
-			if (hisJobs.containsKey(er.getInstanceId())) {
-				hisJobsAll.add(er);
-				hisJobs.get(er.getInstanceId()).add(er);
-			}
-		}
 		for (ExperimentResult er : data.sc.getJobs()) {
 			if (myJobs.containsKey(er.getInstanceId())) {
 				myJobsAll.add(er);
@@ -299,13 +291,29 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 			}
 		}
 		
+		for (ExperimentResult er : incumbent.getJobs()) {
+			if (myJobs.containsKey(er.getInstanceId()) && !myJobs.get(er.getInstanceId()).isEmpty()) {
+				hisJobsAll.add(er);
+			} 
+		}
+		
 		if (myJobsAll.isEmpty()) {
 			int instanceid = instanceIds.get(rng.nextInt(instanceIds.size()));
 			addRuns(data.sc, instanceid, Integer.MAX_VALUE - data.sc.getIdSolverConfiguration());
 		} else {
+			List<Integer> instances = new LinkedList<Integer>();
+			for (Entry<Integer, List<ExperimentResult>> e : myJobs.entrySet()) {
+				if (!e.getValue().isEmpty()) {
+					instances.add(e.getKey());
+				}
+			}
+			pacc.log("Inc (" + incumbent.getIdSolverConfiguration() + ") Cost: " + parameters.getStatistics().getCostFunction().calculateCost(hisJobsAll) + " - Competitor (" + data.sc.getIdSolverConfiguration() + ") Cost: " + parameters.getStatistics().getCostFunction().calculateCost(myJobsAll));
+			pacc.log("Instances: " + instances);
 			boolean removeScFromRace = false;
 			if (parameters.getStatistics().compare(hisJobsAll, myJobsAll) <= 0) {
 				// race goes on..
+				pacc.log("=> better than incumbent.. trying to find more instances..");
+				
 				
 				LinkedList<Integer> possibleInstances = new LinkedList<Integer>();
 				int icount = 0;
