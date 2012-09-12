@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.List;
 
 public class MinDist {
-	public static String getParameters(Clustering C, float[] features) {
+	public static Integer getScId(Clustering C, float[] features) {
 		HashMap<Integer, List<Integer>> c = C.getClustering(true);
 		float[] normalize = new float[features.length];
 		for (int i = 0; i < normalize.length; i++) {
@@ -27,7 +27,7 @@ public class MinDist {
 				features[i] /= normalize[i];
 		}
 		
-		String params = null;
+		Integer res = null;
 		float mindist = Float.POSITIVE_INFINITY;
 		for (int scid : c.keySet()) {
 			for (int iid : c.get(scid)) {
@@ -40,12 +40,12 @@ public class MinDist {
 				float d = dist(f, features);
 				if (d < mindist) {
 					mindist = d;
-					params = C.P.get(scid);
+					res = scid;
 				}
 			}
 		}
 		System.out.println("c mindist: " + mindist);
-		return params;
+		return res;
 	}
 	
 	private static float dist(float[] f1, float[] f2) {

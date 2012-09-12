@@ -18,6 +18,7 @@ import edacc.configurator.aac.SolverConfiguration;
 import edacc.configurator.aac.solvercreator.Clustering;
 import edacc.model.Experiment;
 import edacc.model.ExperimentResult;
+import edacc.model.ExperimentResultDAO;
 import edacc.model.Instance;
 import edacc.model.InstanceDAO;
 import edacc.model.StatusCode;
@@ -34,6 +35,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 	private PARX par1 = new PARX(Experiment.Cost.resultTime, true, 0, 1);
 	
 	private boolean useAdaptiveInstanceTimeouts = true;
+	private int instanceTimeoutsExpId = -1;
 	private int instanceTimeoutsMinNumJobs = 11;
 	private float instanceTimeoutFactor = 1.5f;
 	private int limitCPUTimeMaxCPUTime = 600;
@@ -43,12 +45,33 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 	public ClusterRacing(AAC pacc, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
 		super(pacc, rng, api, parameters, firstSCs, referenceSCs);
 		pacc.addJobListener(this);
+		
+		String val;
+		if ((val = parameters.getRacingMethodParameters().get("ClusterRacing_useAdaptiveInstanceTimeouts")) != null)
+			useAdaptiveInstanceTimeouts = Boolean.parseBoolean(val);
+		if ((val = parameters.getRacingMethodParameters().get("ClusterRacing_instanceTimeoutsExpId")) != null)
+			instanceTimeoutsExpId = Integer.parseInt(val);
+		if ((val = parameters.getRacingMethodParameters().get("ClusterRacing_instanceTimeoutsMinNumJobs")) != null)
+			instanceTimeoutsMinNumJobs = Integer.parseInt(val);
+		if ((val = parameters.getRacingMethodParameters().get("ClusterRacing_instanceTimeoutFactor")) != null)
+			instanceTimeoutFactor = Float.parseFloat(val);
+		if ((val = parameters.getRacingMethodParameters().get("ClusterRacing_limitCPUTimeMaxCPUTime")) != null)
+			limitCPUTimeMaxCPUTime = Integer.parseInt(val);
+		if ((val = parameters.getRacingMethodParameters().get("ClusterRacing_clusteringThreshold")) != null)
+			clusteringThreshold = Float.parseFloat(val);
+		
+		
 		scs = new HashMap<Integer, SolverConfigurationMetaData>();
 		instanceJobs = new HashMap<Integer, List<ExperimentResult>>();
 		instanceJobsLowerLimit = new HashSet<Integer>();
 		removedSCIds = new HashSet<Integer>();
 		List<Integer> instances = new LinkedList<Integer>();
 		seeds = new HashMap<Integer, List<Integer>>();
+		
+		HashSet<Integer> instanceIds = null;
+		if (instanceTimeoutsExpId != -1) {
+			instanceIds = new HashSet<Integer>();
+		}
 		
 		for (Instance i : InstanceDAO.getAllByExperimentId(parameters.getIdExperiment())) {
 			instances.add(i.getId());
@@ -57,6 +80,25 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 				seedList.add(rng.nextInt(Integer.MAX_VALUE-1));
 			}
 			seeds.put(i.getId(), seedList);
+			if (instanceIds != null)
+				instanceIds.add(i.getId());
+		}
+		
+		if (instanceIds != null) {
+			HashMap<Integer, Integer> timeouts = new HashMap<Integer, Integer>();
+			for (ExperimentResult er : ExperimentResultDAO.getAllByExperimentId(instanceTimeoutsExpId)) {
+				Integer v = timeouts.get(er.getInstanceId());
+				if (v == null) {
+					timeouts.put(er.getInstanceId(), Math.min(er.getCPUTimeLimit(), limitCPUTimeMaxCPUTime));
+				} else {
+					if (er.getCPUTimeLimit() < v) {
+						timeouts.put(er.getInstanceId(), er.getCPUTimeLimit());
+					}
+				}
+			}
+			for (Entry<Integer, Integer> e : timeouts.entrySet()) {
+				pacc.changeCPUTimeLimit(e.getKey(), e.getValue(), null, false, false);
+			}
 		}
 		
 		if (instances.isEmpty()) {
@@ -69,6 +111,11 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 			initializeSolverConfiguration(sc);
 		}
 	}
+	
+	public HashMap<Integer, List<Integer>> getClustering() {
+		return clustering.getClustering(false, clusteringThreshold);
+	}
+	
 
 	@Override
 	public int compareTo(SolverConfiguration sc1, SolverConfiguration sc2) {
@@ -76,14 +123,8 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		return 0;
 	}
 
-	//float lastBestSCsClusteringUpdate = 0.f;
-	//HashMap<Integer, List<Integer>> bestSCsClustering = null;
 	@Override
 	public List<SolverConfiguration> getBestSolverConfigurations() {
-		/*if (bestSCsClustering == null || pacc.getWallTime() - lastBestSCsClusteringUpdate > 120) {
-			bestSCsClustering = clustering.getClusteringHierarchical(Clustering.HierarchicalClusterMethod.AVERAGE_LINKAGE, 10);
-			lastBestSCsClusteringUpdate = pacc.getWallTime();
-		}*/
 		HashMap<Integer, List<Integer>> bestSCsClustering = clustering.getClustering(false, clusteringThreshold);
 		
 		List<SolverConfiguration> best = new LinkedList<SolverConfiguration>();
@@ -167,8 +208,16 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 
 	@Override
 	public List<String> getParameters() {
-		// TODO Auto-generated method stub
-		return new LinkedList<String>();
+		LinkedList<String> res = new LinkedList<String>();
+		res.add("% instance time limit specific settings");
+		res.add("ClusterRacing_useAdaptiveInstanceTimeouts = " + useAdaptiveInstanceTimeouts);
+		res.add("ClusterRacing_instanceTimeoutsExpId = " + instanceTimeoutsExpId);
+		res.add("ClusterRacing_instanceTimeoutsMinNumJobs = " + instanceTimeoutsMinNumJobs);
+		res.add("ClusterRacing_instanceTimeoutFactor = " + instanceTimeoutFactor);
+		res.add("ClusterRacing_limitCPUTimeMaxCPUTime = " + limitCPUTimeMaxCPUTime);
+		res.add("% racing specific settings");
+		res.add("ClusterRacing_clusteringThreshold = " + clusteringThreshold);
+		return res;
 	}
 
 	@Override

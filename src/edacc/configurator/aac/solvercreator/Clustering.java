@@ -53,6 +53,7 @@ public class Clustering implements Serializable {
 	
 	protected HashMap<Integer, float[]> F; // feature vectors for instances
 	protected HashMap<Integer, String> P; // parameter lines
+	protected HashMap<Integer, Integer> scToSb; // solver config to solver binary
 	
 	private Clustering(HashMap<Integer, float[]> featureMapping) {
 		I = new HashMap<Integer, Integer>();
@@ -68,6 +69,7 @@ public class Clustering implements Serializable {
 		
 		F = featureMapping;
 		P = new HashMap<Integer, String>();
+		scToSb = new HashMap<Integer, Integer>();
 	}
 	
 	public Clustering(Clustering other) {
@@ -225,6 +227,7 @@ public class Clustering implements Serializable {
 			try {
 				SolverConfiguration sc = SolverConfigurationDAO.getSolverConfigurationById(scid);
 				P.put(scid, edacc.experiment.Util.getSolverParameterString(ParameterInstanceDAO.getBySolverConfig(sc), SolverDAO.getById(sc.getSolverBinary().getIdSolver())));
+				scToSb.put(scid, sc.getSolverBinary().getId());
 			} catch (Exception ex) {
 				System.err.println("WARNING: Could not add parameter line for solver configuration " + scid);
 			}

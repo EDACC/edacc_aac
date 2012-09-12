@@ -16,6 +16,7 @@ import java.io.OutputStream;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Properties;
@@ -29,7 +30,6 @@ import edacc.api.APIImpl;
 import edacc.api.costfunctions.CostFunction;
 import edacc.api.costfunctions.PARX;
 import edacc.configurator.aac.AAC;
-import edacc.model.ConfigurationScenarioDAO;
 import edacc.model.ExperimentResult;
 import edacc.model.ExperimentResultDAO;
 import edacc.model.Instance;
@@ -285,13 +285,13 @@ public class SolverCreator {
 		
 		Clustering C_orig = new Clustering(C);
 		
-		List<Integer> scids2 = C.getSolverConfigIds();
+		/*List<Integer> scids2 = C.getSolverConfigIds();
 		
 		for (int scid : scids2) {
 			if (!SolverConfigurationDAO.getSolverConfigurationById(scid).getName().contains("BEST")) {
 				C.remove(scid);
 			}
-		}
+		}*/
 		
 		List<Pair<Integer, Float>> scidWeight = new LinkedList<Pair<Integer, Float>>();
 		
@@ -417,7 +417,7 @@ public class SolverCreator {
 		
 		if (Boolean.parseBoolean(properties.getProperty("BuildRandomForest"))) {
 			System.out.println("Generating random forest..");
-			RandomForest forest = new RandomForest(C, new Random(), Integer.parseInt(properties.getProperty("RandomForestTreeCount")), 250);
+			RandomForest forest = new RandomForest(C_orig, C, new Random(), Integer.parseInt(properties.getProperty("RandomForestTreeCount")), 250);
 			data.add(forest);
 			System.out.println("done.");
 		}
@@ -486,29 +486,47 @@ public class SolverCreator {
 			System.out.println("Exporting solver..");
 			String folder = properties.getProperty("SolverDirectory");
 			File solverFolder = new File(folder);
-			if (solverFolder.mkdirs()) {			
-				edacc.model.SolverBinaries binary = edacc.model.SolverBinariesDAO.getById(ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(expid).getIdSolverBinary());
+			if (solverFolder.mkdirs()) {
+				List<edacc.model.SolverBinaries> binaries = new LinkedList<edacc.model.SolverBinaries>();
+				HashSet<Integer> sbIds = new HashSet<Integer>();
+				sbIds.addAll(C.scToSb.values());
+				for (int sbid : sbIds) {
+					binaries.add(edacc.model.SolverBinariesDAO.getById(sbid));
+				}
 				
-	            InputStream binStream = edacc.model.SolverBinariesDAO.getZippedBinaryFile(binary);
-	            ZipInputStream zis = new ZipInputStream(binStream);
-	            ZipEntry entry;
-	            while ((entry = zis.getNextEntry()) != null) {
-	            	byte[] b = new byte[2048];
-	            	int n;
-	            	File file = new File(solverFolder, entry.getName());
-	            	OutputStream os = new FileOutputStream(file);
-	            	while ((n = zis.read(b)) > 0) {
-	            		os.write(b, 0, n);
-	            	}
-	            	os.close();
-	            	zis.closeEntry();
-	            }
-	            zis.close();
-	            binStream.close();
-	            
+				for (edacc.model.SolverBinaries binary : binaries) {
+					System.out.println("Exporting solver binary " + binary.getBinaryName());
+					
+					File binaryFolder = new File(solverFolder, "binary_"+ binary.getId());
+					binaryFolder.mkdir();
+					
+					InputStream binStream = edacc.model.SolverBinariesDAO.getZippedBinaryFile(binary);
+					ZipInputStream zis = new ZipInputStream(binStream);
+					ZipEntry entry;
+					while ((entry = zis.getNextEntry()) != null) {
+						File file = new File(binaryFolder, entry.getName());
+						if (entry.isDirectory()) {
+							file.mkdirs();
+						} else {
+							file.getParentFile().mkdirs();
+							byte[] b = new byte[2048];
+							int n;
+							
+							OutputStream os = new FileOutputStream(file);
+							while ((n = zis.read(b)) > 0) {
+								os.write(b, 0, n);
+							}
+							os.close();
+							zis.closeEntry();
+						}
+					}
+					zis.close();
+					binStream.close();
+				}
 	            System.out.println("Exporting feature binary..");
 	            File featureFolder = new File(featureDirectory);
-	            copyFiles(featureFolder, solverFolder);
+	            File featureDestFolder = new File(solverFolder, "features");
+	            copyFiles(featureFolder, featureDestFolder);
 	            System.out.println("Exporting solver launcher..");
 	            File solverLauncherFolder = new File(properties.getProperty("SolverLauncherDirectory"));
 	            copyFiles(solverLauncherFolder, solverFolder);
@@ -520,7 +538,9 @@ public class SolverCreator {
 	            BufferedWriter bw = new BufferedWriter(fw);
 	            bw.write("FeaturesBin = " + properties.getProperty("FeaturesRunCommand") + "\n");
 	            bw.write("FeaturesParameters = " + properties.getProperty("FeaturesParameters") + "\n");
-	            bw.write("SolverBin = ./" + binary.getRunPath() + "\n");
+	            for (edacc.model.SolverBinaries binary : binaries) {
+	            	bw.write("SolverBin_" + binary.getId() + " = ./" + binary.getRunPath() + "\n");
+	            }
 	            bw.write("Data = ./data\n");
 	            bw.close();
 	            fw.close();

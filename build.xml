@@ -55,7 +55,7 @@
 		<copy todir="${dist.dir}/${solvercreator.dir}/AAC_lib">
 			<fileset dir="${lib.dir}"/>
 		</copy>
-		<copy file="${src.dir}/edacc/configurator/aac/racing/challenge/settings.properties" todir="${dist.dir}/${solvercreator.dir}"/>
+		<copy file="${src.dir}/edacc/configurator/aac/solvercreator/settings.properties" todir="${dist.dir}/${solvercreator.dir}"/>
 	</target>
 	
 	<target name="solverlauncher" depends="compile">

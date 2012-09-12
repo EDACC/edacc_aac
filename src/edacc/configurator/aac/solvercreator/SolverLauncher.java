@@ -28,11 +28,10 @@ public class SolverLauncher {
 		
 		String features_bin = properties.getProperty("FeaturesBin");
 		String features_args = properties.getProperty("FeaturesParameters");
-		String solver_bin = properties.getProperty("SolverBin");
 		String data = properties.getProperty("Data");
 		
 		System.out.println("c calculating instance properties..");
-		Process p = Runtime.getRuntime().exec(features_bin + " " + features_args + " " + args[1]);
+		Process p = Runtime.getRuntime().exec(features_bin + " " + features_args + " " + args[1], null, new File("features"));
 		BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
 		br.readLine();
 		String[] features_str = br.readLine().split(",");
@@ -58,13 +57,12 @@ public class SolverLauncher {
 		}
 		
 		System.out.println("c getting parameters with " + args[0] + " method..");
-		String params;
+		Integer scid = null;
 		if (args[0].equals("fuzzy")) {
 			List<Integer> scids = new LinkedList<Integer>();
 			scids.addAll(clustering.M.keySet());
 			float rand = new Random(Integer.parseInt(args[2])).nextFloat();
 			float cur = 0.f;
-			int scid = -1;
 			for (int id : scids) {
 				scid = id;
 				cur += clustering.getWeight(id);
@@ -72,16 +70,15 @@ public class SolverLauncher {
 					break;
 				}
 			}
-			params = clustering.P.get(scid);
 		} else if (args[0].equals("mindist")) {
-			params = MinDist.getParameters(clustering, features);
+			scid = MinDist.getScId(clustering, features);
 		} else if (args[0].equals("avgdist")) {
-			params = AvgDist.getParameters(clustering, features);
+			scid = AvgDist.getScId(clustering, features);
 		} else if (args[0].equals("tree")) {
 			Pair<Integer, List<Integer>> res = tree.query(features); 
-			params = clustering.P.get(res.getFirst());
+			scid = res.getFirst();
 		} else if (args[0].equals("randomforest")) {
-			params = clustering.P.get(forest.getSolverConfig(features));
+			scid = forest.getSolverConfig(features);
 		/*} else if (args[0].equals("regression")) {
 			float membership = -1.f;
 			int scid = -1;
@@ -98,10 +95,22 @@ public class SolverLauncher {
 			System.out.println("Did not find algorithm: " + args[0]);
 			return;
 		}
+		if (scid == null) {
+			System.out.println("Error: could not determine solver config id. Exiting.");
+			return;
+		}
+		Integer sbid = clustering.scToSb.get(scid);
+		if (sbid == null) {
+			System.out.println("Error: could not determine solver binary id. Exiting.");
+			return;
+		}
+		String params = clustering.P.get(scid);
+		String solver_bin = properties.getProperty("SolverBin_" + sbid);
+		
 		params = params.replaceAll("<instance>", args[1].replaceAll("\\\\", "\\\\\\\\")).replaceAll("<seed>", args[2]);
 		System.out.println("c Parameters: " + params);
 		
-		p = Runtime.getRuntime().exec(solver_bin + " " + params);
+		p = Runtime.getRuntime().exec(solver_bin + " " + params, null, new File("binary_" + sbid));
 		br = new BufferedReader(new InputStreamReader(p.getInputStream()));
 		String line;
 		while ((line = br.readLine()) != null) {

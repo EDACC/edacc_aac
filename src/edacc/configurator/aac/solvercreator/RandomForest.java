@@ -1,17 +1,12 @@
 package edacc.configurator.aac.solvercreator;
 
 import java.io.Serializable;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Random;
-
-import edacc.model.SolverConfigurationDAO;
-import edacc.util.Pair;
 
 public class RandomForest implements Serializable {
 	/**
@@ -21,51 +16,9 @@ public class RandomForest implements Serializable {
 	private List<DecisionTree> forest;
 	private Random rng;
 	private float performance;
-	public RandomForest(Clustering clustering, Random rng, int treeCount, int n) throws Exception {
+	public RandomForest(Clustering clustering_original, Clustering clustering, Random rng, int treeCount, int n) {
 		forest = new LinkedList<DecisionTree>();
 		this.rng = rng;
-		List<Pair<Integer, Float>> scidWeight = new LinkedList<Pair<Integer, Float>>();
-		
-		for (int scid : clustering.M.keySet()) {
-			scidWeight.add(new Pair<Integer, Float>(scid, clustering.getWeight(scid)));
-		}
-		
-		Collections.sort(scidWeight, new Comparator<Pair<Integer, Float>>() {
-
-			@Override
-			public int compare(Pair<Integer, Float> arg0, Pair<Integer, Float> arg1) {
-				if (arg0.getSecond() - 0.000001f < arg1.getSecond() && arg0.getSecond() + 0.000001f > arg1.getSecond()) {
-					return 0;
-				} else if (arg0.getSecond() > arg1.getSecond()) {
-					return 1;
-				} else if (arg1.getSecond() > arg0.getSecond()) {
-					return -1;
-				}
-				return 0;
-			}
-			
-		});
-		
-		Clustering C_orig = new Clustering(clustering);
-		
-		List<Integer> scids2 = new LinkedList<Integer>();
-		scids2.addAll(clustering.M.keySet());
-		
-		for (int scid : scids2) {
-			if (!SolverConfigurationDAO.getSolverConfigurationById(scid).getName().contains("BEST")) {
-				clustering.remove(scid);
-			}
-		}
-		
-		/*int numConfigs =  Integer.parseInt("10");
-		if (numConfigs != -1) {
-			while (scidWeight.size() > numConfigs) {
-				Pair<Integer, Float> p = scidWeight.get(0);
-				System.out.println("Removing " + p.getFirst() + " with weight " + p.getSecond());
-				clustering.remove(p.getFirst());
-				scidWeight.remove(0);
-			}
-		}*/
 		
 		HashMap<Integer, List<Integer>> c = clustering.getClustering(false);
 		List<Integer> instances = new LinkedList<Integer>();
@@ -102,7 +55,7 @@ public class RandomForest implements Serializable {
 					tmp_c.put(e.getKey(), tmp);
 				}
 			}
-			DecisionTree tree = new DecisionTree(tmp_c, DecisionTree.ImpurityMeasure.GINIINDEX, C_orig, clustering, 6, rng, 0.f);
+			DecisionTree tree = new DecisionTree(tmp_c, DecisionTree.ImpurityMeasure.GINIINDEX, clustering_original, clustering, 6, rng, 0.f);
 			tree.cleanup();
 			//if (tree.performance > 0.8f) {
 				forest.add(tree);
@@ -112,15 +65,15 @@ public class RandomForest implements Serializable {
 		float num = 0.f;
 		int timeouts = 0;
 		for (int iid: validationInstances) {
-			int clazz = getSolverConfig(C_orig.F.get(iid));
-			if (Float.isInfinite(C_orig.getCost(clazz, iid))) {
+			int clazz = getSolverConfig(clustering_original.F.get(iid));
+			if (Float.isInfinite(clustering_original.getCost(clazz, iid))) {
 				timeouts++;
 			} else {
-				perf += C_orig.getCost(clazz, iid);
-				num += C_orig.getMinimumCost(iid);
+				perf += clustering_original.getCost(clazz, iid);
+				num += clustering_original.getMinimumCost(iid);
 			}
 			
-			System.out.println(C_orig.getCost(clazz, iid) + ":" + C_orig.getMinimumCost(iid));
+			System.out.println(clustering_original.getCost(clazz, iid) + ":" + clustering_original.getMinimumCost(iid));
 		}
 		
 		performance = num/perf;
