@@ -13,7 +13,6 @@ import edacc.model.InstanceSeed;
 import edacc.parameterspace.ParameterConfiguration;
 import edacc.parameterspace.graph.ParameterGraph;
 
-import java.awt.Point;
 import java.util.*;
 
 /**
