@@ -113,10 +113,13 @@ public class ClusterHandler implements ClusterMethods{
                         new InstanceData(is.instance.getId(), is.seed, params.getStatistics().getCostFunction()));
         }
         if(resources.isInitialDataRequired(resourcesName)) {
-        	List<SolverConfiguration> startupSCs = initClustering();
+        	List<SolverConfiguration> startupSCs = initClusteringData();
         	for (SolverConfiguration sc : startupSCs) {
 				addData(sc);
 			}
+        } else {
+        	numberOfMinStartupSCs = 1;
+        	initClusteringData();
         }
         
         calculateClustering();
@@ -383,7 +386,7 @@ public class ClusterHandler implements ClusterMethods{
         return data;
     }
     
-    private List<SolverConfiguration> initClustering() throws Exception {
+    private List<SolverConfiguration> initClusteringData() throws Exception {
 		// Gathers a list of SCs to initialize the Clusters and of course the
 		// incumbent
 		List<SolverConfiguration> startupSCs = new ArrayList<SolverConfiguration>();
