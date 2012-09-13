@@ -194,6 +194,8 @@ public class SMBO extends SearchMethods {
 
     @Override
     public List<SolverConfiguration> generateNewSC(int num) throws Exception {
+        if (num <= 0) return new LinkedList<SolverConfiguration>();
+        
         if (generatedConfigs.size() < numInitialConfigurationsFactor * configurableParameters.size()) {
             List<SolverConfiguration> rssConfigs = new LinkedList<SolverConfiguration>();
             if (pacc.racing instanceof FRace || pacc.racing instanceof SMFRace) {
