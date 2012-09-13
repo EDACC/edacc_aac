@@ -6,9 +6,13 @@ import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
+import edacc.model.ConfigurationScenarioDAO;
 import edacc.model.Course;
 import edacc.model.ExperimentResult;
 import edacc.model.InstanceSeed;
+import edacc.parameterspace.ParameterConfiguration;
+import edacc.parameterspace.graph.ParameterGraph;
+
 import java.awt.Point;
 import java.util.*;
 
@@ -23,9 +27,26 @@ public class ClusterHandler implements ClusterMethods{
     protected HashMap<InstanceIdSeed, InstanceData> data;    
     protected HashMap<InstanceIdSeed, Integer> instanceClusterMap;
     protected Cluster[] clusters;
-    
+	
+    private Parameters params;
+    private List<SolverConfiguration> firstSCs;
+    private List<SolverConfiguration> referenceSCs;
+    private int num_instances;
+	// Graph representation of the parameter pool. Used to create new
+	// parameter configurations
+    private ParameterGraph paramGraph;
+    private SolverConfiguration bestSC;
+    private String algorithmName = "Algorithm_CLC";
+    private String resourcesName = "Resources_MeanCost";
+	// A set of fully evaluated SCs is required to create an initial
+	// clustering. The number of those SCs is defined in this variable
+    private int numberOfMinStartupSCs = 4;
+	// Interface for a clustering-algorithm
+    private Class<?> algorithmClass;
+    private Class<?> resourcesClass;
     private ClusteringAlgorithm algorithm;
     private ClusteringResources resources;
+    private ClusterHandler clusterHandler;
     
     //states how much information (= number of solverconfigs) has been added to data since 
     //the clustering has been calculated
@@ -48,16 +69,40 @@ public class ClusterHandler implements ClusterMethods{
     // between configs with good or poor perfomance)
     protected boolean preferHighVarianceInstances = true;
     
-    public ClusterHandler(AAC aac, Parameters params, API api, Random rng, List<SolverConfiguration> scs) 
-                                                                                            throws Exception{
+    public ClusterHandler(AAC aac, Parameters params, API api, Random rng, 
+    		List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception{
         this.rng = rng;
         this.aac = aac;
         this.api = api;
         this.expID = params.getIdExperiment();
-        
+        this.params = params;
+        this.firstSCs = firstSCs;
+		this.referenceSCs = referenceSCs;
+		paramGraph = api.loadParameterGraphFromDB(params.getIdExperiment());
+		num_instances = ConfigurationScenarioDAO
+				.getConfigurationScenarioByExperimentId(
+						params.getIdExperiment()).getCourse()
+				.getInitialLength();
+		HashMap<String, String> parameters = params.getRacingMethodParameters();
+		if(parameters.containsKey("Clustering_algorithm")) {
+			algorithmName = parameters.get("Clustering_clusteringAlgorithm");
+		}
+		if(parameters.containsKey("Clustering_resources")) {
+			resourcesName = parameters.get("Clustering_resources");
+		}
+		if (parameters.containsKey("Clustering_minStartupSCs")) {
+			numberOfMinStartupSCs = Integer.parseInt(parameters
+					.get("Clustering_minStartupSCs"));
+		}
         // Initialise Algorithms and Resources here
-        resources = new Resources_MeanCost(api, params, this);
-        algorithm = new Algorithm_CLC(aac, resources, this);
+		algorithmClass = ClassLoader.getSystemClassLoader().loadClass(
+				"edacc.configurator.aac.clustering." + algorithmName);
+		resourcesClass = ClassLoader.getSystemClassLoader().loadClass(
+				"edacc.configurator.aac.clustering." + resourcesName);
+		resources = (ClusteringResources) resourcesClass
+				.getDeclaredConstructors()[0].newInstance(api, params, this);
+		algorithm = (ClusteringAlgorithm) algorithmClass
+				.getDeclaredConstructors()[0].newInstance(aac, resources, this);
         // End algorithm+resources initialisation
         
         //initialise data
@@ -68,10 +113,11 @@ public class ClusterHandler implements ClusterMethods{
             data.put(new InstanceIdSeed(is.instance.getId(), is.seed), 
                         new InstanceData(is.instance.getId(), is.seed, params.getStatistics().getCostFunction()));
         }
-        if(scs!=null){
-            for(SolverConfiguration s : scs){
-                addData(s);
-            }
+        if(resources.isInitialDataRequired(resourcesName)) {
+        	List<SolverConfiguration> startupSCs = initClustering();
+        	for (SolverConfiguration sc : startupSCs) {
+				addData(sc);
+			}
         }
         
         calculateClustering();
@@ -337,6 +383,92 @@ public class ClusterHandler implements ClusterMethods{
     public Map<InstanceIdSeed, InstanceData> getInstanceDataMap(){
         return data;
     }
+    
+    private List<SolverConfiguration> initClustering() throws Exception {
+		// Gathers a list of SCs to initialize the Clusters and of course the
+		// incumbent
+		List<SolverConfiguration> startupSCs = new ArrayList<SolverConfiguration>();
+		log("Initialisation with the following SCs ...");
+		// All reference SCs are added
+		log("Reference SCs...");
+		if (referenceSCs.size() > 0) {
+			for (SolverConfiguration refSc : referenceSCs) {
+				log(startupSCs.size() + ": " + refSc.getName());
+				startupSCs.add(refSc);
+			}
+		}
+		// Default SCs are added. The maximum is the given number of startup SCs
+		int defaultSCs = Math.min(firstSCs.size(), numberOfMinStartupSCs);
+		log("Default SCs...");
+		for (int i = 0; i < defaultSCs; i++) {
+			aac.log("c " + startupSCs.size() + ": "
+					+ firstSCs.get(i).getName());
+			startupSCs.add(firstSCs.get(i));
+		}
+		// At least (number of minimal startupSCs)/2 random SCs are added.
+		// Improves the reliability of the predefined data.
+		log("Random SCs...");
+		int randomSCs = Math.max((int) (numberOfMinStartupSCs / 2), numberOfMinStartupSCs - startupSCs.size());
+		for (int i = 0; i < randomSCs; i++) {
+			ParameterConfiguration randomConf = paramGraph
+					.getRandomConfiguration(rng);
+			try {
+				int scID = api.createSolverConfig(params.getIdExperiment(),
+						randomConf, api.getCanonicalName(
+								params.getIdExperiment(), randomConf));
+
+				SolverConfiguration randomSC = new SolverConfiguration(scID,
+						randomConf, params.getStatistics());
+				startupSCs.add(randomSC);
+				log(startupSCs.size() + ": " + scID);
+			} catch (Exception e) {
+				log("Error - A new random configuration could not be created for the initialising of the clustering!");
+				e.printStackTrace();
+			}
+		}
+		// Run the configs on the whole parcour length
+		log("Adding jobs for the initial SCs...");
+		for (SolverConfiguration sc : startupSCs) {
+			int expansion = 0;
+			if (sc.getJobCount() < params.getMaxParcoursExpansionFactor()
+					* num_instances) {
+				expansion = params.getMaxParcoursExpansionFactor()
+						* num_instances - sc.getJobCount();
+				aac.expandParcoursSC(sc, expansion);
+			}
+			if (expansion > 0) {
+				log("Expanding parcours of SC "
+						+ sc.getIdSolverConfiguration() + " by " + expansion);
+			}
+		}
+		// Wait for the configs to finish
+		boolean finished = false;
+		while (!finished) {
+			finished = true;
+			log("Waiting for initial SCs to finish their jobs");
+			for (SolverConfiguration sc : startupSCs) {
+				aac.updateJobsStatus(sc);
+				if (!(sc.getNotStartedJobs().isEmpty() && sc.getRunningJobs()
+						.isEmpty())) {
+					finished = false;
+				}
+				aac.sleep(1000);
+			}
+		}
+		// Set bestSc
+		float bestCost = Float.MAX_VALUE;
+		for (SolverConfiguration sc : startupSCs) {
+			if (sc.getCost() < bestCost) {
+				bestCost = sc.getCost();
+				bestSC = sc;
+			}
+		}
+		return startupSCs;
+	}
+    
+	public SolverConfiguration initBestSC() {
+		return bestSC;
+	}
 }
 
 class InstanceDataComparator implements Comparator<InstanceData>{
