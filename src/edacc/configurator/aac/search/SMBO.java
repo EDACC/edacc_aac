@@ -218,7 +218,7 @@ public class SMBO extends SearchMethods {
         // Update the model
         int numJobs = 0;
         for (SolverConfiguration config: generatedConfigs) numJobs += config.getNumFinishedJobs();
-        if (lastNumJobs != 0 && lastNumJobs != numJobs) return new LinkedList<SolverConfiguration>(); 
+        if (numJobs == 0) return new LinkedList<SolverConfiguration>(); 
         lastNumJobs = numJobs;
         long start = System.currentTimeMillis();
         updateModel();
