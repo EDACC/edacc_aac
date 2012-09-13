@@ -15,7 +15,7 @@ import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
-import edacc.configurator.aac.clustering.ClusterGateway;
+import edacc.configurator.aac.clustering.ClusterHandler;
 import edacc.configurator.aac.clustering.Costs;
 import edacc.model.ConfigurationScenarioDAO;
 import edacc.model.ExperimentResult;
@@ -41,7 +41,7 @@ public class Roar extends RacingMethods {
 	// ////////////////////CLUSTERING/////////////////////////////////
 	// Flag to enable/disable the functionality of instance-clustering
 	boolean clustering = true;
-	ClusterGateway clusterHandler;
+	ClusterHandler clusterHandler;
 
 	public Roar(AAC proar, Random rng, API api,
 			Parameters parameters, List<SolverConfiguration> firstSCs,
@@ -67,7 +67,7 @@ public class Roar extends RacingMethods {
 		}
 
 		if (clustering) {
-			clusterHandler = new ClusterGateway(proar, rng, api, parameters,
+			clusterHandler = new ClusterHandler(proar, parameters, api, rng,  
 					firstSCs, referenceSCs);
 			bestSC = clusterHandler.initBestSC();
 		} else {
