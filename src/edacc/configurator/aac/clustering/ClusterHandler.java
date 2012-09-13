@@ -9,7 +9,6 @@ import edacc.configurator.aac.SolverConfiguration;
 import edacc.model.Course;
 import edacc.model.ExperimentResult;
 import edacc.model.InstanceSeed;
-import java.awt.Point;
 import java.util.*;
 
 /**
@@ -317,7 +316,7 @@ public class ClusterHandler implements ClusterMethods{
     }
     
     protected void log(String message){
-        aac.log("Clustering: "+message);
+        aac.log("Clustering: ("+algorithm.getName()+", "+resources.getName()+")"+message);
     }
     
     protected final double getCPUTime(){

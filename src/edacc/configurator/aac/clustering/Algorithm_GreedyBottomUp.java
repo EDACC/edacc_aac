@@ -150,6 +150,6 @@ public abstract class Algorithm_GreedyBottomUp implements ClusteringAlgorithm {
     }
     
     protected void log(String message){
-        aac.log(getName()+"-Clustering ("+resources.getName()+"): "+message);
+        handler.log(message);
     }
 }
