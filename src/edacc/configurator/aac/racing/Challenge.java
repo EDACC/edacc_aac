@@ -16,7 +16,7 @@ import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.JobListener;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
-import edacc.configurator.aac.racing.challenge.Clustering;
+import edacc.configurator.aac.solvercreator.Clustering;
 import edacc.model.Experiment;
 import edacc.model.ExperimentResult;
 import edacc.model.Instance;
@@ -92,41 +92,41 @@ public class Challenge extends RacingMethods implements JobListener {
 		String val;
 		if ((val = parameters.getRacingMethodParameters().get("Challenge_initialRunsInstanceSolvedPercentage")) != null)
 			initialRunsInstanceSolvedPercentage = Float.parseFloat(val);
-		else if ((val = parameters.getRacingMethodParameters().get("Challenge_instanceSolvedThresholdPercentage")) != null)
+		if ((val = parameters.getRacingMethodParameters().get("Challenge_instanceSolvedThresholdPercentage")) != null)
 			instanceSolvedThresholdPercentage = Float.parseFloat(val);
-		else if ((val = parameters.getRacingMethodParameters().get("Challenge_numTournamentWinnerInstances")) != null)
+		if ((val = parameters.getRacingMethodParameters().get("Challenge_numTournamentWinnerInstances")) != null)
 			numTournamentWinnerInstances = Integer.parseInt(val);
-		else if ((val = parameters.getRacingMethodParameters().get("Challenge_minBestSCs")) != null)
+		if ((val = parameters.getRacingMethodParameters().get("Challenge_minBestSCs")) != null)
 			minBestSCs = Integer.parseInt(val);
-		else if ((val = parameters.getRacingMethodParameters().get("Challenge_scInitialPoints")) != null)
+		if ((val = parameters.getRacingMethodParameters().get("Challenge_scInitialPoints")) != null)
 			scInitialPoints = Integer.parseInt(val);
-		else if ((val = parameters.getRacingMethodParameters().get("Challenge_scQualificationWinnerPoints")) != null)
+		if ((val = parameters.getRacingMethodParameters().get("Challenge_scQualificationWinnerPoints")) != null)
 			scQualificationWinnerPoints = Integer.parseInt(val);
-		else if ((val = parameters.getRacingMethodParameters().get("Challenge_scQualificationLoserPoints")) != null)
+		if ((val = parameters.getRacingMethodParameters().get("Challenge_scQualificationLoserPoints")) != null)
 			scQualificationLoserPoints = Integer.parseInt(val);
-		else if ((val = parameters.getRacingMethodParameters().get("Challenge_scTournamentWinnerPoints")) != null)
+		if ((val = parameters.getRacingMethodParameters().get("Challenge_scTournamentWinnerPoints")) != null)
 			scTournamentWinnerPoints = Integer.parseInt(val);
-		else if ((val = parameters.getRacingMethodParameters().get("Challenge_scTournamentLoserPoints")) != null)
+		if ((val = parameters.getRacingMethodParameters().get("Challenge_scTournamentLoserPoints")) != null)
 			scTournamentLoserPoints = Integer.parseInt(val);
-		else if ((val = parameters.getRacingMethodParameters().get("Challenge_qualificationSCCount")) != null)
+		if ((val = parameters.getRacingMethodParameters().get("Challenge_qualificationSCCount")) != null)
 			qualificationSCCount = Integer.parseInt(val);
-		else if ((val = parameters.getRacingMethodParameters().get("Challenge_minQualificationWinners")) != null)
+		if ((val = parameters.getRacingMethodParameters().get("Challenge_minQualificationWinners")) != null)
 			minQualificationWinners = Integer.parseInt(val);
-		else if ((val = parameters.getRacingMethodParameters().get("Challenge_tournamentSCCount")) != null)
+		if ((val = parameters.getRacingMethodParameters().get("Challenge_tournamentSCCount")) != null)
 			tournamentSCCount = Integer.parseInt(val);
-		else if ((val = parameters.getRacingMethodParameters().get("Challenge_numChallengeInstancesQualification")) != null)
+		if ((val = parameters.getRacingMethodParameters().get("Challenge_numChallengeInstancesQualification")) != null)
 			numChallengeInstancesQualification = Integer.parseInt(val);
-		else if ((val = parameters.getRacingMethodParameters().get("Challenge_numChallengeInstancesTournament")) != null)
+		if ((val = parameters.getRacingMethodParameters().get("Challenge_numChallengeInstancesTournament")) != null)
 			numChallengeInstancesTournament = Integer.parseInt(val);
-		else if ((val = parameters.getRacingMethodParameters().get("Challenge_minInitialSolvedPerc")) != null)
+		if ((val = parameters.getRacingMethodParameters().get("Challenge_minInitialSolvedPerc")) != null)
 			minInitialSolvedPerc = Float.parseFloat(val);
-		else if ((val = parameters.getRacingMethodParameters().get("Challenge_useAdaptiveInstanceTimeouts")) != null)
+		if ((val = parameters.getRacingMethodParameters().get("Challenge_useAdaptiveInstanceTimeouts")) != null)
 			useAdaptiveInstanceTimeouts = Boolean.parseBoolean(val);
-		else if ((val = parameters.getRacingMethodParameters().get("Challenge_limitCPUTimeFactor")) != null)
+		if ((val = parameters.getRacingMethodParameters().get("Challenge_limitCPUTimeFactor")) != null)
 			limitCPUTimeFactor = Float.parseFloat(val);
-		else if ((val = parameters.getRacingMethodParameters().get("Challenge_limitCPUTimeMaxCPUTime")) != null)
+		if ((val = parameters.getRacingMethodParameters().get("Challenge_limitCPUTimeMaxCPUTime")) != null)
 			limitCPUTimeMaxCPUTime = Integer.parseInt(val);
-		else if ((val = parameters.getRacingMethodParameters().get("Challenge_limitCPUTimeMinRuns")) != null)
+		if ((val = parameters.getRacingMethodParameters().get("Challenge_limitCPUTimeMinRuns")) != null)
 			limitCPUTimeMinRuns = Integer.parseInt(val);
 			
 		solverConfigsReadyForQualification = new ArrayList<SolverConfiguration>();
@@ -152,7 +152,7 @@ public class Challenge extends RacingMethods implements JobListener {
 			addInitialRuns(sc);
 		}
 
-		clustering = new Clustering(instances, new LinkedList<String>());
+		clustering = new Clustering(instances, new HashMap<Integer, float[]>());
 	}
 	
 	private void updateBestSolverConfigs() {
@@ -1041,22 +1041,24 @@ public class Challenge extends RacingMethods implements JobListener {
 	}
 
 	@Override
-	public void jobFinished(ExperimentResult result) {
-		SolverConfigurationMetaData sc = allSolverConfigs.get(result.getSolverConfigId());
-		if (sc == null) {
-			return;
-		}
-		List<ExperimentResult> results = new LinkedList<ExperimentResult>(); 
-		boolean hasCost = false;
-		for (ExperimentResult r : sc.solverConfig.getJobs()) {
-			if (r.getInstanceId() == result.getInstanceId()) {
-				results.add(r);
-				if (r.getResultCode().isCorrect()) {
-					hasCost = true;
+	public void jobsFinished(List<ExperimentResult> _results) {
+		for (ExperimentResult result : _results) {
+			SolverConfigurationMetaData sc = allSolverConfigs.get(result.getSolverConfigId());
+			if (sc == null) {
+				return;
+			}
+			List<ExperimentResult> results = new LinkedList<ExperimentResult>();
+			boolean hasCost = false;
+			for (ExperimentResult r : sc.solverConfig.getJobs()) {
+				if (r.getInstanceId() == result.getInstanceId()) {
+					results.add(r);
+					if (r.getResultCode().isCorrect()) {
+						hasCost = true;
+					}
 				}
 			}
+			float cost = hasCost ? parameters.getStatistics().getCostFunction().calculateCost(results) : Float.POSITIVE_INFINITY;
+			clustering.update(result.getSolverConfigId(), result.getInstanceId(), cost);
 		}
-		float cost = hasCost ? parameters.getStatistics().getCostFunction().calculateCost(results) : Float.POSITIVE_INFINITY;
-		clustering.update(result.getSolverConfigId(), result.getInstanceId(), cost);
 	}
 }

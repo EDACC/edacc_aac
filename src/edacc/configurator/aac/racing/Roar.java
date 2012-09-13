@@ -1,7 +1,6 @@
 package edacc.configurator.aac.racing;
 
-import java.awt.Point;
-import java.util.ArrayList;
+
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -16,17 +15,15 @@ import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
-import edacc.configurator.aac.clustering.CLC_Clustering;
-import edacc.configurator.aac.clustering.ClusterMethods;
+import edacc.configurator.aac.clustering.ClusterGateway;
+import edacc.configurator.aac.clustering.Costs;
 import edacc.model.ConfigurationScenarioDAO;
 import edacc.model.ExperimentResult;
-import edacc.parameterspace.ParameterConfiguration;
-import edacc.parameterspace.graph.ParameterGraph;
 
 /**
-* @author schulte
-*/
-public class Roar_aggrCapping extends RacingMethods {
+ * @author schulte
+ */
+public class Roar extends RacingMethods {
 	// The incumbent (SC with the best costs)
 	SolverConfiguration bestSC;
 	// The number of incumbent changes
@@ -35,42 +32,30 @@ public class Roar_aggrCapping extends RacingMethods {
 	int num_instances;
 	// Set of SC-IDs which are not evaluated anymore
 	HashSet<Integer> stopEvalSolverConfigIds = new HashSet<Integer>();
-	// Graph representation of the parameter pool. Used to create new
-	// parameter configurations
-	ParameterGraph paramGraph;
-	///////////////////////CAPPING///////////////////////////////////
+	// /////////////////////CAPPING///////////////////////////////////
 	// Flag to enable/disable the functionality of aggressive capping
-	boolean aggressiveCapping = false;
-	// Multiplier to tolerate worse SCs for further evaluation. The 
+	boolean aggressiveCapping = true;
+	// Multiplier to tolerate worse SCs for further evaluation. The
 	// capping factor decreases with the number of runs a SC gains
 	float maxCappingFactor = 2f;
-	//////////////////////CLUSTERING/////////////////////////////////
+	// ////////////////////CLUSTERING/////////////////////////////////
 	// Flag to enable/disable the functionality of instance-clustering
 	boolean clustering = true;
-	// A set of fully evaluated SCs is required to create an initial 
-	// clustering. The number of those SCs is defined in this variable
-	int numberOfMinStartupSCs = 20;
-	// Interface for a clustering-algorithm
-	ClusterMethods clusterHandler;
+	ClusterGateway clusterHandler;
 
-	public Roar_aggrCapping(AAC proar, Random rng, API api,
+	public Roar(AAC proar, Random rng, API api,
 			Parameters parameters, List<SolverConfiguration> firstSCs,
 			List<SolverConfiguration> referenceSCs) throws Exception {
 		super(proar, rng, api, parameters, firstSCs, referenceSCs);
-		paramGraph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
 		incumbentNumber = 0;
 		num_instances = ConfigurationScenarioDAO
 				.getConfigurationScenarioByExperimentId(
 						parameters.getIdExperiment()).getCourse()
 				.getInitialLength();
-
 		HashMap<String, String> params = parameters.getRacingMethodParameters();
-		if (params.containsKey("ROAR_clustering")) {
-			clustering = Boolean.parseBoolean(params.get("ROAR_clustering"));
-		}
-		if (params.containsKey("ROAR_minStartupSCs")) {
-			numberOfMinStartupSCs = Integer.parseInt(params
-					.get("ROAR_minStartupSCs"));
+		if (params.containsKey("Clustering_useClustering")) {
+			clustering = Boolean.parseBoolean(params
+					.get("Clustering_useClustering"));
 		}
 		if (params.containsKey("ROAR_capping")) {
 			aggressiveCapping = Boolean
@@ -82,100 +67,19 @@ public class Roar_aggrCapping extends RacingMethods {
 		}
 
 		if (clustering) {
-			initClustering();
+			clusterHandler = new ClusterGateway(proar, rng, api, parameters,
+					firstSCs, referenceSCs);
+			bestSC = clusterHandler.initBestSC();
 		} else {
 			initBestSC(firstSCs.get(0));
 		}
 	}
 
-	private void initClustering() throws Exception {
-		// Gathers a list of SCs to initialize the Clusters and of course the
-		// incumbent
-		List<SolverConfiguration> startupSCs = new ArrayList<SolverConfiguration>();
-		pacc.log("c Initialize clustering with the following SCs ...");
-		// All reference SCs are added
-		pacc.log("c Reference SCs:");
-		if (referenceSCs.size() > 0) {
-			for (SolverConfiguration refSc : referenceSCs) {
-				pacc.log("c " + startupSCs.size() + ": " + refSc.getName());
-				startupSCs.add(refSc);
-			}
-		}
-		// Default SCs are added. The maximum is the given number of startup SCs
-		int defaultSCs = Math.min(firstSCs.size(), numberOfMinStartupSCs);
-		pacc.log("c Default SCs:");
-		for (int i = 0; i < defaultSCs; i++) {
-			pacc.log("c " + startupSCs.size() + ": "
-					+ firstSCs.get(i).getName());
-			startupSCs.add(firstSCs.get(i));
-		}
-		// At least (number of minimal startupSCs)/2 random SCs are added.
-		// Improves the reliability of the predefined data.
-		pacc.log("c Random SCs:");
-		for (int i = 0; i < (int) (numberOfMinStartupSCs / 2); i++) {
-			ParameterConfiguration randomConf = paramGraph
-					.getRandomConfiguration(rng);
-			try {
-				int scID = api.createSolverConfig(parameters.getIdExperiment(),
-						randomConf, api.getCanonicalName(
-								parameters.getIdExperiment(), randomConf));
-
-				SolverConfiguration randomSC = new SolverConfiguration(scID,
-						randomConf, parameters.getStatistics());
-				startupSCs.add(randomSC);
-				pacc.log("c " + startupSCs.size() + ": " + scID);
-			} catch (Exception e) {
-				pacc.log("w A new random configuration could not be created for the initialising of the clustering!");
-				e.printStackTrace();
-			}
-		}
-		// Run the configs on the whole parcour length
-		pacc.log("c Adding jobs for the initial SCs...");
-		for (SolverConfiguration sc : startupSCs) {
-			int expansion = 0;
-			if (sc.getJobCount() < parameters.getMaxParcoursExpansionFactor()
-					* num_instances) {
-				expansion = parameters.getMaxParcoursExpansionFactor()
-						* num_instances - sc.getJobCount();
-				pacc.expandParcoursSC(sc, expansion);
-			}
-			if (expansion > 0) {
-				pacc.log("c Expanding parcours of SC "
-						+ sc.getIdSolverConfiguration() + " by " + expansion);
-			}
-		}
-		// Wait for the configs to finish
-		boolean finished = false;
-		while (!finished) {
-			finished = true;
-			pacc.log("c Waiting for initial Scs to finish their jobs");
-			for (SolverConfiguration sc : startupSCs) {
-				pacc.updateJobsStatus(sc);
-				if (!(sc.getNotStartedJobs().isEmpty() && sc.getRunningJobs()
-						.isEmpty())) {
-					finished = false;
-				}
-				pacc.sleep(1000);
-			}
-		}
-		// Set bestSc
-		float bestCost = Float.MAX_VALUE;
-		for (SolverConfiguration sc : startupSCs) {
-			if (sc.getCost() < bestCost) {
-				bestCost = sc.getCost();
-				bestSC = sc;
-			}
-		}
-		// Initialize Clustering
-		clusterHandler = new CLC_Clustering(pacc, parameters, api, rng, startupSCs);
-
-	}
-
 	private void initBestSC(SolverConfiguration sc) throws Exception {
 		this.bestSC = firstSCs.get(0);
 		bestSC.setIncumbentNumber(incumbentNumber++);
-		pacc.log("i " + pacc.getWallTime() + " ," + bestSC.getCost()
-				+ ", n.A.," + bestSC.getIdSolverConfiguration() + ", n.A.,"
+		log(pacc.getWallTime() + " ," + bestSC.getCost() + ", n.A.,"
+				+ bestSC.getIdSolverConfiguration() + ", n.A.,"
 				+ bestSC.getParameterConfiguration().toString());
 
 		int expansion = 0;
@@ -187,13 +91,13 @@ public class Roar_aggrCapping extends RacingMethods {
 			pacc.expandParcoursSC(bestSC, expansion);
 		}
 		if (expansion > 0) {
-			pacc.log("c Expanding parcours of best solver config "
+			log("Expanding parcours of best solver config "
 					+ bestSC.getIdSolverConfiguration() + " by " + expansion);
 		}
 		// update the status of the jobs of bestSC and if first level wait
 		// also for jobs to finish
 		if (expansion > 0) {
-			pacc.log("c Waiting for currently best solver config "
+			log("Waiting for currently best solver config "
 					+ bestSC.getIdSolverConfiguration() + " to finish "
 					+ expansion + "job(s)");
 			while (true) {
@@ -228,7 +132,7 @@ public class Roar_aggrCapping extends RacingMethods {
 			_SCsFinishedUsingClusters(scs);
 		} else {
 			_SCsFinished(scs);
-		} 
+		}
 	}
 
 	@Override
@@ -258,7 +162,7 @@ public class Roar_aggrCapping extends RacingMethods {
 		int res = 0;
 		if (coreCount < parameters.getMinCPUCount()
 				|| coreCount > parameters.getMaxCPUCount()) {
-			pacc.log("w Warning: Current core count is " + coreCount);
+			log("Warning - Current core count is " + coreCount);
 		}
 		int staticVariance = 30;
 		if (parameters.getJobCPUTimeLimit() < 4)
@@ -291,7 +195,8 @@ public class Roar_aggrCapping extends RacingMethods {
 	 *            a list of all solver configurations with running or waiting
 	 *            jobs
 	 */
-	private void aggressiveCapping(HashMap<Integer, SolverConfiguration> listNewSC) {
+	private void aggressiveCapping(
+			HashMap<Integer, SolverConfiguration> listNewSC) {
 		if ((parameters.getStatistics().getCostFunction() instanceof edacc.api.costfunctions.PARX)
 				|| (parameters.getStatistics().getCostFunction() instanceof edacc.api.costfunctions.Average)) {
 			Collection<SolverConfiguration> scs = listNewSC.values();
@@ -300,22 +205,23 @@ public class Roar_aggrCapping extends RacingMethods {
 				SolverConfiguration sc = scsIter.next();
 				if (sc.getFinishedJobs().size() < parameters.getMinRuns())
 					continue;
-				Point costs;
-				if(clustering) {
-					costs = clusterHandler.costs(bestSC, sc, parameters.getStatistics().getCostFunction());
+				Costs costs;
+				if (clustering) {
+					costs = clusterHandler.costs(bestSC, sc, parameters
+							.getStatistics().getCostFunction());
 				} else {
 					costs = getCostsOfTheSolverConfigs(bestSC, sc);
 				}
-				double cappingFactor = Math.pow(maxCappingFactor,
-						(1 - (sc.getJobCount() / bestSC.getJobCount())));
+				double cappingFactor = Math.pow((double) maxCappingFactor,
+						(1.d - ((double) sc.getJobCount() / (double) bestSC
+								.getJobCount())));
 				if (cappingFactor < 1)
 					cappingFactor = 1.d;
-				if (costs.getY() > cappingFactor * costs.getX()) {
-					pacc.log("c COST Competitor (" + costs.getY()
-							+ ") > Incumbent (" + (float) cappingFactor + "*"
-							+ costs.getX() + ")");
-					pacc.log("c RUNS Competitor (" + sc.getJobCount()
-							+ ") < Incumbent (" + bestSC.getJobCount() + ")");
+				if (costs.getCostSc2() > cappingFactor * costs.getCostSc1()) {
+					log("SC " + sc.getIdSolverConfiguration() + " with cost  "
+							+ costs.getCostSc2() + " (> " + cappingFactor + "*"
+							+ costs.getCostSc1() + ") is capped on "
+							+ costs.getRunsInCommon() + " shared runs!");
 					if (clustering)
 						clusterHandler.addDataForClustering(sc);
 					List<ExperimentResult> jobsToKill = sc.getJobs();
@@ -324,31 +230,31 @@ public class Roar_aggrCapping extends RacingMethods {
 						try {
 							api.killJob(j.getId());
 						} catch (Exception e) {
-							pacc.log("w Warning: Job " + j.getId()
+							log("Warning - Job " + j.getId()
 									+ " could not be killed!");
 						}
 					}
 					try {
 						api.removeSolverConfig(sc.getIdSolverConfiguration());
 					} catch (Exception e) {
-						pacc.log("w Warning: SolverConfiguration "
+						log("Warning - SolverConfiguration "
 								+ sc.getIdSolverConfiguration()
 								+ " could not be removed!");
 					}
 					scsIter.remove();
-					pacc.log("c SolverConfiguration "
-							+ sc.getIdSolverConfiguration() + " was capped!");
 				}
 			}
 		}
 	}
 
 	/**
-	 * The racing-method ROAR has the option to use instance-sampling. If this option 
-	 * is enabled (Parameter: ROAR_clustering) instances are classified in clusters. 
-	 * Instead of comparing specific instances whole clusters are now compared.
+	 * The racing-method ROAR has the option to use instance-sampling. If this
+	 * option is enabled (Parameter: ROAR_clustering) instances are classified
+	 * in clusters. Instead of comparing specific instances whole clusters are
+	 * now compared.
 	 * 
-	 * @param scs: list of finished solver configurations
+	 * @param scs
+	 *            : list of finished solver configurations
 	 * @throws Exception
 	 */
 	private void _SCsFinishedUsingClusters(List<SolverConfiguration> scs)
@@ -356,8 +262,9 @@ public class Roar_aggrCapping extends RacingMethods {
 		// defines if the incumbent is added to the active SCs (has runs left)
 		boolean runBest = false;
 		for (SolverConfiguration sc : scs) {
-			if (sc == bestSC || 
-					stopEvalSolverConfigIds.contains(sc.getIdSolverConfiguration())) {
+			if (sc == bestSC
+					|| stopEvalSolverConfigIds.contains(sc
+							.getIdSolverConfiguration())) {
 				continue;
 			}
 			// defines if the competitor SC and the incumbent have the same
@@ -368,12 +275,12 @@ public class Roar_aggrCapping extends RacingMethods {
 			int[] competitor = clusterHandler.countRunPerCluster(sc);
 			int[] best = clusterHandler.countRunPerCluster(bestSC);
 			for (int i = 0; i < best.length; i++) {
-				if(competitor[i] < best[i]) 
+				if (competitor[i] < best[i])
 					equalRuns = false;
 			}
 			if (equalRuns) {
 				int comp = compareTo(sc, bestSC);
-				pacc.log("i The competitor " + sc.getIdSolverConfiguration()
+				log("The competitor " + sc.getIdSolverConfiguration()
 						+ " has as many runs as the incumbent "
 						+ bestSC.getIdSolverConfiguration());
 				if (comp > 0) {
@@ -382,12 +289,11 @@ public class Roar_aggrCapping extends RacingMethods {
 					pacc.updateSolverConfigName(sc, true);
 					bestSC = sc;
 					sc.setIncumbentNumber(incumbentNumber++);
-					pacc.log("i " + pacc.getWallTime() + "," + sc.getCost()
-							+ ",n.A. ," + sc.getIdSolverConfiguration()
-							+ ",n.A. ,"
+					log(pacc.getWallTime() + "," + sc.getCost() + ",n.A. ,"
+							+ sc.getIdSolverConfiguration() + ",n.A. ,"
 							+ sc.getParameterConfiguration().toString());
-				} else if(sc.getJobCount() == parameters.getMaxParcoursExpansionFactor()
-						* num_instances) {
+				} else if (sc.getJobCount() == parameters
+						.getMaxParcoursExpansionFactor() * num_instances) {
 					sc.setFinished(true);
 					clusterHandler.addDataForClustering(sc);
 				} else {
@@ -406,18 +312,17 @@ public class Roar_aggrCapping extends RacingMethods {
 							- bestSC.getJobCount();
 				}
 				if (runsToAdd > 0) {
-					pacc.log("i The competitor "
-							+ sc.getIdSolverConfiguration() + " gains another "
-							+ runsToAdd + " jobs");
+					log("The competitor " + sc.getIdSolverConfiguration()
+							+ " gains another " + runsToAdd + " jobs");
 					if (runsToAddInc > 0) {
-						pacc.log("The incumbent "
+						log("The incumbent "
 								+ bestSC.getIdSolverConfiguration() + " gains "
 								+ runsToAddInc
 								+ " jobs to keep up with the competitor");
 					}
 				} else if (sc.getJobCount() >= parameters
 						.getMaxParcoursExpansionFactor() * num_instances) {
-					pacc.log("e Error: The SC "
+					log("Error - The SC "
 							+ sc.getIdSolverConfiguration()
 							+ " has already "
 							+ sc.getJobCount()
@@ -457,10 +362,11 @@ public class Roar_aggrCapping extends RacingMethods {
 	}
 
 	/**
-	 * Checks if a competitor-sc should gain more runs and compares promising competitor-scs 
-	 * to the incumbent.
+	 * Checks if a competitor-sc should gain more runs and compares promising
+	 * competitor-scs to the incumbent.
 	 * 
-	 * @param scs: list of finished solver configurations
+	 * @param scs
+	 *            : list of finished solver configurations
 	 * @throws Exception
 	 */
 	private void _SCsFinished(List<SolverConfiguration> scs) throws Exception {
@@ -478,17 +384,13 @@ public class Roar_aggrCapping extends RacingMethods {
 					if (comp > 0) {
 						bestSC = sc;
 						sc.setIncumbentNumber(incumbentNumber++);
-						pacc.log("i " + pacc.getWallTime() + "," + sc.getCost()
-								+ ",n.A. ," + sc.getIdSolverConfiguration()
-								+ ",n.A. ,"
+						log(pacc.getWallTime() + "," + sc.getCost() + ",n.A. ,"
+								+ sc.getIdSolverConfiguration() + ",n.A. ,"
 								+ sc.getParameterConfiguration().toString());
 					}
 				} else {
-					int generated = pacc.addRandomJob(sc.getJobCount(), sc,
-							bestSC, Integer.MAX_VALUE - sc.getNumber());
-					pacc.log("c Generated " + generated
-							+ " jobs for solver config id "
-							+ sc.getIdSolverConfiguration());
+					pacc.addRandomJob(sc.getJobCount(), sc, bestSC,
+							Integer.MAX_VALUE - sc.getNumber());
 					pacc.addSolverConfigurationToListNewSC(sc);
 				}
 			} else {// lost against best on part of the actual (or should
@@ -499,13 +401,13 @@ public class Roar_aggrCapping extends RacingMethods {
 				sc.setFinished(true);
 				if (parameters.isDeleteSolverConfigs())
 					api.removeSolverConfig(sc.getIdSolverConfiguration());
-				pacc.log("d Solver config " + sc.getIdSolverConfiguration()
+				log("Solver config " + sc.getIdSolverConfiguration()
 						+ " with cost " + sc.getCost()
 						+ " lost against best solver config on "
 						+ sc.getJobCount() + " runs.");
 				if (bestSC.getJobCount() < parameters
 						.getMaxParcoursExpansionFactor() * num_instances) {
-					pacc.log("c Expanding parcours of best solver config "
+					log("Expanding parcours of best solver config "
 							+ bestSC.getIdSolverConfiguration() + " by 1");
 					pacc.expandParcoursSC(bestSC, 1);
 					pacc.addSolverConfigurationToListNewSC(bestSC);
@@ -524,7 +426,7 @@ public class Roar_aggrCapping extends RacingMethods {
 	 *            solver configuration which is raced against the incumbent
 	 * @return
 	 */
-	private Point getCostsOfTheSolverConfigs(SolverConfiguration best,
+	private Costs getCostsOfTheSolverConfigs(SolverConfiguration best,
 			SolverConfiguration other) {
 		HashMap<InstanceIdSeed, ExperimentResult> bestJobs = new HashMap<InstanceIdSeed, ExperimentResult>();
 		for (ExperimentResult job : best.getFinishedJobs()) {
@@ -542,12 +444,10 @@ public class Roar_aggrCapping extends RacingMethods {
 				otherJobsInCommon.add(job);
 			}
 		}
-		Point costs = new Point();
 		CostFunction costFunc = parameters.getStatistics().getCostFunction();
 		float costBest = costFunc.calculateCost(bestJobsInCommon);
 		float costOther = costFunc.calculateCost(otherJobsInCommon);
-		costs.setLocation(costBest, costOther);
-		return costs;
+		return new Costs(costBest, costOther, otherJobsInCommon.size());
 	}
 
 	@Override
@@ -580,9 +480,12 @@ public class Roar_aggrCapping extends RacingMethods {
 		try {
 			pacc.updateSolverConfigName(bestSC, true);
 		} catch (Exception e) {
-			pacc.log("Error: Incumbent name could not be changed!");
+			log("Error - Incumbent name could not be changed!");
 			e.printStackTrace();
 		}
 	}
 
+	public void log(String msg) {
+		pacc.log(" ROAR: " + msg);
+	}
 }

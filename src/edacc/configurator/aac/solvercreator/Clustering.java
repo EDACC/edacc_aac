@@ -1,15 +1,8 @@
-package edacc.configurator.aac.racing.challenge;
+package edacc.configurator.aac.solvercreator;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.io.Serializable;
 import java.sql.SQLException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -17,21 +10,10 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map.Entry;
-import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
 
-import edacc.api.API;
-import edacc.api.APIImpl;
-import edacc.api.costfunctions.CostFunction;
-import edacc.api.costfunctions.PARX;
-import edacc.model.Experiment.Cost;
-import edacc.model.ExperimentResult;
-import edacc.model.ExperimentResultDAO;
-import edacc.model.Instance;
 import edacc.model.InstanceClassMustBeSourceException;
-import edacc.model.InstanceDAO;
-import edacc.model.InstanceHasProperty;
 import edacc.model.ParameterInstanceDAO;
 import edacc.model.SolverConfiguration;
 import edacc.model.SolverConfigurationDAO;
@@ -55,39 +37,26 @@ public class Clustering implements Serializable {
 	 */
 	private static final long serialVersionUID = 2847802957451633450L;
 	
-	private int n; // number of instances = I.size();
-	transient private HashMap<Integer, Integer> I; // maps instance id to column
+	private float weighted_alpha = 1.2f;
 	
-	transient private HashMap<Integer, float[]> M; // Membership Matrix M, maps sc id to instance row vector
-	transient private HashMap<Integer, float[]> C; // Cost Matrix C, maps sc id to cost for instance vector
+	private int n; // number of instances = I.size();
+	protected HashMap<Integer, Integer> I; // maps instance id to column
+	
+	protected HashMap<Integer, float[]> M; // Membership Matrix M, maps sc id to instance row vector
+	protected HashMap<Integer, float[]> C; // Cost Matrix C, maps sc id to cost for instance vector
 	//HashMap<Integer, Float> W; // relative weight of sc
 	transient private float[] K; // K_i = sum over solver configs for instance row i (ith instance)
 	
 	// cache for data to be updated before using matrix M
+	transient private boolean solverConfigsRemoved;
 	transient private HashSet<Integer> update_columns;
 	
-	transient protected HashMap<Integer, float[]> F; // feature vectors for instances
+	protected HashMap<Integer, float[]> F; // feature vectors for instances
 	protected HashMap<Integer, String> P; // parameter lines
+	protected HashMap<Integer, Integer> scToSb; // solver config to solver binary
 	
-	
-	protected DecisionTree tree;
-	
-	protected RandomForest forest;
-	
-	/**
-	 * Creates new Clustering object with the given instance ids. Instance ids cannot be changed later.
-	 * @param instanceIds the instance ids to be clustered
-	 * @throws SQLException 
-	 * @throws InstanceClassMustBeSourceException 
-	 */
-	public Clustering(List<Integer> instanceIds, List<String> feature_names) throws InstanceClassMustBeSourceException, SQLException {
-		// generate the column mapping for M,C matrices
+	private Clustering(HashMap<Integer, float[]> featureMapping) {
 		I = new HashMap<Integer, Integer>();
-		int row = 0;
-		for (Integer id: instanceIds) {
-			I.put(id, row++);
-		}
-		n = I.size();
 		
 		// generate empty membership, cost and weight matrices
 		M = new HashMap<Integer, float[]>();
@@ -96,40 +65,77 @@ public class Clustering implements Serializable {
 		
 		// initialize data to be updated
 		update_columns = new HashSet<Integer>();
+		solverConfigsRemoved = false;
+		
+		F = featureMapping;
+		P = new HashMap<Integer, String>();
+		scToSb = new HashMap<Integer, Integer>();
+	}
+	
+	public Clustering(Clustering other) {
+		this(other.F);
+		for (Entry<Integer, Integer> entry : other.I.entrySet()) {
+			I.put(entry.getKey(), entry.getValue());
+		}
+		n = other.n;
+		for (Entry<Integer, float[]> entry : other.M.entrySet()) {
+			float[] values = entry.getValue();
+			M.put(entry.getKey(), Arrays.copyOf(values, values.length));
+		}
+		for (Entry<Integer, float[]> entry : other.C.entrySet()) {
+			float[] values = entry.getValue();
+			C.put(entry.getKey(), Arrays.copyOf(values, values.length));
+		}
+		update_columns.addAll(other.update_columns);
+		solverConfigsRemoved = other.solverConfigsRemoved;
+		for (Entry<Integer, String> entry : other.P.entrySet()) {
+			P.put(entry.getKey(), entry.getValue());
+		}
+		K = Arrays.copyOf(other.K, n);
+	}
+	
+	public int getFeaturesCount() {
+		if (F.isEmpty()) {
+			return 0;
+		} else {
+			return F.values().iterator().next().length;
+		}
+	}
+	
+	public HashMap<Integer, float[]> getFeatures() {
+		return F;
+	}
+	
+	/**
+	 * Creates new Clustering object with the given instance ids. Instance ids cannot be changed later.
+	 * @param instanceIds the instance ids to be clustered
+	 * @throws SQLException 
+	 * @throws InstanceClassMustBeSourceException 
+	 */
+	public Clustering(List<Integer> instanceIds, HashMap<Integer, float[]> featureMapping) {
+		this(featureMapping);
+		
+		// generate the column mapping for M,C matrices
+		int row = 0;
+		for (Integer id: instanceIds) {
+			I.put(id, row++);
+		}
+		n = I.size();
 		
 		// initialize K
 		K = new float[n];
 		for (int i = 0; i < n; i++) {
 			K[i] = 0.f;
 		}
-		
-		// load features
-		F = new HashMap<Integer, float[]>();
-		for (Integer id : instanceIds) {
-			float[] f = new float[feature_names.size()];
-			HashMap<String, Float> tmp = new HashMap<String, Float>();
-			Instance instance = InstanceDAO.getById(id);
-			for (InstanceHasProperty ihp : instance.getPropertyValues().values()) {
-				try {
-					tmp.put(ihp.getProperty().getName(), Float.parseFloat(ihp.getValue()));
-				} catch (Exception ex) {
-				}
-			}
-			for (int i = 0; i < feature_names.size(); i++) {
-				Float val = tmp.get(feature_names.get(i));
-				if (val == null) {
-					System.err.println("WARNING: Did not find feature value for name " + feature_names.get(i) + " and instance " + instance.getId());
-					f[i] = 0.f;
-				} else {
-					f[i] = val;
-				}
-			}
-			F.put(id, f);
-		}
-		P = new HashMap<Integer, String>();
 	}
-	
-	private void updateData() {
+
+	public void updateData() {
+		if (solverConfigsRemoved) {
+                    solverConfigsRemoved = false;
+			update_columns.addAll(I.values());
+		}
+                if (update_columns.isEmpty())
+                    return;
 		for (int column : update_columns) {
 			// Update M entry
 			{
@@ -137,6 +143,12 @@ public class Clustering implements Serializable {
 				float sum = 0.f;
 				float max = 0.f;
 				for (float[] tmp : C.values()) {
+					float t = tmp[column];
+					if (!Float.isInfinite(tmp[column])) {
+					//	tmp[column] = (float) Math.log(tmp[column]);
+						if (tmp[column] < 0.f) tmp[column] = 0.f;
+					}
+					
 					if (!Float.isInfinite(tmp[column])) {
 						sum += tmp[column];
 						scs++;
@@ -144,23 +156,34 @@ public class Clustering implements Serializable {
 							max = tmp[column];
 						}
 					}
+					
+					tmp[column] = t;
 				}
 
 				for (int tmp_scid : M.keySet()) {
 					float[] tmp_c = C.get(tmp_scid);
 					float[] tmp_m = M.get(tmp_scid);
+					
+					float t = tmp_c[column];
+					if (!Float.isInfinite(tmp_c[column])) {
+					//	tmp_c[column] = (float) Math.log(tmp_c[column]);
+						if (tmp_c[column] < 0.f) tmp_c[column] = 0.f;
+					}
+					
 					if (Float.isInfinite(tmp_c[column])) {
 						tmp_m[column] = 0.f;
 					} else {
 						// TODO: eps
-						if (scs * max - sum > 0.001f) {
-							// TODO: multiplicator
-							tmp_m[column] = (max * 1.05f - tmp_c[column]) / (scs * max * 1.05f - sum);
+						float eps = 0.0001f;
+						if (scs * max - sum > eps) {
+							tmp_m[column] = (max * weighted_alpha - tmp_c[column]) / (scs * max * weighted_alpha - sum);
 						} else {
 							tmp_m[column] = 1.f / scs;
 						}
 						// TODO: maximize: tmp_c[column] / sum
 					}
+					
+					tmp_c[column] = t;
 				}
 			}
 
@@ -173,6 +196,7 @@ public class Clustering implements Serializable {
 		}
 		update_columns.clear();
 	}
+	
 
 	/**
 	 * Updates the cost of the given solver configuration on the given instance.
@@ -203,6 +227,7 @@ public class Clustering implements Serializable {
 			try {
 				SolverConfiguration sc = SolverConfigurationDAO.getSolverConfigurationById(scid);
 				P.put(scid, edacc.experiment.Util.getSolverParameterString(ParameterInstanceDAO.getBySolverConfig(sc), SolverDAO.getById(sc.getSolverBinary().getIdSolver())));
+				scToSb.put(scid, sc.getSolverBinary().getId());
 			} catch (Exception ex) {
 				System.err.println("WARNING: Could not add parameter line for solver configuration " + scid);
 			}
@@ -224,6 +249,39 @@ public class Clustering implements Serializable {
 	public void remove(int scid) {
 		M.remove(scid);
 		C.remove(scid);
+		solverConfigsRemoved = true;
+	}
+	
+	public float performance(HashMap<Integer, List<Integer>> clustering) {
+		float res = 0.f;
+
+		float[] maxValues = new float[n];
+		for (int i = 0; i < n; i++) maxValues[i] = 0.f;
+		
+		for (Entry<Integer, float[]> entry : M.entrySet()) {
+			for (int i = 0; i < n; i++) {
+				if (entry.getValue()[i] > maxValues[i]) {
+					maxValues[i] = entry.getValue()[i];
+				}
+			}
+		}
+		
+		float max = 0.f;
+		for (float f : maxValues) {
+			max += f;
+		}
+		if (max < 0.001f) {
+			return 0.f;
+		}
+		
+		for (Entry<Integer, List<Integer>> entry : clustering.entrySet()) {
+			for (Integer instanceId : entry.getValue()) {
+				int col = I.get(instanceId);
+				float val = M.get(entry.getKey())[col];
+				res += val;
+			}
+		}
+		return res / max;
 	}
 	
 	
@@ -267,12 +325,47 @@ public class Clustering implements Serializable {
 				float val = M.get(scid)[I.get(insId)];
 				float max = maxSCIdValues.get(insId).getSecond();
 				// TODO: multiplicator
-				if (val * 1.2f >= max) {
+				if (val * 1.5f >= max) {
 					cluster.add(insId);
 					instanceIds.remove(i);
 					maxSCIdValues.remove(insId);
 				}
 			}
+		}
+		
+		return res;
+	}
+	
+	public HashMap<Integer, List<Integer>> getClustering(boolean removeSmallClusters, float threshold) {
+		List<Pair<Integer, Float>> scidWeight = new LinkedList<Pair<Integer, Float>>();
+		for (int scid : M.keySet()) {
+			scidWeight.add(new Pair<Integer, Float>(scid, getWeight(scid)));
+		}
+		Collections.sort(scidWeight, new Comparator<Pair<Integer, Float>>() {
+			@Override
+			public int compare(Pair<Integer, Float> arg0, Pair<Integer, Float> arg1) {
+				if (arg0.getSecond() - 0.000001f < arg1.getSecond() && arg0.getSecond() + 0.000001f > arg1.getSecond()) {
+					return 0;
+				} else if (arg0.getSecond() > arg1.getSecond()) {
+					return 1;
+				} else if (arg1.getSecond() > arg0.getSecond()) {
+					return -1;
+				}
+				return 0;
+			}
+			
+		});
+		HashMap<Integer, List<Integer>> res = new HashMap<Integer, List<Integer>>();
+		HashSet<Integer> scids = new HashSet<Integer>();
+		scids.addAll(M.keySet());
+		for (int i = 0; i < scidWeight.size(); i++) {
+			HashMap<Integer, List<Integer>> tmp = getClustering(false, scids);
+			if (performance(tmp) >= threshold) {
+				res = tmp;
+			} else {
+				break;
+			}
+			scids.remove(scidWeight.get(i).getFirst());
 		}
 		
 		return res;
@@ -284,12 +377,19 @@ public class Clustering implements Serializable {
 	 * @return
 	 */
 	public HashMap<Integer, List<Integer>> getClustering(boolean removeSmallClusters) {
-		updateData();
+		return getClustering(removeSmallClusters, M.keySet());
+	}
+
+	public HashMap<Integer, List<Integer>> getClustering(boolean removeSmallClusters, Set<Integer> solverConfigs) {
+		// for mindist method
+		if (update_columns != null) {
+			updateData();
+		}
 		HashMap<Integer, List<Integer>> res = new HashMap<Integer, List<Integer>>();
 		for (int instanceid : I.keySet()) {
 			float max = 0.f;
 			int scid = -1;
-			for (int tmp_scid : M.keySet()) {
+			for (int tmp_scid : solverConfigs) {
 				float[] m = M.get(tmp_scid);
 				if (m[I.get(instanceid)] > max) {
 					max = m[I.get(instanceid)];
@@ -369,12 +469,24 @@ public class Clustering implements Serializable {
 		return res;
 	}
 	
+	public boolean contains(int scid) {
+		updateData();
+		return M.containsKey(scid);
+	}
+	
+	public List<Integer> getSolverConfigIds() {
+		LinkedList<Integer> res = new LinkedList<Integer>();
+		res.addAll(M.keySet());
+		return res;
+	}
+	
 	/**
 	 * Returns a value between 0.f and 1.f. This is the weight for the given solver configuration where bigger is better.
 	 * @param scid the solver configuration id
 	 * @return the weight for the solver configuration
 	 */
 	public float getWeight(int scid) {
+		updateData();
 		return getAbsoluteWeight(scid) / getCumulatedWeight();
 	}
 	
@@ -393,6 +505,62 @@ public class Clustering implements Serializable {
 			}
 		}
 		return res;
+	}
+	
+	public float getMembership(int scid, int instanceid) {
+		updateData();
+		Integer col = I.get(instanceid);
+		if (col == null) {
+			return 0.f;
+		}
+		float[] values = M.get(scid);
+		if (values == null) {
+			return 0.f;
+		}
+		return values[col];
+	}
+	
+	public float getMaximumMembership(int instanceid) {
+		updateData();
+		Integer col = I.get(instanceid);
+		if (col == null) {
+			return 0.f;
+		}
+		float res = 0.f;
+		for (float[] values : M.values()) {
+			if (values[col] > res) {
+				res = values[col];
+			}
+		}
+		return res;
+	}
+	
+	public float getMinimumCost(int instanceid) {
+		updateData();
+		Integer col = I.get(instanceid);
+		if (col == null) {
+			return Float.POSITIVE_INFINITY;
+		}
+		float res = Float.POSITIVE_INFINITY;
+		for (float[] values : C.values()) {
+			if (values[col] < res) {
+				res = values[col];
+			}
+		}
+		return res;
+	}
+	
+	public float getCost(int scid, int instanceid) {
+		updateData();
+		Integer col = I.get(instanceid);
+		if (col == null) {
+			return 0.f;
+		}
+		float[] values = C.get(scid);
+		if (values == null) {
+			return 0.f;
+		}
+		return values[col];
 	}
 	
 	/**
@@ -428,19 +596,6 @@ public class Clustering implements Serializable {
 			System.out.printf("%9f", K[i]);
 		}
 		System.out.println();
-	}
-	
-	public static void serialize(String file, Clustering C) throws FileNotFoundException, IOException {
-		ObjectOutputStream os = new ObjectOutputStream(new FileOutputStream(new File(file)));
-		os.writeUnshared(C);
-		os.close();
-	}
-	
-	public static Clustering deserialize(String file) throws FileNotFoundException, IOException, ClassNotFoundException {
-		ObjectInputStream is = new ObjectInputStream(new FileInputStream(new File(file)));
-		Clustering c = (Clustering) is.readUnshared();
-		is.close();
-		return c;
 	}
 	
 	public float getDistance(int i1, int i2) {
@@ -601,153 +756,13 @@ public class Clustering implements Serializable {
 		
 		HashMap<Integer, List<Integer>> res = new HashMap<Integer, List<Integer>>();
 		for (List<Integer> cluster : c) {
-			res.put(getBestConfigurationForCluster(cluster), cluster);
+			int id = getBestConfigurationForCluster(cluster);
+			if (res.containsKey(id)) {
+				res.get(id).addAll(cluster);
+			} else {
+				res.put(getBestConfigurationForCluster(cluster), cluster);
+			}
 		}
 		return res;
-	}
-	
-	/**
-	 * Test method for Clustering class.
-	 * @param args
-	 * @throws Exception
-	 */
-	public static void main(String[] args) throws Exception {
-		API api = new APIImpl();
-		
-		Properties properties = new Properties();
-		InputStream in = Clustering.class.getResourceAsStream("settings.properties");
-		properties.load(in);
-		in.close();
-		in = Clustering.class.getResourceAsStream("private.properties");
-		if (in != null) {
-			properties.load(in);
-			in.close();
-		}		
-		api.connect(properties.getProperty("DBHost"), Integer.parseInt(properties.getProperty("DBPort")), properties.getProperty("DB"), properties.getProperty("DBUser"), properties.getProperty("DBPassword"), Boolean.parseBoolean(properties.getProperty("DBCompress")));
-		int expid = Integer.parseInt(properties.getProperty("ExperimentId"));
-		
-		LinkedList<Instance> instances = InstanceDAO.getAllByExperimentId(expid);
-		List<Integer> instanceIds = new LinkedList<Integer>();
-		for (Instance i : instances) {
-			instanceIds.add(i.getId());
-		}
-		//instanceIds.add(17164);
-		
-		List<String> feature_names = new LinkedList<String>();		
-		for (String f : properties.getProperty("Features").split(","))
-			feature_names.add(f);
-		
-		
-		Clustering C = new Clustering(instanceIds, feature_names);
-		CostFunction f = new PARX(Cost.resultTime, false, 0, 1);
-		//int sc_limit = 100;
-		//int sc_c = 0;
-		
-		HashMap<Pair<Integer, Integer>, List<ExperimentResult>> results = new HashMap<Pair<Integer, Integer>, List<ExperimentResult>>();
-		HashSet<Integer> scids = new HashSet<Integer>();
-		
-		
-		for (ExperimentResult er : ExperimentResultDAO.getAllByExperimentId(expid)) {
-			List<ExperimentResult> tmp = results.get(new Pair<Integer, Integer>(er.getSolverConfigId(), er.getInstanceId()));
-			if (tmp == null) {
-				tmp = new LinkedList<ExperimentResult>();
-				results.put(new Pair<Integer, Integer>(er.getSolverConfigId(), er.getInstanceId()), tmp);
-				scids.add(er.getSolverConfigId());
-			}
-			tmp.add(er);
-		}
-		
-		for (Pair<Integer, Integer> p : results.keySet()) {
-			//if (sc_c++ >= sc_limit)
-			//	break;
-			// System.out.println("" + sc.getId() + ":" + i);
-			List<ExperimentResult> r = results.get(p);
-			if (!r.isEmpty()) {
-				boolean inf = true;
-				for (ExperimentResult res : r) {
-					if (res.getResultCode().isCorrect()) {
-						inf = false;
-						break;
-					}
-				}
-				float c = inf ? Float.POSITIVE_INFINITY : f.calculateCost(r);
-				C.update(p.getFirst(), p.getSecond(), c);
-				// System.out.println("" + sc.getId() + ":" + i + ":" + c);
-
-			}
-		}
-		//C.printM();
-		
-		System.out.println("Generating clustering for single decision tree using default method..");
-		HashMap<Integer, List<Integer>> c = C.getClustering(false);
-		System.out.println("Clustering size: " + c.size());
-		//C.tree = new DecisionTree(c, C.F, C.F.values().iterator().next().length);
-		
-		for (Entry<Integer, List<Integer>> entry : c.entrySet()) {
-			System.out.print(entry.getKey() + ": ");
-			System.out.println(entry.getValue());
-		}
-		
-		List<Pair<Integer, Float>> scweights = new LinkedList<Pair<Integer, Float>>();
-		for (int scid : scids) {
-			scweights.add(new Pair<Integer, Float>(scid, C.getAbsoluteWeight(scid)));
-		}
-		Collections.sort(scweights, new Comparator<Pair<Integer, Float>>() {
-
-			@Override
-			public int compare(Pair<Integer, Float> arg0, Pair<Integer, Float> arg1) {
-				if (arg0.getSecond() < arg1.getSecond()) {
-					return 1;
-				} else if (arg1.getSecond() < arg0.getSecond()) {
-					return -1;
-				} else {
-					return 0;
-				}
-			}
-			
-		});
-		int count = 1;
-		for (Pair<Integer, Float> p : scweights) {
-			System.out.println((count++) + ") " + p.getFirst() + "   W: " + p.getSecond());
-		}
-
-		for (Integer i : c.keySet()) {
-			System.out.print("(.*ID: " + i + ".*)|");
-		}
-		System.out.println();
-		
-		//System.out.println(C.getClusteringHierarchical(HierarchicalClusterMethod.AVERAGE_LINKAGE, 10));
-		
-		//C.printM();
-		if (Boolean.parseBoolean(properties.getProperty("BuildRandomForest"))) {
-			System.out.println("Generating random forest using greedy clustering method..");
-			C.forest = new RandomForest(C, new Random(0), Integer.parseInt(properties.getProperty("RandomForestTreeCount")));
-			System.out.println("done.");
-		}
-		
-		System.out.println("# instances not used: " + C.getNotUsedInstances().size());
-
-		if (Boolean.parseBoolean(properties.getProperty("Serialize"))) {
-			serialize(properties.getProperty("SerializeFilename"), C);
-		}
-		
-		/*
-		List<Integer> instanceIds2 = new LinkedList<Integer>();
-		instanceIds2.add(1);
-		instanceIds2.add(2);
-		
-		Clustering C2 = new Clustering(instanceIds2);
-		
-		
-		
-		C2.update(1, 1, 18.f);
-		C2.update(2, 1, 60.f);
-		C2.update(3, 1, 200.f);
-		C2.update(4, 1, 300.f);
-		C2.update(5, 1, 300.f);
-		C2.update(6, 1, 300.f);
-		C2.update(7, 2, 10.f);
-		
-		C2.printM();*/
 	}
 }

@@ -1,15 +1,26 @@
 package edacc.configurator.aac;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileReader;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.math.BigInteger;
 
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Properties;
 
 import java.util.Random;
 import java.util.Scanner;
@@ -23,6 +34,11 @@ import edacc.configurator.aac.search.SearchMethods;
 import edacc.model.ConfigurationScenarioDAO;
 import edacc.model.Course;
 import edacc.model.DatabaseConnector;
+import edacc.model.Instance;
+import edacc.model.InstanceClassMustBeSourceException;
+import edacc.model.InstanceDAO;
+import edacc.model.InstanceNotInDBException;
+import edacc.model.NoConnectionToDBException;
 import edacc.model.ResultCode;
 import edacc.model.StatusCode;
 //import edacc.model.ExperimentDAO;
@@ -350,60 +366,106 @@ public class AAC {
 	 * @param scs the list of the solver configurations
 	 * @param restart
 	 * @param changeStatus
+	 * @return list of solver configurations for which jobs had to be reset.
 	 */
-	public void changeCPUTimeLimit(int instanceId, int limit, List<SolverConfiguration> scs, boolean restart, boolean changeStatus) throws Exception {
+	public List<SolverConfiguration> changeCPUTimeLimit(int instanceId, int limit, List<SolverConfiguration> scs, boolean restart, boolean changeStatus) throws Exception {
 		if (limit < 1 && limit != -1)
 			limit = 1;
 		
+		List<SolverConfiguration> res = new LinkedList<SolverConfiguration>();
+		
 		log("Changing CPUTimeLimit of instance " + instanceId + " to " + limit + "s.");
+		
+		List<Pair<Integer, Integer>> enableJobs = new LinkedList<Pair<Integer, Integer>>();
+		List<ExperimentResult> addToCPUTime = new LinkedList<ExperimentResult>();
 		
 		instanceCPUTimeLimits.put(instanceId, limit);
 		if (scs != null && (restart || changeStatus)) {
 			for (SolverConfiguration sc : scs) {
+				boolean jobsReset = false;
 				for (ExperimentResult er : sc.getJobs()) {
 					if (er.getInstanceId() == instanceId) {
 						boolean rst = false;
+						ExperimentResult apiER = api.getJob(er.getId());
 						if (restart) {
+							// disable job and remember priority
+							enableJobs.add(new Pair<Integer, Integer>(er.getId(), er.getPriority()));
+							api.setJobPriority(er.getId(), -1);
 							
-							rst = (er.getCPUTimeLimit() < limit && !String.valueOf(er.getResultCode()).startsWith("1"));
-							rst |= er.getStatus().equals(StatusCode.RUNNING);
-							rst |= er.getStatus().equals(StatusCode.NOT_STARTED);
+							apiER = api.getJob(er.getId());
+							
+							rst = (apiER.getCPUTimeLimit() < limit && !String.valueOf(apiER.getResultCode()).startsWith("1"));
+							rst |= (apiER.getStatus().equals(StatusCode.RUNNING));
+							rst |= (apiER.getStatus().equals(StatusCode.NOT_STARTED));
 							
 							if (rst) {
-								ExperimentResult apiER = api.getJob(er.getId());
 								if (apiER.getStatus().equals(StatusCode.RUNNING)) {
 									api.killJob(er.getId());
-									log("Restarting a running job .. waiting for client to kill the job.");
-									while (apiER.getStatus().equals(StatusCode.RUNNING)) {
-										Thread.sleep(1000);
-										apiER = api.getJob(er.getId());
-									}
-									log("Client killed the job.");
+									addToCPUTime.add(apiER);
+								} else {
+									api.restartJob(er.getId(), limit);
 								}
-								log("Restarting job " + er.getId() + " with new limit.");
-								api.restartJob(er.getId(), limit);
-								
-								sc.jobResetted(er);
-								
+								sc.jobReset(er);
 								statNumRestartedJobs++;
+								jobsReset = true;
 							}
 						}
 						if (changeStatus && !rst) {
-							if (er.getResultTime() > limit && String.valueOf(er.getResultCode()).startsWith("1")) {
-								log("Setting time limit exceeded to job " + er.getId() + " in local cache.");
+							er.setCPUTimeLimit(limit);
+							apiER.setCPUTimeLimit(limit);
+							if (er.getResultTime() > limit && er.getResultCode().isCorrect()) {
+								log("Setting time limit exceeded to job " + er.getId() + ".");
 								er.setStatus(StatusCode.TIMELIMIT);
+								apiER.setStatus(StatusCode.TIMELIMIT);
 								er.setResultCode(ResultCode.UNKNOWN);
+								apiER.setResultCode(ResultCode.UNKNOWN);
 							}
+							// apiER is more up2date.
+							// should be done by api?:
+							Statement st = DatabaseConnector.getInstance().getConn().createStatement();
+							st.executeUpdate("UPDATE ExperimentResults SET status = " + apiER.getStatus().getStatusCode() + ", resultCode = " + apiER.getResultCode().getResultCode() + ", CPUTimeLimit = " + apiER.getCPUTimeLimit() + " WHERE idJob = " + apiER.getId());
+							st.close();
 						}
 					}
 				}
+				if (jobsReset) {
+					res.add(sc);
+				}
 			}
 		}
+		
+		if (!addToCPUTime.isEmpty()) {
+			log("Waiting for clients to kill jobs..");
+			
+			float cputime = 0.f;
+			for (ExperimentResult er : addToCPUTime) {
+				ExperimentResult apiER = api.getJob(er.getId());
+				while (apiER.getStatus().equals(StatusCode.RUNNING)) {
+					Thread.sleep(1000);
+					apiER = api.getJob(er.getId());
+				}
+				List<ExperimentResult> erTimeList = new LinkedList<ExperimentResult>();
+				erTimeList.add(apiER);
+				cputime += getResultTime(erTimeList);
+				log("Restarting job " + er.getId() + " with new limit.");	
+				api.restartJob(er.getId(), limit);
+			}
+			log("Done.");
+			log("Adding " + cputime + "s to cumulated cpu time for restarted jobs.");
+			cumulatedCPUTime += cputime;
+		}
+		
+		// reset priority
+		for (Pair<Integer, Integer> p : enableJobs) {
+			api.setJobPriority(p.getFirst(), p.getSecond());
+		}
+		
+		return res;
 	}
 	
 	/**
 	 * Returns the CPU time limit for this instance.<br/>
-	 * If there is no cpu time limit set by the configurator then <code>parameters.getJobCPUTimeLimit</code> is returned.
+	 * If there is no CPU time limit set by the configurator then <code>parameters.getJobCPUTimeLimit</code> is returned.
 	 * @param instanceId
 	 * @return
 	 */
@@ -623,9 +685,6 @@ public class AAC {
 			// update cumulated cpu time
 			cumulatedCPUTime += getResultTime(finishedJobs);
 			
-			// notify job listeners
-			notifyJobListeners(finishedJobs);
-			
 			// remove finished solver configurations
 			for (SolverConfiguration sc : finishedSCs) {
 				listNewSC.remove(sc.getIdSolverConfiguration());
@@ -633,6 +692,9 @@ public class AAC {
 			
 			// notify racing method
 			racing.solverConfigurationsFinished(finishedSCs);
+			
+			// notify job listeners
+			notifyJobListeners(finishedJobs);
 			
 			// update solver configuration names
 			for (SolverConfiguration sc : solverConfigs) {
@@ -662,11 +724,9 @@ public class AAC {
 		notifyJobListeners(finishedJobs);
 	}
 	
-	private void notifyJobListeners(List<ExperimentResult> jobs) {
+	private void notifyJobListeners(List<ExperimentResult> jobs) throws Exception {
 		for (JobListener listener : jobListeners) {
-			for (ExperimentResult er : jobs) {
-				listener.jobFinished(er);
-			}
+			listener.jobsFinished(jobs);
 		}
 	}
 	/**
@@ -860,5 +920,87 @@ public class AAC {
 	 */
 	public void log_db(String message) throws Exception {
 		api.addOutput(parameters.getIdExperiment(), "[Date: " + new Date() + ",Walltime: " + getWallTime() + ",CPUTime: " + cumulatedCPUTime + ",NumSC: " + statNumSolverConfigs + ",NumJobs: " + statNumJobs + "] " + message + "\n");
+	}
+	
+	
+	public static float[] calculateFeatures(int instanceId, File featureFolder, File featuresCacheFolder) throws IOException, NoConnectionToDBException, InstanceClassMustBeSourceException, InstanceNotInDBException, InterruptedException, SQLException {
+		Properties properties = new Properties();
+		File propFile = new File(featureFolder, "features.properties");
+		FileInputStream in = new FileInputStream(propFile);
+		properties.load(in);
+		in.close();
+		String featuresRunCommand = properties.getProperty("FeaturesRunCommand");
+		String featuresParameters = properties.getProperty("FeaturesParameters");
+		String[] features = properties.getProperty("Features").split(",");
+		Instance instance = InstanceDAO.getById(instanceId);
+		
+		float[] res = new float[features.length];
+		
+		File cacheFile = null;
+		if (featuresCacheFolder != null) {
+			cacheFile = new File(featuresCacheFolder, instance.getMd5());
+		}
+		if (cacheFile != null) {
+			featuresCacheFolder.mkdirs();
+			
+			if (cacheFile.exists()) {
+				System.out.println("Found cached features.");
+				try {
+					BufferedReader br = new BufferedReader(new FileReader(cacheFile));
+					String[] featuresNames = br.readLine().split(",");
+					String[] f_str = br.readLine().split(",");
+					br.close();
+					if (f_str.length != features.length || !Arrays.equals(features, featuresNames)) {
+						System.err.println("Features changed? Recalculating!");
+					} else {
+						for (int i = 0; i < res.length; i++) {
+							res[i] = Float.parseFloat(f_str[i]);
+						}
+						return res;
+					}
+					
+				} catch (Exception ex) {
+					System.err.println("Could not load cache file: " + cacheFile.getAbsolutePath() + ". Recalculating features.");
+				}
+			}
+		}
+		
+		new File("tmp").mkdir();
+		File f = File.createTempFile("instance"+instanceId, "instance"+instanceId, new File("tmp"));
+		InstanceDAO.getBinaryFileOfInstance(instance, f, false, false);
+		
+		
+		//System.out.println("Call: " + featuresRunCommand + " " + featuresParameters + " " + f.getAbsolutePath());
+		
+		Process p = Runtime.getRuntime().exec(featuresRunCommand + " " + featuresParameters + " " + f.getAbsolutePath(), null, featureFolder);
+		BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
+		
+		String line;
+		while (((line = br.readLine()) != null) && line.startsWith("c "));
+		
+		String[] features_str = br.readLine().split(",");
+		for (int i = 0; i < features_str.length; i++) {
+			res[i] = Float.valueOf(features_str[i]);
+		}
+		br.close();
+		p.destroy();
+		f.delete();
+		
+		//System.out.println("Result: " + Arrays.toString(res));
+		if (cacheFile != null) {
+			cacheFile.delete();
+			BufferedWriter bw = new BufferedWriter(new FileWriter(cacheFile));
+			bw.write(properties.getProperty("Features") + '\n');
+			for (int i = 0; i < res.length; i++) {
+				bw.write(String.valueOf(res[i]));
+				if (i != res.length - 1) {
+					bw.write(',');
+				}
+			}
+			bw.write('\n');
+			bw.close();
+		}
+		
+		return res;
 	}
 }
