@@ -645,7 +645,6 @@ public class AAC {
 				log("c no solver configs in list: exiting");
 				break;
 			}
-
 			List<ExperimentResult> finishedJobs = new LinkedList<ExperimentResult>();
 			List<SolverConfiguration> finishedSCs = new LinkedList<SolverConfiguration>();
 			for (SolverConfiguration sc : listNewSC.values()) {
@@ -820,8 +819,12 @@ public class AAC {
 		sc.nameUpdated = false;
 	}
 
-	public String getSolverConfigName(SolverConfiguration sc, boolean best) {
+	/*public String getSolverConfigName(SolverConfiguration sc, boolean best) {
 		return (best ? "_ BEST " : "") + (sc.getIncumbentNumber() == -1 ? "" : -sc.getIncumbentNumber()) + " " + sc.getNumber() + " " + (sc.getName() != null ? " " + sc.getName() + " " : "") + " Runs: " + sc.getNumFinishedJobs() + "/" + sc.getJobCount() + " ID: " + sc.getIdSolverConfiguration();
+	}*/
+	public String getSolverConfigName(SolverConfiguration sc, boolean best) {
+		//System.out.println("Altering the name of a solverConfig to: "+sc.getName());
+		return (best ? "_ BEST " : "") + sc.getName();
 	}
 
 	public void sleep(long millis) throws InterruptedException {
