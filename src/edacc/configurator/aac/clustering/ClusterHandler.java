@@ -48,18 +48,20 @@ public class ClusterHandler implements ClusterMethods{
     // between configs with good or poor perfomance)
     protected boolean preferHighVarianceInstances = true;
     
-    public ClusterHandler(AAC aac, Parameters params, API api, Random rng, List<SolverConfiguration> scs/*,
-                        ClusteringAlgorithm algorithm, ClusteringResources resources*/) throws Exception{
+    public ClusterHandler(AAC aac, Parameters params, API api, Random rng, List<SolverConfiguration> scs) 
+                                                                                            throws Exception{
         this.rng = rng;
         this.aac = aac;
         this.api = api;
         this.expID = params.getIdExperiment();
-        instanceClusterMap = new HashMap<InstanceIdSeed, Integer>();
+        
+        // Initialise Algorithms and Resources here
         resources = new Resources_MeanCost(api, params, this);
         algorithm = new Algorithm_CLC(aac, resources, this);
-        this.algorithm = algorithm;
-        this.resources = resources;
+        // End algorithm+resources initialisation
+        
         //initialise data
+        instanceClusterMap = new HashMap<InstanceIdSeed, Integer>();
         data = new HashMap<InstanceIdSeed, InstanceData>();
         Course course = api.getCourse(params.getIdExperiment());       
         for(InstanceSeed is : course.getInstanceSeedList()){
@@ -112,58 +114,13 @@ public class ClusterHandler implements ClusterMethods{
         return resultClusterMap;
     }
     
-    /*
-    public void debugAnalyseDifferences(SolverConfiguration incumbent, SolverConfiguration challenger){
-        if(incumbent.getJobCount() != challenger.getJobCount()){
-            System.out.println("DEBUG: Job Counts do not match! Incumbent "+incumbent.getJobCount()+", Challenger: "+challenger.getJobCount());            
-        }
-        int[] iRuns = countRunPerCluster(incumbent);
-        int[] cRuns = countRunPerCluster(challenger);
-        int iSum =0, cSum=0;
-        for(int i=0; i<clusters.length; i++){
-            iSum += iRuns[i];
-            cSum += cRuns[i];
-            System.out.println("DEBUG: Cluster "+i+" ("+clusters[i].size()+" instances): Incumbent: "+iRuns[i]+", Challenger: "+cRuns[i]);
-            
-        }
-        System.out.println("DEBUG: Incumbent has "+incumbent.getJobCount()+" runs, "+iSum+" are in recognised clusters");
-        System.out.println("DEBUG: Challenger has "+challenger.getJobCount()+" runs, "+cSum+" are in recognised clusters");
-        LinkedList<InstanceIdSeed> iList = new LinkedList<InstanceIdSeed>(), cList = new LinkedList<InstanceIdSeed>();
-        InstanceIdSeed tmp;
-        for(ExperimentResult r : incumbent.getFinishedJobs()){
-            tmp = new InstanceIdSeed(r.getInstanceId(), r.getSeed());
-            if(!iList.contains(tmp))
-                iList.add(tmp);
-        }
-        for(ExperimentResult r : challenger.getFinishedJobs()){
-            tmp = new InstanceIdSeed(r.getInstanceId(), r.getSeed());
-            if(!cList.contains(tmp))
-                cList.add(tmp);
-        }
-        System.out.println("DEBUG: Incumbent has "+incumbent.getJobCount()+" jobs, "
-                +incumbent.getFinishedJobs().size()+" of them finished. "+iList.size()+" of them are unique");
-        System.out.println("DEBUG: Challenger has "+challenger.getJobCount()+" jobs, "
-                +challenger.getFinishedJobs().size()+" of them finished. "+cList.size()+" of them are unique");
-        System.exit(1);
-    }*/
-    
     public int[] countRunPerCluster(SolverConfiguration sc){
         int[] numRuns = new int[clusters.length];
         for(int i=0; i<clusters.length; i++)
             numRuns[i] = clusters[i].countRuns(sc);
         return numRuns;
     }
-    /*
-    public int[] countRunPerCluster(SolverConfiguration sc) {
-        int[] numInstances = new int[clusters.length];
-        for(int i=0; i<numInstances.length; i++)
-            numInstances[i] = 0;
-        for(ExperimentResult r : sc.getJobs()){
-            numInstances[clusterOfInstance(r)]++;
-        }
-        return numInstances;
-    }*/
-
+   
     public int clusterOfInstance(ExperimentResult res) {
         if(res == null)
             return -1;
@@ -241,7 +198,7 @@ public class ClusterHandler implements ClusterMethods{
         newDataAvailable++;
         if(resources.recalculateOnNewData() && recalculationCriterion()){
             log("Recalculating clustering: "+newDataAvailable
-                    +" new solverConfigs since last clustering was established");
+                    +" new SolverConfigurations since last clustering was established");
             calculateClustering();            
             newDataAvailable = 0;
             cpuTimeElapsed = getCPUTime();
@@ -331,13 +288,14 @@ public class ClusterHandler implements ClusterMethods{
     
     
     public void visualiseClustering(){
-        System.out.println("---------------CLUSTERING-------------------");
-        System.out.println("Number of Instance-Seed pairs: "+data.size());
+        log("New clustering established!");
+        log("Algorithm: "+algorithm.getName());
+        log("Resources: "+resources.getName());
+        log("Number of Instance-Seed pairs: "+data.size());        
         for(int i=0; i<clusters.length; i++){
             List<InstanceIdSeed> iList = clusters[i].getInstances();
-            System.out.println("Cluster "+i+" ("+iList.size()+" instances)");
-        }        
-        System.out.println("---------------CLUSTERING-------------------");
+            log("Cluster "+i+" ("+iList.size()+" instances)");
+        }
     }
     
     protected String formatDouble(double v){
@@ -391,6 +349,5 @@ class InstanceDataComparator implements Comparator<InstanceData>{
             return 1;
         else
             return -1;
-    }
-    
+    }    
 }

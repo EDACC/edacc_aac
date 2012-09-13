@@ -21,7 +21,7 @@ import org.apache.commons.math.stat.descriptive.moment.Variance;
  *
  * @author mugrauer
  */
-public class Resources_Properties implements ClusteringResources{
+public class Resources_Properties extends ClusteringResources{
     protected HashMap<Integer, Instance> instanceIdMap;
     protected List<InstanceIdSeed> instanceSeedList;
     protected Variance variance;
@@ -41,13 +41,12 @@ public class Resources_Properties implements ClusteringResources{
     }
     
     
-    public boolean isInitialDataRequired() {
-        return false;
-    }
+    @Override
     public boolean recalculateOnNewData() {
         return false;
     }
-
+    
+    @Override
     public List<InstanceIdSeed> prepareInstances() {
         Collection<Instance> instanceList = instanceIdMap.values();
         List<InstanceIdSeed> instanceIdSeedList = new LinkedList<InstanceIdSeed>();
@@ -56,7 +55,8 @@ public class Resources_Properties implements ClusteringResources{
         }
         return instanceIdSeedList;
     }
-
+    
+    @Override
     public Cluster[] establishClustering(Cluster[] temporaryClustering) {
         for(Instance inst : instanceIdMap.values()){
             InstanceIdSeed dummy = new InstanceIdSeed(inst.getId(), 0);
@@ -74,6 +74,7 @@ public class Resources_Properties implements ClusteringResources{
         return temporaryClustering;
     }
 
+    @Override
     public double calculateInstanceDistance(InstanceIdSeed idSeed1, InstanceIdSeed idSeed2){
         Instance i1 = instanceIdMap.get(idSeed1.instanceId);
         Instance i2 = instanceIdMap.get(idSeed2.instanceId);
@@ -92,6 +93,7 @@ public class Resources_Properties implements ClusteringResources{
         return dist;
     }
 
+    @Override
     public double calculateVariance(List<InstanceIdSeed> instances) {
         double[] characteristicValues = new double[instances.size()];
         Instance instance;
@@ -117,7 +119,8 @@ public class Resources_Properties implements ClusteringResources{
         return Math.sqrt(val);
     }
 
+    @Override
     public String getName() {
-        return "Properties";
+        return "Resources_Properties";
     }   
 }

@@ -18,7 +18,7 @@ import org.apache.commons.math.stat.descriptive.moment.Variance;
  *
  * @author mugrauer
  */
-public class Resources_MeanCost implements ClusteringResources{
+public class Resources_MeanCost extends ClusteringResources{
     private ClusterHandler handler;
     protected Variance variance;
     private List<InstanceIdSeed> instanceIdSeedList;
@@ -34,22 +34,22 @@ public class Resources_MeanCost implements ClusteringResources{
         }
     }
     
-    public boolean isInitialDataRequired() {
-        return true;
-    }
-    
+    @Override
     public boolean recalculateOnNewData() {
         return true;
     }
-
+    
+    @Override
     public List<InstanceIdSeed> prepareInstances() {
         return instanceIdSeedList;
     }
-
+    
+    @Override
     public Cluster[] establishClustering(Cluster[] temporaryClustering) {
         return temporaryClustering;
     }
 
+    @Override
     public double calculateInstanceDistance(InstanceIdSeed i1, InstanceIdSeed i2) {
         Map<InstanceIdSeed, InstanceData> instanceIdMap = handler.getInstanceDataMap();
         InstanceData dat1 = instanceIdMap.get(i1);
@@ -58,12 +58,8 @@ public class Resources_MeanCost implements ClusteringResources{
         return (dist < 0) ? -dist : dist;
     }
 
+    @Override
     public double calculateVariance(List<InstanceIdSeed> instances) {
-        System.out.println("ERROR: calculating variance");
-        if(handler==null)
-            System.out.println("ERROR: handler = null");
-        if(instances == null)
-            System.out.println("ERROR: instances = null");
         Map<InstanceIdSeed, InstanceData> instanceIdMap = handler.getInstanceDataMap();
         if(instanceIdMap == null)
             System.out.println("ERROR: instanceIdMap = null");
@@ -81,9 +77,10 @@ public class Resources_MeanCost implements ClusteringResources{
         }
         return variance.evaluate(values);
     }
-
+    
+    @Override
     public String getName() {
-        return "MeanCost";
+        return "Resources_MeanCost";
     }
     
 }
