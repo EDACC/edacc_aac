@@ -68,6 +68,8 @@ public class SMBO extends SearchMethods {
     
     private int randomSeqNum = 0;
     
+    private int lastNumJobs = 0;
+    
     // Configurable parameters
     private boolean logModel = true;
     private String selectionCriterion = "ei"; // ei, ocb
@@ -216,7 +218,8 @@ public class SMBO extends SearchMethods {
         // Update the model
         int numJobs = 0;
         for (SolverConfiguration config: generatedConfigs) numJobs += config.getNumFinishedJobs();
-        if (numJobs <= 0) return new LinkedList<SolverConfiguration>(); 
+        if (lastNumJobs != 0 && lastNumJobs != numJobs) return new LinkedList<SolverConfiguration>(); 
+        lastNumJobs = numJobs;
         long start = System.currentTimeMillis();
         updateModel();
         pacc.log("c Learning the model from " + generatedConfigs.size() + " configs and " + numJobs + " runs in total took " + (System.currentTimeMillis() - start) + " ms");
@@ -231,7 +234,7 @@ public class SMBO extends SearchMethods {
         }
         if (bestConfigs.isEmpty()) bestConfigs.addAll(generatedConfigs);
         Collections.sort(bestConfigs);
-        int numConfigsToGenerate = Math.min(40, num - newConfigs.size()) / 2;
+        int numConfigsToGenerate = Math.min(40, num - newConfigs.size());
         
         double f_min = bestConfigs.get(0).getCost();
         if (logModel) f_min = Math.log10(f_min);
@@ -315,14 +318,14 @@ public class SMBO extends SearchMethods {
             }
         }
         
-        for (int i = 0; i < numConfigsToGenerate; i++) {
+        /*for (int i = 0; i < numConfigsToGenerate; i++) {
             ParameterConfiguration paramConfig = pspace.getRandomConfiguration(rng);
             int iter = 0;
             while (api.exists(parameters.getIdExperiment(), paramConfig) != 0 && iter++ < 100) paramConfig = pspace.getRandomConfiguration(rng);
             pacc.log("c Also selected random configuration " + api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
             int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
             newConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
-        }
+        }*/
 
         Collections.shuffle(newConfigs);
         generatedConfigs.addAll(newConfigs);
