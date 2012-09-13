@@ -33,7 +33,7 @@ public class PropertyClustering  extends ClusteringTemplate implements ClusterMe
         
     public PropertyClustering(AAC aac, Parameters params, API api, Random rng) throws Exception{
         super(aac, params, api, rng, null);
-        
+        this.variance = new Variance();
         List<Instance> instanceList = api.getExperimentInstances(params.getIdExperiment());
         instanceIdMap = new HashMap<Integer, Instance>();
         for(Instance i : instanceList){

@@ -15,7 +15,7 @@ import java.util.*;
 /**
  * @author mugrauer, schulte
  */
-public abstract class ClusterHandler implements ClusterMethods{
+public class ClusterHandler implements ClusterMethods{
     protected Random rng;
     protected AAC aac;
     protected API api;
@@ -48,12 +48,15 @@ public abstract class ClusterHandler implements ClusterMethods{
     // between configs with good or poor perfomance)
     protected boolean preferHighVarianceInstances = true;
     
-    public ClusterHandler(AAC aac, Parameters params, API api, Random rng, List<SolverConfiguration> scs,
-                        ClusteringAlgorithm algorithm, ClusteringResources resources) throws Exception{
+    public ClusterHandler(AAC aac, Parameters params, API api, Random rng, List<SolverConfiguration> scs/*,
+                        ClusteringAlgorithm algorithm, ClusteringResources resources*/) throws Exception{
         this.rng = rng;
         this.aac = aac;
         this.api = api;
         this.expID = params.getIdExperiment();
+        instanceClusterMap = new HashMap<InstanceIdSeed, Integer>();
+        resources = new Resources_MeanCost(api, params, this);
+        algorithm = new Algorithm_CLC(aac, resources, this);
         this.algorithm = algorithm;
         this.resources = resources;
         //initialise data
@@ -77,6 +80,12 @@ public abstract class ClusterHandler implements ClusterMethods{
     private void calculateClustering(){
 	clusters = algorithm.calculateClustering(resources.prepareInstances());
 	clusters = resources.establishClustering(clusters);
+        instanceClusterMap.clear();
+        for(int i=0; i<clusters.length; i++){
+            for(InstanceIdSeed idSeed : clusters[i].getInstances()){
+                instanceClusterMap.put(idSeed, i);
+            }
+        }
     }
     
     /**

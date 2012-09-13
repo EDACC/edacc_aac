@@ -25,6 +25,7 @@ public class Resources_MeanCost implements ClusteringResources{
     
     public Resources_MeanCost(API api, Parameters params, ClusterHandler handler) throws Exception{
         this.handler = handler;
+        this.variance = new Variance();
         Course course = api.getCourse(params.getIdExperiment());
         List<InstanceSeed> tmpList = course.getInstanceSeedList();
         instanceIdSeedList = new LinkedList<InstanceIdSeed>();
@@ -58,12 +59,23 @@ public class Resources_MeanCost implements ClusteringResources{
     }
 
     public double calculateVariance(List<InstanceIdSeed> instances) {
+        System.out.println("ERROR: calculating variance");
+        if(handler==null)
+            System.out.println("ERROR: handler = null");
+        if(instances == null)
+            System.out.println("ERROR: instances = null");
         Map<InstanceIdSeed, InstanceData> instanceIdMap = handler.getInstanceDataMap();
+        if(instanceIdMap == null)
+            System.out.println("ERROR: instanceIdMap = null");
         InstanceData dat;
         double[] values = new double[instances.size()];
         int count = 0;
         for(InstanceIdSeed idSeed : instances){
+            if(idSeed == null)
+                System.out.println("ERROR: idSeed = null");
             dat = instanceIdMap.get(idSeed);
+            if(dat==null)
+                System.out.println("Error: dat = null");
             values[count] = dat.getAvg();
             count++;
         }
