@@ -4,7 +4,6 @@ import edacc.api.costfunctions.CostFunction;
 import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.model.ExperimentResult;
-import java.awt.Point;
 import java.util.List;
 
 /**
@@ -103,5 +102,5 @@ public interface ClusterMethods {
          * @param costFunc
          * @return the costs as float values 
          */
-        public Point costs(SolverConfiguration sc, SolverConfiguration competitor, CostFunction costFunc);
+        public Costs costs(SolverConfiguration sc, SolverConfiguration competitor, CostFunction costFunc);
 }

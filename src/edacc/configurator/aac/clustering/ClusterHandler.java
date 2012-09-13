@@ -281,41 +281,43 @@ public abstract class ClusterHandler implements ClusterMethods{
      * @param costFunc
      * @return the costs as float values 
      */
-    public Point costs(SolverConfiguration sc, SolverConfiguration competitor, CostFunction costFunc) {
+    public Costs costs(SolverConfiguration sc, SolverConfiguration competitor, CostFunction costFunc) {
 		List<ExperimentResult> scJobs = new LinkedList<ExperimentResult>();
 		List<ExperimentResult> competitorJobs = new LinkedList<ExperimentResult>();
+		ArrayList<LinkedList<ExperimentResult>> scClusterJobs = new ArrayList<LinkedList<ExperimentResult>>(clusters.length);
+		ArrayList<LinkedList<ExperimentResult>> competitorClusterJobs = new ArrayList<LinkedList<ExperimentResult>>(clusters.length);
 		for (int i = 0; i < clusters.length; i++) {
-			int scFinishedJobs = 0;
-			int competitorFinishedJobs = 0;
-			List<InstanceIdSeed> clusterI = getClusterInstances(i);
-			List<ExperimentResult> scFinishedRunsInCluster = new ArrayList<ExperimentResult>();
-			List<ExperimentResult> competitorFinishedRunsInCluster = new ArrayList<ExperimentResult>();
-			for (InstanceIdSeed instance : clusterI) {
-				for (int j = 0; j < sc.getFinishedJobs().size(); j++) {
-					if(instance.instanceId == sc.getFinishedJobs().get(j).getInstanceId() &&
-							instance.seed == sc.getFinishedJobs().get(j).getSeed()) {
-						scFinishedJobs++;
-						scFinishedRunsInCluster.add(sc.getFinishedJobs().get(j));
-					}
-				}
-				for (int j = 0; j < competitor.getFinishedJobs().size(); j++) {
-					if(instance.instanceId == competitor.getFinishedJobs().get(j).getInstanceId() &&
-							instance.seed == competitor.getFinishedJobs().get(j).getSeed()) {
-						competitorFinishedJobs++;
-						competitorFinishedRunsInCluster.add(competitor.getFinishedJobs().get(j));
-					}
-				}
-			}
-			for (int j = 0; j < Math.min(scFinishedJobs, competitorFinishedJobs); j++) {
-				scJobs.add(scFinishedRunsInCluster.get(j));
-				competitorJobs.add(competitorFinishedRunsInCluster.get(j));
+			scClusterJobs.add(new LinkedList<ExperimentResult>());
+			competitorClusterJobs.add(new LinkedList<ExperimentResult>());
+		}
+		for (ExperimentResult res : sc.getFinishedJobs()) {
+			InstanceIdSeed tmpInstance = new InstanceIdSeed(res.getInstanceId(), res.getSeed());
+			if(!instanceClusterMap.containsKey(tmpInstance)) {
+				log(" ERROR: An instance ("+ res.getInstanceId()+";"+ res.getSeed() +") was found with no entry in any cluster!");
+			} else {
+				int clusterID = instanceClusterMap.get(new InstanceIdSeed(res.getInstanceId(), res.getSeed()));
+				scClusterJobs.get(clusterID).add(res);
 			}
 		}
-		Point costs = new Point();
+		for (ExperimentResult res : competitor.getFinishedJobs()) {
+			InstanceIdSeed tmpInstance = new InstanceIdSeed(res.getInstanceId(), res.getSeed());
+			if(!instanceClusterMap.containsKey(tmpInstance)) {
+				log(" ERROR: An instance ("+ res.getInstanceId()+";"+ res.getSeed() +") was found with no entry in any cluster!");
+			} else {
+				int clusterID = instanceClusterMap.get(new InstanceIdSeed(res.getInstanceId(), res.getSeed()));
+				competitorClusterJobs.get(clusterID).add(res);
+			}
+		}
+		for (int i = 0; i < clusters.length; i++) {
+			int min = Math.min(scClusterJobs.get(i).size(), competitorClusterJobs.get(i).size());
+			for (int j = 0; j < min; j++) {
+				scJobs.add(scClusterJobs.get(i).get(j));
+				competitorJobs.add(competitorClusterJobs.get(i).get(j));
+			}
+		}
 		float costBest = costFunc.calculateCost(scJobs);
 		float costOther = costFunc.calculateCost(competitorJobs);
-		costs.setLocation(costBest, costOther);
-		return costs;
+		return new Costs(costBest, costOther, scJobs.size());
     }
     
     
