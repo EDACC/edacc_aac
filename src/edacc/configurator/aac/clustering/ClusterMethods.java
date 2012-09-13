@@ -103,11 +103,4 @@ public interface ClusterMethods {
          * @return the costs as float values 
          */
         public Costs costs(SolverConfiguration sc, SolverConfiguration competitor, CostFunction costFunc);
-        
-        /**
-         * Retrieves the first incumbent based on the startup sc(s)
-         * 
-         * @return the best sc from all scs used to initial the clustering
-         */
-    	public SolverConfiguration initBestSC();
 }

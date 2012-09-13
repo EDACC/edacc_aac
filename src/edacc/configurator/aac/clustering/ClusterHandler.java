@@ -465,6 +465,11 @@ public class ClusterHandler implements ClusterMethods{
 		return startupSCs;
 	}
     
+    /**
+     * Retrieves the first incumbent based on the startup sc(s)
+     * 
+     * @return the best sc from all scs used to initial the clustering
+     */
 	public SolverConfiguration initBestSC() {
 		return bestSC;
 	}
