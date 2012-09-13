@@ -36,7 +36,7 @@ public class ClusterHandler implements ClusterMethods{
     private ParameterGraph paramGraph;
     private SolverConfiguration bestSC;
     private String algorithmName = "Algorithm_CLC";
-    private String resourcesName = "Resources_MeanCost";
+    private String resourcesName = "Resources_Properties";
 	// A set of fully evaluated SCs is required to create an initial
 	// clustering. The number of those SCs is defined in this variable
     private int numberOfMinStartupSCs = 4;
@@ -84,7 +84,7 @@ public class ClusterHandler implements ClusterMethods{
 				.getInitialLength();
 		HashMap<String, String> parameters = params.getRacingMethodParameters();
 		if(parameters.containsKey("Clustering_algorithm")) {
-			algorithmName = parameters.get("Clustering_clusteringAlgorithm");
+			algorithmName = parameters.get("Clustering_algorithm");
 		}
 		if(parameters.containsKey("Clustering_resources")) {
 			resourcesName = parameters.get("Clustering_resources");

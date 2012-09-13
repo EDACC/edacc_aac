@@ -27,6 +27,7 @@ public class Resources_Properties extends ClusteringResources{
     protected Variance variance;
     
     public Resources_Properties(API api, Parameters params, ClusterHandler handler) throws Exception{
+        variance = new Variance();
         List<Instance> instanceList = api.getExperimentInstances(params.getIdExperiment());
         instanceIdMap = new HashMap<Integer, Instance>();
         for(Instance i : instanceList){
@@ -94,7 +95,7 @@ public class Resources_Properties extends ClusteringResources{
     }
 
     @Override
-    public double calculateVariance(List<InstanceIdSeed> instances) {
+    public double calculateVariance(List<InstanceIdSeed> instances) {        
         double[] characteristicValues = new double[instances.size()];
         Instance instance;
         double val;
