@@ -260,6 +260,7 @@ public class SMBO extends SearchMethods {
                 return new LinkedList<SolverConfiguration>(); 
             }
             Collections.sort(bestConfigs);
+            Collections.reverse(bestConfigs);
             
             long start = System.currentTimeMillis();
             updateModel();
@@ -269,7 +270,7 @@ public class SMBO extends SearchMethods {
             if (logModel) f_min = Math.log10(f_min);
             //double[][] inc_theta_pred = model.predict(new double[][] {paramConfigToTuple(bestConfigs.get(0).getParameterConfiguration())});
             //f_min = inc_theta_pred[0][0];
-            pacc.log("c Current best configuration: " + bestConfigs.get(0).toString() + " with cost " + f_min);
+            pacc.log("c Current best configuration: " + bestConfigs.get(0).getIdSolverConfiguration() + " " + bestConfigs.get(0).getParameterConfiguration().toString() + " with cost " + bestConfigs.get(0).getCost());
             
             // Samples random parameter configurations
             start = System.currentTimeMillis();
@@ -359,12 +360,12 @@ public class SMBO extends SearchMethods {
             Collections.shuffle(newConfigs);
             generatedConfigs.addAll(newConfigs);
             configurationQueue.addAll(newConfigs);
-             
+            
+            List<SolverConfiguration> retConfigs = new LinkedList<SolverConfiguration>();
             for (int i = 0; i < Math.min(configurationQueue.size(), num); i++) {
-                newConfigs.add(configurationQueue.get(0));
-                configurationQueue.remove(0);
+                retConfigs.add(configurationQueue.remove(0));
             }
-            return newConfigs;
+            return retConfigs;
         }
     }
     
