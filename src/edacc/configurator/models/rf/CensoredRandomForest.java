@@ -259,4 +259,28 @@ public class CensoredRandomForest {
         }
         return VI;
     }
+    
+    public double calculateOobRSS() {
+        double[] RSS_t = new double[rf.numTrees];
+        
+        for (int t = 0; t < rf.numTrees; t++) {
+            int[] oob_samples = rf.Trees[t].oob_samples;
+            double[] oob_y = new double[oob_samples.length];
+            double[][] X = new double[oob_samples.length][rf_nVars];
+            for (int i = 0; i < oob_samples.length; i++) {
+                for (int j = 0; j < rf_theta[0].length; j++) X[i][j] = rf_theta[rf_theta_inst_idxs[oob_samples[i]][0]][j];
+                for (int j = 0; j < instanceFeatures[0].length; j++) X[i][rf_theta[0].length + j] = instanceFeatures[rf_theta_inst_idxs[oob_samples[i]][1]][j];
+                oob_y[i] = rf_y[oob_samples[i]];
+            }
+            
+            // calculate out of bag error of the tree (residual sum of squares)
+            double[][] oob_pred = RandomForest.apply(rf, X);
+            RSS_t[t] = 0;
+            for (int i = 0; i < oob_samples.length; i++) {
+                RSS_t[t] += (oob_y[i] - oob_pred[i][0]) * (oob_y[i] - oob_pred[i][0]);
+            }
+        }
+        
+        return Utils.mean(RSS_t);
+    }
 }

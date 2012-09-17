@@ -513,7 +513,7 @@ public class SMBO extends SearchMethods {
                 if (p.getDomain() instanceof RealDomain) {
                     theta[pIx] = (Double)paramValue;
                 } else if (p.getDomain() instanceof IntegerDomain) {
-                    theta[pIx] = (Long)paramValue;
+                    theta[pIx] = (Integer)paramValue;
                 } else if (p.getDomain() instanceof CategoricalDomain) {
                     // map categorical parameters to integers 1 through domain.size, 0 = not set
                     Map<String, Integer> valueMap = new HashMap<String, Integer>();
