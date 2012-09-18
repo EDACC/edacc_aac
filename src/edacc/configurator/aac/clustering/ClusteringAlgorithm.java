@@ -19,7 +19,7 @@ public interface ClusteringAlgorithm {
     public Cluster[] calculateClustering(List<InstanceIdSeed> instances);
     
     /** 
-     * returns the name of this clustering algorithm
+     * returns the name of this clustering algorithm, e.g. "Algorithm_CLC"
      */
     public String getName();
     

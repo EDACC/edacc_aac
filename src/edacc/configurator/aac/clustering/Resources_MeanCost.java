@@ -18,13 +18,14 @@ import org.apache.commons.math.stat.descriptive.moment.Variance;
  *
  * @author mugrauer
  */
-public class Resources_MeanCost implements ClusteringResources{
+public class Resources_MeanCost extends ClusteringResources{
     private ClusterHandler handler;
     protected Variance variance;
     private List<InstanceIdSeed> instanceIdSeedList;
     
     public Resources_MeanCost(API api, Parameters params, ClusterHandler handler) throws Exception{
         this.handler = handler;
+        this.variance = new Variance();
         Course course = api.getCourse(params.getIdExperiment());
         List<InstanceSeed> tmpList = course.getInstanceSeedList();
         instanceIdSeedList = new LinkedList<InstanceIdSeed>();
@@ -33,22 +34,22 @@ public class Resources_MeanCost implements ClusteringResources{
         }
     }
     
-    public boolean isInitialDataRequired() {
-        return true;
-    }
-    
+    @Override
     public boolean recalculateOnNewData() {
         return true;
     }
-
+    
+    @Override
     public List<InstanceIdSeed> prepareInstances() {
         return instanceIdSeedList;
     }
-
+    
+    @Override
     public Cluster[] establishClustering(Cluster[] temporaryClustering) {
         return temporaryClustering;
     }
 
+    @Override
     public double calculateInstanceDistance(InstanceIdSeed i1, InstanceIdSeed i2) {
         Map<InstanceIdSeed, InstanceData> instanceIdMap = handler.getInstanceDataMap();
         InstanceData dat1 = instanceIdMap.get(i1);
@@ -57,21 +58,29 @@ public class Resources_MeanCost implements ClusteringResources{
         return (dist < 0) ? -dist : dist;
     }
 
+    @Override
     public double calculateVariance(List<InstanceIdSeed> instances) {
         Map<InstanceIdSeed, InstanceData> instanceIdMap = handler.getInstanceDataMap();
+        if(instanceIdMap == null)
+            System.out.println("ERROR: instanceIdMap = null");
         InstanceData dat;
         double[] values = new double[instances.size()];
         int count = 0;
         for(InstanceIdSeed idSeed : instances){
+            if(idSeed == null)
+                System.out.println("ERROR: idSeed = null");
             dat = instanceIdMap.get(idSeed);
+            if(dat==null)
+                System.out.println("Error: dat = null");
             values[count] = dat.getAvg();
             count++;
         }
         return variance.evaluate(values);
     }
-
+    
+    @Override
     public String getName() {
-        return "MeanCost";
+        return "Resources_MeanCost";
     }
     
 }

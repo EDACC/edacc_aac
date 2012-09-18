@@ -150,6 +150,28 @@ public abstract class Algorithm_GreedyBottomUp implements ClusteringAlgorithm {
     }
     
     protected void log(String message){
-        aac.log(getName()+"-Clustering ("+resources.getName()+"): "+message);
+        handler.log(message);
+    }
+}
+
+class DistanceMatrix{
+    private double[][] distMat;
+    
+    public DistanceMatrix(int size){
+        distMat = new double[size][size];
+        for(int i=0; i<size; i++)
+            for(int j=0; j<size; j++)
+                distMat[i][j] = Double.MAX_VALUE;
+    }
+    
+    public void set(int i, int j, double value){
+        if(i==j)
+            return;
+        distMat[i][j] = value;
+        distMat[j][i] = value;        
+    }
+    
+    public double get(int i, int j){
+        return distMat[i][j];
     }
 }

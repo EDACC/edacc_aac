@@ -40,6 +40,6 @@ public class Algorithm_CLC extends Algorithm_GreedyBottomUp{
     
     @Override
     public String getName(){
-        return "CLC";
+        return "Algorithm_CLC";
     }    
 }

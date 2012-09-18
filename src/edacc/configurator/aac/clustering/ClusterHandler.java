@@ -6,16 +6,19 @@ import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
+import edacc.model.ConfigurationScenarioDAO;
 import edacc.model.Course;
 import edacc.model.ExperimentResult;
 import edacc.model.InstanceSeed;
-import java.awt.Point;
+import edacc.parameterspace.ParameterConfiguration;
+import edacc.parameterspace.graph.ParameterGraph;
+
 import java.util.*;
 
 /**
  * @author mugrauer, schulte
  */
-public abstract class ClusterHandler implements ClusterMethods{
+public class ClusterHandler implements ClusterMethods{
     protected Random rng;
     protected AAC aac;
     protected API api;
@@ -23,9 +26,26 @@ public abstract class ClusterHandler implements ClusterMethods{
     protected HashMap<InstanceIdSeed, InstanceData> data;    
     protected HashMap<InstanceIdSeed, Integer> instanceClusterMap;
     protected Cluster[] clusters;
-    
+	
+    private Parameters params;
+    private List<SolverConfiguration> firstSCs;
+    private List<SolverConfiguration> referenceSCs;
+    private int num_instances;
+	// Graph representation of the parameter pool. Used to create new
+	// parameter configurations
+    private ParameterGraph paramGraph;
+    private SolverConfiguration bestSC;
+    private String algorithmName = "Algorithm_CLC";
+    private String resourcesName = "Resources_Properties";
+	// A set of fully evaluated SCs is required to create an initial
+	// clustering. The number of those SCs is defined in this variable
+    private int numberOfMinStartupSCs = 4;
+	// Interface for a clustering-algorithm
+    private Class<?> algorithmClass;
+    private Class<?> resourcesClass;
     private ClusteringAlgorithm algorithm;
     private ClusteringResources resources;
+    private ClusterHandler clusterHandler;
     
     //states how much information (= number of solverconfigs) has been added to data since 
     //the clustering has been calculated
@@ -48,25 +68,58 @@ public abstract class ClusterHandler implements ClusterMethods{
     // between configs with good or poor perfomance)
     protected boolean preferHighVarianceInstances = true;
     
-    public ClusterHandler(AAC aac, Parameters params, API api, Random rng, List<SolverConfiguration> scs,
-                        ClusteringAlgorithm algorithm, ClusteringResources resources) throws Exception{
+    public ClusterHandler(AAC aac, Parameters params, API api, Random rng, 
+    		List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception{
         this.rng = rng;
         this.aac = aac;
         this.api = api;
         this.expID = params.getIdExperiment();
-        this.algorithm = algorithm;
-        this.resources = resources;
+        this.params = params;
+        this.firstSCs = firstSCs;
+		this.referenceSCs = referenceSCs;
+		paramGraph = api.loadParameterGraphFromDB(params.getIdExperiment());
+		num_instances = ConfigurationScenarioDAO
+				.getConfigurationScenarioByExperimentId(
+						params.getIdExperiment()).getCourse()
+				.getInitialLength();
+		HashMap<String, String> parameters = params.getRacingMethodParameters();
+		if(parameters.containsKey("Clustering_algorithm")) {
+			algorithmName = parameters.get("Clustering_algorithm");
+		}
+		if(parameters.containsKey("Clustering_resources")) {
+			resourcesName = parameters.get("Clustering_resources");
+		}
+		if (parameters.containsKey("Clustering_minStartupSCs")) {
+			numberOfMinStartupSCs = Integer.parseInt(parameters
+					.get("Clustering_minStartupSCs"));
+		}
+        // Initialise Algorithms and Resources here
+		algorithmClass = ClassLoader.getSystemClassLoader().loadClass(
+				"edacc.configurator.aac.clustering." + algorithmName);
+		resourcesClass = ClassLoader.getSystemClassLoader().loadClass(
+				"edacc.configurator.aac.clustering." + resourcesName);
+		resources = (ClusteringResources) resourcesClass
+				.getDeclaredConstructors()[0].newInstance(api, params, this);
+		algorithm = (ClusteringAlgorithm) algorithmClass
+				.getDeclaredConstructors()[0].newInstance(aac, resources, this);
+        // End algorithm+resources initialisation
+        
         //initialise data
+        instanceClusterMap = new HashMap<InstanceIdSeed, Integer>();
         data = new HashMap<InstanceIdSeed, InstanceData>();
         Course course = api.getCourse(params.getIdExperiment());       
         for(InstanceSeed is : course.getInstanceSeedList()){
             data.put(new InstanceIdSeed(is.instance.getId(), is.seed), 
                         new InstanceData(is.instance.getId(), is.seed, params.getStatistics().getCostFunction()));
         }
-        if(scs!=null){
-            for(SolverConfiguration s : scs){
-                addData(s);
-            }
+        if(resources.isInitialDataRequired(resourcesName)) {
+        	List<SolverConfiguration> startupSCs = initClusteringData();
+        	for (SolverConfiguration sc : startupSCs) {
+				addData(sc);
+			}
+        } else {
+        	numberOfMinStartupSCs = 1;
+        	initClusteringData();
         }
         
         calculateClustering();
@@ -77,6 +130,12 @@ public abstract class ClusterHandler implements ClusterMethods{
     private void calculateClustering(){
 	clusters = algorithm.calculateClustering(resources.prepareInstances());
 	clusters = resources.establishClustering(clusters);
+        instanceClusterMap.clear();
+        for(int i=0; i<clusters.length; i++){
+            for(InstanceIdSeed idSeed : clusters[i].getInstances()){
+                instanceClusterMap.put(idSeed, i);
+            }
+        }
     }
     
     /**
@@ -103,58 +162,13 @@ public abstract class ClusterHandler implements ClusterMethods{
         return resultClusterMap;
     }
     
-    /*
-    public void debugAnalyseDifferences(SolverConfiguration incumbent, SolverConfiguration challenger){
-        if(incumbent.getJobCount() != challenger.getJobCount()){
-            System.out.println("DEBUG: Job Counts do not match! Incumbent "+incumbent.getJobCount()+", Challenger: "+challenger.getJobCount());            
-        }
-        int[] iRuns = countRunPerCluster(incumbent);
-        int[] cRuns = countRunPerCluster(challenger);
-        int iSum =0, cSum=0;
-        for(int i=0; i<clusters.length; i++){
-            iSum += iRuns[i];
-            cSum += cRuns[i];
-            System.out.println("DEBUG: Cluster "+i+" ("+clusters[i].size()+" instances): Incumbent: "+iRuns[i]+", Challenger: "+cRuns[i]);
-            
-        }
-        System.out.println("DEBUG: Incumbent has "+incumbent.getJobCount()+" runs, "+iSum+" are in recognised clusters");
-        System.out.println("DEBUG: Challenger has "+challenger.getJobCount()+" runs, "+cSum+" are in recognised clusters");
-        LinkedList<InstanceIdSeed> iList = new LinkedList<InstanceIdSeed>(), cList = new LinkedList<InstanceIdSeed>();
-        InstanceIdSeed tmp;
-        for(ExperimentResult r : incumbent.getFinishedJobs()){
-            tmp = new InstanceIdSeed(r.getInstanceId(), r.getSeed());
-            if(!iList.contains(tmp))
-                iList.add(tmp);
-        }
-        for(ExperimentResult r : challenger.getFinishedJobs()){
-            tmp = new InstanceIdSeed(r.getInstanceId(), r.getSeed());
-            if(!cList.contains(tmp))
-                cList.add(tmp);
-        }
-        System.out.println("DEBUG: Incumbent has "+incumbent.getJobCount()+" jobs, "
-                +incumbent.getFinishedJobs().size()+" of them finished. "+iList.size()+" of them are unique");
-        System.out.println("DEBUG: Challenger has "+challenger.getJobCount()+" jobs, "
-                +challenger.getFinishedJobs().size()+" of them finished. "+cList.size()+" of them are unique");
-        System.exit(1);
-    }*/
-    
     public int[] countRunPerCluster(SolverConfiguration sc){
         int[] numRuns = new int[clusters.length];
         for(int i=0; i<clusters.length; i++)
             numRuns[i] = clusters[i].countRuns(sc);
         return numRuns;
     }
-    /*
-    public int[] countRunPerCluster(SolverConfiguration sc) {
-        int[] numInstances = new int[clusters.length];
-        for(int i=0; i<numInstances.length; i++)
-            numInstances[i] = 0;
-        for(ExperimentResult r : sc.getJobs()){
-            numInstances[clusterOfInstance(r)]++;
-        }
-        return numInstances;
-    }*/
-
+   
     public int clusterOfInstance(ExperimentResult res) {
         if(res == null)
             return -1;
@@ -232,7 +246,7 @@ public abstract class ClusterHandler implements ClusterMethods{
         newDataAvailable++;
         if(resources.recalculateOnNewData() && recalculationCriterion()){
             log("Recalculating clustering: "+newDataAvailable
-                    +" new solverConfigs since last clustering was established");
+                    +" new SolverConfigurations since last clustering was established");
             calculateClustering();            
             newDataAvailable = 0;
             cpuTimeElapsed = getCPUTime();
@@ -281,52 +295,55 @@ public abstract class ClusterHandler implements ClusterMethods{
      * @param costFunc
      * @return the costs as float values 
      */
-    public Point costs(SolverConfiguration sc, SolverConfiguration competitor, CostFunction costFunc) {
+    public Costs costs(SolverConfiguration sc, SolverConfiguration competitor, CostFunction costFunc) {
 		List<ExperimentResult> scJobs = new LinkedList<ExperimentResult>();
 		List<ExperimentResult> competitorJobs = new LinkedList<ExperimentResult>();
+		ArrayList<LinkedList<ExperimentResult>> scClusterJobs = new ArrayList<LinkedList<ExperimentResult>>(clusters.length);
+		ArrayList<LinkedList<ExperimentResult>> competitorClusterJobs = new ArrayList<LinkedList<ExperimentResult>>(clusters.length);
 		for (int i = 0; i < clusters.length; i++) {
-			int scFinishedJobs = 0;
-			int competitorFinishedJobs = 0;
-			List<InstanceIdSeed> clusterI = getClusterInstances(i);
-			List<ExperimentResult> scFinishedRunsInCluster = new ArrayList<ExperimentResult>();
-			List<ExperimentResult> competitorFinishedRunsInCluster = new ArrayList<ExperimentResult>();
-			for (InstanceIdSeed instance : clusterI) {
-				for (int j = 0; j < sc.getFinishedJobs().size(); j++) {
-					if(instance.instanceId == sc.getFinishedJobs().get(j).getInstanceId() &&
-							instance.seed == sc.getFinishedJobs().get(j).getSeed()) {
-						scFinishedJobs++;
-						scFinishedRunsInCluster.add(sc.getFinishedJobs().get(j));
-					}
-				}
-				for (int j = 0; j < competitor.getFinishedJobs().size(); j++) {
-					if(instance.instanceId == competitor.getFinishedJobs().get(j).getInstanceId() &&
-							instance.seed == competitor.getFinishedJobs().get(j).getSeed()) {
-						competitorFinishedJobs++;
-						competitorFinishedRunsInCluster.add(competitor.getFinishedJobs().get(j));
-					}
-				}
-			}
-			for (int j = 0; j < Math.min(scFinishedJobs, competitorFinishedJobs); j++) {
-				scJobs.add(scFinishedRunsInCluster.get(j));
-				competitorJobs.add(competitorFinishedRunsInCluster.get(j));
+			scClusterJobs.add(new LinkedList<ExperimentResult>());
+			competitorClusterJobs.add(new LinkedList<ExperimentResult>());
+		}
+		for (ExperimentResult res : sc.getFinishedJobs()) {
+			InstanceIdSeed tmpInstance = new InstanceIdSeed(res.getInstanceId(), res.getSeed());
+			if(!instanceClusterMap.containsKey(tmpInstance)) {
+				log(" ERROR: An instance ("+ res.getInstanceId()+";"+ res.getSeed() +") was found with no entry in any cluster!");
+			} else {
+				int clusterID = instanceClusterMap.get(new InstanceIdSeed(res.getInstanceId(), res.getSeed()));
+				scClusterJobs.get(clusterID).add(res);
 			}
 		}
-		Point costs = new Point();
+		for (ExperimentResult res : competitor.getFinishedJobs()) {
+			InstanceIdSeed tmpInstance = new InstanceIdSeed(res.getInstanceId(), res.getSeed());
+			if(!instanceClusterMap.containsKey(tmpInstance)) {
+				log(" ERROR: An instance ("+ res.getInstanceId()+";"+ res.getSeed() +") was found with no entry in any cluster!");
+			} else {
+				int clusterID = instanceClusterMap.get(new InstanceIdSeed(res.getInstanceId(), res.getSeed()));
+				competitorClusterJobs.get(clusterID).add(res);
+			}
+		}
+		for (int i = 0; i < clusters.length; i++) {
+			int min = Math.min(scClusterJobs.get(i).size(), competitorClusterJobs.get(i).size());
+			for (int j = 0; j < min; j++) {
+				scJobs.add(scClusterJobs.get(i).get(j));
+				competitorJobs.add(competitorClusterJobs.get(i).get(j));
+			}
+		}
 		float costBest = costFunc.calculateCost(scJobs);
 		float costOther = costFunc.calculateCost(competitorJobs);
-		costs.setLocation(costBest, costOther);
-		return costs;
+		return new Costs(costBest, costOther, scJobs.size());
     }
     
     
     public void visualiseClustering(){
-        System.out.println("---------------CLUSTERING-------------------");
-        System.out.println("Number of Instance-Seed pairs: "+data.size());
+        log("New clustering established!");
+        log("Algorithm: "+algorithm.getName());
+        log("Resources: "+resources.getName());
+        log("Number of Instance-Seed pairs: "+data.size());        
         for(int i=0; i<clusters.length; i++){
             List<InstanceIdSeed> iList = clusters[i].getInstances();
-            System.out.println("Cluster "+i+" ("+iList.size()+" instances)");
-        }        
-        System.out.println("---------------CLUSTERING-------------------");
+            log("Cluster "+i+" ("+iList.size()+" instances)");
+        }
     }
     
     protected String formatDouble(double v){
@@ -348,7 +365,7 @@ public abstract class ClusterHandler implements ClusterMethods{
     }
     
     protected void log(String message){
-        aac.log("Clustering: "+message);
+        aac.log("Clustering: ("+algorithm.getName()+", "+resources.getName()+")"+message);
     }
     
     protected final double getCPUTime(){
@@ -368,6 +385,97 @@ public abstract class ClusterHandler implements ClusterMethods{
     public Map<InstanceIdSeed, InstanceData> getInstanceDataMap(){
         return data;
     }
+    
+    private List<SolverConfiguration> initClusteringData() throws Exception {
+		// Gathers a list of SCs to initialize the Clusters and of course the
+		// incumbent
+		List<SolverConfiguration> startupSCs = new ArrayList<SolverConfiguration>();
+		log("Initialisation with the following SCs ...");
+		// All reference SCs are added
+		log("Reference SCs...");
+		if (referenceSCs.size() > 0) {
+			for (SolverConfiguration refSc : referenceSCs) {
+				log(startupSCs.size() + ": " + refSc.getName());
+				startupSCs.add(refSc);
+			}
+		}
+		// Default SCs are added. The maximum is the given number of startup SCs
+		int defaultSCs = Math.min(firstSCs.size(), numberOfMinStartupSCs);
+		log("Default SCs...");
+		for (int i = 0; i < defaultSCs; i++) {
+			aac.log("c " + startupSCs.size() + ": "
+					+ firstSCs.get(i).getName());
+			startupSCs.add(firstSCs.get(i));
+		}
+		// At least (number of minimal startupSCs)/2 random SCs are added.
+		// Improves the reliability of the predefined data.
+		log("Random SCs...");
+		int randomSCs = Math.max((int) (numberOfMinStartupSCs / 2), numberOfMinStartupSCs - startupSCs.size());
+		for (int i = 0; i < randomSCs; i++) {
+			ParameterConfiguration randomConf = paramGraph
+					.getRandomConfiguration(rng);
+			try {
+				int scID = api.createSolverConfig(params.getIdExperiment(),
+						randomConf, api.getCanonicalName(
+								params.getIdExperiment(), randomConf));
+
+				SolverConfiguration randomSC = new SolverConfiguration(scID,
+						randomConf, params.getStatistics());
+				startupSCs.add(randomSC);
+				log(startupSCs.size() + ": " + scID);
+			} catch (Exception e) {
+				log("Error - A new random configuration could not be created for the initialising of the clustering!");
+				e.printStackTrace();
+			}
+		}
+		// Run the configs on the whole parcour length
+		log("Adding jobs for the initial SCs...");
+		for (SolverConfiguration sc : startupSCs) {
+			int expansion = 0;
+			if (sc.getJobCount() < params.getMaxParcoursExpansionFactor()
+					* num_instances) {
+				expansion = params.getMaxParcoursExpansionFactor()
+						* num_instances - sc.getJobCount();
+				aac.expandParcoursSC(sc, expansion);
+			}
+			if (expansion > 0) {
+				log("Expanding parcours of SC "
+						+ sc.getIdSolverConfiguration() + " by " + expansion);
+			}
+		}
+		// Wait for the configs to finish
+		boolean finished = false;
+		while (!finished) {
+			finished = true;
+			log("Waiting for initial SCs to finish their jobs");
+			for (SolverConfiguration sc : startupSCs) {
+				aac.updateJobsStatus(sc);
+				if (!(sc.getNotStartedJobs().isEmpty() && sc.getRunningJobs()
+						.isEmpty())) {
+					finished = false;
+				}
+				aac.sleep(1000);
+			}
+		}
+		// Set bestSc
+		float bestCost = Float.MAX_VALUE;
+		for (SolverConfiguration sc : startupSCs) {
+			if (sc.getCost() < bestCost) {
+				bestCost = sc.getCost();
+				bestSC = sc;
+			}
+		}
+		return startupSCs;
+	}
+    
+    /**
+     * Retrieves the first incumbent based on the startup sc(s)
+     * 
+     * @return the best sc from all scs used to initial the clustering
+     */
+	public SolverConfiguration initBestSC() {
+		return bestSC;
+	}
 }
 
 class InstanceDataComparator implements Comparator<InstanceData>{
@@ -380,6 +488,5 @@ class InstanceDataComparator implements Comparator<InstanceData>{
             return 1;
         else
             return -1;
-    }
-    
+    }    
 }
