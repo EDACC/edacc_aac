@@ -47,6 +47,12 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 		pacc.addJobListener(this);
 		configurableParameters = api.getConfigurableParameters(parameters.getIdExperiment());
 		solverConfigs = new HashMap<Integer, SolverConfiguration>();
+		
+		for (SolverConfiguration sc : firstSCs) {
+			solverConfigs.put(sc.getIdSolverConfiguration(), sc);
+		}
+		
+		jobsFinished(ExperimentResultDAO.getAllByExperimentId(parameters.getIdExperiment()));
 	}
 
 	private HashMap<Integer, List<ExperimentResult>> getScResultMap(int instanceId) throws Exception {

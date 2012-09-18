@@ -94,18 +94,6 @@ public class Clustering implements Serializable {
 		K = Arrays.copyOf(other.K, n);
 	}
 	
-	public int getFeaturesCount() {
-		if (F.isEmpty()) {
-			return 0;
-		} else {
-			return F.values().iterator().next().length;
-		}
-	}
-	
-	public HashMap<Integer, float[]> getFeatures() {
-		return F;
-	}
-	
 	/**
 	 * Creates new Clustering object with the given instance ids. Instance ids cannot be changed later.
 	 * @param instanceIds the instance ids to be clustered
@@ -127,6 +115,18 @@ public class Clustering implements Serializable {
 		for (int i = 0; i < n; i++) {
 			K[i] = 0.f;
 		}
+	}
+	
+	public int getFeaturesCount() {
+		if (F.isEmpty()) {
+			return 0;
+		} else {
+			return F.values().iterator().next().length;
+		}
+	}
+	
+	public HashMap<Integer, float[]> getFeatures() {
+		return F;
 	}
 
 	public void updateData() {
@@ -355,20 +355,16 @@ public class Clustering implements Serializable {
 			}
 			
 		});
-		HashMap<Integer, List<Integer>> res = new HashMap<Integer, List<Integer>>();
 		HashSet<Integer> scids = new HashSet<Integer>();
-		scids.addAll(M.keySet());
-		for (int i = 0; i < scidWeight.size(); i++) {
+		for (int i = scidWeight.size()-1; i >= 0; i--) {
 			HashMap<Integer, List<Integer>> tmp = getClustering(false, scids);
 			if (performance(tmp) >= threshold) {
-				res = tmp;
-			} else {
-				break;
+				return tmp;
 			}
-			scids.remove(scidWeight.get(i).getFirst());
+			scids.add(scidWeight.get(i).getFirst());
 		}
 		
-		return res;
+		return getClustering(false);
 	}
 	
 	/**

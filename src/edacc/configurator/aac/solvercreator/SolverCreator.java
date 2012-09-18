@@ -285,13 +285,13 @@ public class SolverCreator {
 		
 		Clustering C_orig = new Clustering(C);
 		
-		/*List<Integer> scids2 = C.getSolverConfigIds();
+		List<Integer> scids2 = C.getSolverConfigIds();
 		
 		for (int scid : scids2) {
 			if (!SolverConfigurationDAO.getSolverConfigurationById(scid).getName().contains("BEST")) {
 				C.remove(scid);
 			}
-		}*/
+		}
 		
 		List<Pair<Integer, Float>> scidWeight = new LinkedList<Pair<Integer, Float>>();
 		

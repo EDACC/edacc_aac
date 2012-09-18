@@ -34,6 +34,7 @@ import edacc.configurator.aac.search.SearchMethods;
 import edacc.model.ConfigurationScenarioDAO;
 import edacc.model.Course;
 import edacc.model.DatabaseConnector;
+import edacc.model.ExperimentResultDAO;
 import edacc.model.Instance;
 import edacc.model.InstanceClassMustBeSourceException;
 import edacc.model.InstanceDAO;
@@ -154,12 +155,12 @@ public class AAC {
 		
 		if (params.deleteSolverConfigsAtStart) {
 			log("c Removing solver configurations..");
-                        HashSet<Integer> retain = new HashSet<Integer>();
-                        retain.addAll(api.getSolverConfigurations(parameters.idExperiment, "default"));                        
-                        retain.addAll(api.getSolverConfigurations(parameters.idExperiment, "reference"));
+			HashSet<Integer> retain = new HashSet<Integer>();
+			retain.addAll(api.getSolverConfigurations(parameters.idExperiment, "default"));
+			retain.addAll(api.getSolverConfigurations(parameters.idExperiment, "reference"));
 			for (Integer id : api.getSolverConfigurations(parameters.idExperiment)) {
-                                if(!retain.contains(id))
-                                    api.removeSolverConfig(id);
+				if (!retain.contains(id))
+					api.removeSolverConfig(id);
 			}
 			log("c Done.");
 		}
@@ -222,6 +223,31 @@ public class AAC {
 		if (solverConfigs.isEmpty()) {
 			// no good solver configs in db
 			log("c no solver configs found");
+		}
+		
+		if (!solverConfigs.isEmpty()) {
+			float cputime = 0.f;
+			List<ExperimentResult> jobs = ExperimentResultDAO.getAllByExperimentId(parameters.getIdExperiment());
+			HashMap<Integer, List<ExperimentResult>> scJobs = new HashMap<Integer, List<ExperimentResult>>();
+			for (ExperimentResult job : jobs) {
+				List<ExperimentResult> list = scJobs.get(job.getSolverConfigId());
+				if (list == null) {
+					list = new LinkedList<ExperimentResult>();
+					scJobs.put(job.getSolverConfigId(), list);
+				}
+				list.add(job);
+			}
+			for (SolverConfiguration sc : solverConfigs) {
+				List<ExperimentResult> list = scJobs.get(sc.getIdSolverConfiguration());
+				if (list != null) {
+					for (ExperimentResult job : list) {
+						sc.putJob(job);
+					}
+				}
+				sc.updateJobsStatus(api);
+				cputime += sc.getTotalRuntime();
+			}
+			log("c added jobs for first solver configs with total runtime: " + cputime + "s.");
 		}
 		return solverConfigs;
 	}
