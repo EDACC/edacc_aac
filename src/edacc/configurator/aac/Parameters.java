@@ -55,6 +55,7 @@ public class Parameters {
 	int simulationCorecount = 8;
 	long simulationSeed = searchSeed;
 	
+	List<String> instanceProperties = new LinkedList<String>();
 	
 
 	private boolean pnp = true; //parameters not parsed 
@@ -104,6 +105,9 @@ public class Parameters {
 		p.add("maxCPUCount = " + this.maxCPUCount + (pnp?" <int>(maximum number of CPU that should be available before starting the configuration proccess (0 no limitation))":""));
 		p.add("deleteSolverConfigs = " + this.deleteSolverConfigs + (pnp?" <boolean>(wheater to delete bad solver configs from DB or not)":""));
 		p.add("maxNumSC = " + this.maxNumSC + (pnp?" <int>(maximum number of solver configurations that the configurator should generate (-1 no limitation))":""));
+		String instanceProps = "";
+		for (String ip: instanceProperties) instanceProps += ip + ", ";
+		p.add("instanceProperties = " + instanceProps + (pnp?" <string>(list of comma separated instance properties that can be used by the configurator))":""));
 		p.add("%-----------------------");
 		p.add("%");
 		p.add("%---Simulation parameters---");
@@ -214,7 +218,11 @@ public class Parameters {
 				simulationCorecount = Integer.parseInt(value);
 			else if (key.equalsIgnoreCase("simulationSeed"))
 				simulationSeed = Long.parseLong(value);
-
+			else if (key.equalsIgnoreCase("instanceProperties")) {
+			    String[] props = value.split(",\\s+");
+			    instanceProperties = new LinkedList<String>();
+			    for (String s: props) instanceProperties.add(s);
+			}
 			else {
 				System.err.println("unrecognized parameter:" + " '" + key + "' " + " terminating! \n Valid Parameters for EAAC:");
 				return false;
@@ -321,6 +329,10 @@ public class Parameters {
 	
 	public long getRacingSeed() {
 	    return racingSeed;
+	}
+	
+	public List<String> getInstanceProperties() {
+	    return instanceProperties;
 	}
 	
 	/*public String toString() {//TODO : rewrite!!!
