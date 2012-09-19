@@ -6,12 +6,13 @@ import java.util.List;
 import java.util.Random;
 
 import edacc.configurator.aac.InstanceIdSeed;
+import edacc.configurator.aac.util.RInterface;
 import edacc.model.Instance;
 import edacc.model.InstanceDAO;
 
 public class StratifiedClusterCourseTest {
     public static void main(String ... args) throws Exception {
-        edacc.model.DatabaseConnector.getInstance().connect("host", 3306, "user", "db", "password", false, true, 8, false, false);
+        edacc.model.DatabaseConnector.getInstance().connect("host", 3306, "user", "db", "pw", false, true, 8, false, false);
         List<Instance> instances = InstanceDAO.getAllByExperimentId(404);
         
         List<String> fNames = new LinkedList<String>();
@@ -66,7 +67,7 @@ public class StratifiedClusterCourseTest {
         List<String> fSizeNames = new LinkedList<String>();
         fSizeNames.add("nvars");
 
-        StratifiedClusterCourse sc = new StratifiedClusterCourse(instances, fNames, fSizeNames, 1, new Random());
+        StratifiedClusterCourse sc = new StratifiedClusterCourse(RInterface.getRengine(), instances, fNames, fSizeNames, 1, new Random());
         
         System.out.println("Stratified, clustered course:");
         for (InstanceIdSeed isp: sc.getCourse()) {

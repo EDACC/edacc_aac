@@ -39,6 +39,7 @@ public class FullEvaluation extends RacingMethods {
 	@Override
 	public void solverConfigurationsCreated(List<SolverConfiguration> scs) throws Exception {
 		for (SolverConfiguration sc : scs) {
+		    if (sc.getJobs().size() == parameters.getMaxParcoursExpansionFactor() * num_instances) continue;
 			int expansion = parameters.getMaxParcoursExpansionFactor() * num_instances;
 			pacc.expandParcoursSC(sc, expansion, Integer.MAX_VALUE - sc.getIdSolverConfiguration());
 			pacc.addSolverConfigurationToListNewSC(sc);

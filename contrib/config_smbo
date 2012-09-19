@@ -1,0 +1,32 @@
+host = 127.0.0.1
+user = user
+password = pw
+database = db
+maxParcoursExpansionFactor = 1
+idExperiment = 22
+
+searchMethod = SMBO
+racingMethod = Default
+
+jobCPUTimeLimit = 10
+maxTuningTime = 100000
+costFunction = par10
+
+% important
+SMBO_numInitialConfigurationsFactor = 10
+SMBO_selectionCriterion = ei
+SMBO_EIg = 2
+SMBO_ocbExpMu = 1.0
+
+% not so important
+SMBO_samplingPath = /home/daniel/sampling/sampling
+SMBO_numPC = 7 
+SMBO_logModel = 1
+SMBO_numRandomTheta = 10000
+SMBO_maxLocalSearchSteps = 5
+SMBO_lsStddev = 0.001
+SMBO_lsSamples = 10
+SMBO_nTrees = 10
+
+searchSeed = 1234 
+racingSeed = 4321

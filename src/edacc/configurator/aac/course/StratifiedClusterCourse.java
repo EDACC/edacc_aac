@@ -10,10 +10,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import org.rosuda.JRI.Rengine;
+
 import edacc.model.Instance;
 import edacc.model.InstanceDAO;
 import edacc.model.InstanceHasProperty;
 import edacc.configurator.aac.InstanceIdSeed;
+import edacc.configurator.math.ClusterSilhouette;
 
 /**
  * Builds a racing course of instance-seed pairs where seeds are drawn at random.
@@ -28,14 +31,27 @@ import edacc.configurator.aac.InstanceIdSeed;
  * 
  * TODO:
  * - use g-means to find the number of clusters automagically
- * - Sample stratified (proportional to cluster sizes) instead of round-robin
+ * - Sample stratified (proportional to cluster sizes) instead of round-robin (?)
  */
 public class StratifiedClusterCourse {
     private List<InstanceIdSeed> course;
 
-    public StratifiedClusterCourse(List<Instance> instances, List<String> instanceFeatureNames, List<String> instanceSizeFeatureNames, int maxExpansionFactor, Random rng) throws Exception {
+    public StratifiedClusterCourse(Rengine rengine, List<Instance> instances, List<String> instanceFeatureNames, List<String> instanceSizeFeatureNames, int maxExpansionFactor, Random rng) throws Exception {
         if (instances.size() == 0) throw new IllegalArgumentException("List of instances has to contain at least one instance.");
         if (maxExpansionFactor <= 0) throw new IllegalArgumentException("maxExpansionFactor has to be >= 1.");
+        this.course = new ArrayList<InstanceIdSeed>(maxExpansionFactor * instances.size());
+        
+        if (instanceFeatureNames == null || instanceFeatureNames.size() == 0) {
+            // no features given, shuffle instances
+            List<Instance> shuffledInstances = new LinkedList<Instance>(instances);
+            Collections.shuffle(shuffledInstances);
+            for (int i = 0; i < maxExpansionFactor; i++) {
+                for (int j = 0; j < shuffledInstances.size(); j++) {
+                    course.add(new InstanceIdSeed(shuffledInstances.get(j).getId(), rng.nextInt(Integer.MAX_VALUE)));
+                }
+            }
+            return;
+        }
 
         double[][] instanceFeatures = new double[instances.size()][instanceFeatureNames.size()];
         final double[][] instanceSizeFeatures = new double[instances.size()][instanceSizeFeatureNames.size()];
@@ -98,9 +114,9 @@ public class StratifiedClusterCourse {
             }
         }
         
-        this.course = new ArrayList<InstanceIdSeed>(maxExpansionFactor * instances.size());
-
-        int k = (int)Math.round(Math.sqrt(instances.size() / 2)); // TODO rule of thumb: #instance clusters = sqrt(#instances / 2)
+        
+        ClusterSilhouette sc = new ClusterSilhouette(rengine, cleanedFeatures.length, cleanedFeatures[0].length, cleanedFeatures);
+        int k = sc.findNumberOfClusters((int)Math.sqrt(instances.size())); // TODO rule of thumb: #instance clusters = sqrt(#instances / 2)
         Object[] clustering = kMeans(cleanedFeatures, k, rng);
         double C[][] = (double[][])clustering[0];
         int S[][] = (int[][])clustering[1];
@@ -165,9 +181,6 @@ public class StratifiedClusterCourse {
         int[][] S = new int[k][];
         for (int i = 0; i < k; i++) {
             C[i] = Arrays.copyOf(X[rng.nextInt(X.length)], X[0].length); // initial cluster centers are random
-            System.out.print("Cluster center i: ");
-            for (int u = 0; u < C[i].length; u++) System.out.print(C[i][u] + " ");
-            System.out.println();
         }
         
         int iter = 0;

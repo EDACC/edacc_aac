@@ -18,6 +18,9 @@ public class PCA {
      * @return
      */
     public double[][] transform(int r, int c, double[][] data, int k) {
+        if (r <= 1) return data;
+        
+        // linearize matrix to pass it to R
         double[] linData = new double[r*c];
         int l = 0;
         for (int i = 0; i < r; i++) {
@@ -27,7 +30,9 @@ public class PCA {
         }
         
         rengine.assign("pca_data", linData);
-        rengine.eval("pca_data = matrix(pca_data, nrow=" + r + ", ncol=" + c + ", byrow=T)");
+        rengine.eval("pca_data = data.frame(matrix(pca_data, nrow=" + r + ", ncol=" + c + ", byrow=T))");
+        rengine.eval("sd. = apply(pca_data, 2, sd)");
+        rengine.eval("pca_data = pca_data[!is.na(sd.) & sd. > 0]"); // drop constant features (0 standard deviation)
         rengine.eval("pcaed_data = prcomp(pca_data, scale=T, center=T, retx=T)$x");
         rengine.eval("pcaed_data = pcaed_data[,1:(min("+k+", ncol(pcaed_data))]");
         return rengine.eval("pcaed_data").asDoubleMatrix();
@@ -49,7 +54,7 @@ public class PCA {
                 { 1.0, 3.0, 2.0},
                 { 1.0, 3.0, 2.0},
                 { 1.0, 3.0, 2.0},
-                { 10.0, 10.0, 3.0},
+                { 1.0, 10.0, 3.0},
                 };
         double[][] pcaed = pca.transform(data.length, data[0].length, data, 2);
         
