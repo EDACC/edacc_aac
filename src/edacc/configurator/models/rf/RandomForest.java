@@ -118,7 +118,7 @@ public class RandomForest {
         int[][][] condParentVals = null;
         pspace.conditionalParentsForRF(configurableParameters, condParents, condParentVals);
         
-        rf = new CensoredRandomForest(nTrees, 1, kappaMax, 1.0, catDomainSizes, rng, condParents, condParentVals);
+        rf = new CensoredRandomForest(nTrees, logModel ? 1 : 0, kappaMax, 1.0, catDomainSizes, rng, condParents, condParentVals);
     }
     
     /**
