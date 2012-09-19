@@ -50,12 +50,11 @@ public class RandomForest {
      * @param wallClockLimit maximum wall time for any run in the experiment (if wall time is the target)
      * @throws Exception
      */
-    public RandomForest(API api, int idExperiment, boolean logModel, int nTrees, Random rng, int CPUTimeLimit, int wallClockLimit) throws Exception {
+    public RandomForest(API api, int idExperiment, boolean logModel, int nTrees, Random rng, int CPUTimeLimit, int wallClockLimit, List<String> additionalInstanceFeatureNames) throws Exception {
         this.logModel = logModel;
         ParameterGraph pspace = api.loadParameterGraphFromDB(idExperiment);
         
-        // TODO: Load from configuration?
-        //instanceFeatureNames.add("POSNEG-RATIO-CLAUSE-mean");
+        this.instanceFeatureNames = new LinkedList<String>(additionalInstanceFeatureNames);
         instanceFeatureNames.add("instance-index");
         
         List<Instance> instances;
@@ -89,6 +88,7 @@ public class RandomForest {
         int numFeatures = instanceFeatureNames.size();
         instanceFeatureNames.clear();
         for (int i = 0; i < Math.min(7, numFeatures); i++) instanceFeatureNames.add("PC" + (i+1)); // rename instance features to reflect PCA transformation
+    
         
         // Load information about the parameter space
         configurableParameters.addAll(api.getConfigurableParameters(idExperiment));

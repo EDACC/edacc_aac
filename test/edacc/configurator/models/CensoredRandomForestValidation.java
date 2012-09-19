@@ -76,12 +76,14 @@ public class CensoredRandomForestValidation {
         
         System.out.println("Loaded " + countJobs + " runs.");
         
+        List<String> instanceFeatureNames = new LinkedList<String>();
+        
         
         for (int nTrees = 1; nTrees <= 256; nTrees *= 2) {
             double rep_rss = 0;
             int numRep = 2;
             for (int rep = 0; rep < numRep; rep++) {
-                RandomForest model = new RandomForest(api, idExperiment, true, nTrees, rng, CPUlimit, wallLimit);
+                RandomForest model = new RandomForest(api, idExperiment, true, nTrees, rng, CPUlimit, wallLimit, instanceFeatureNames);
                 model.learnModel(solverConfigs);
                 //CensoredRandomForest model = new CensoredRandomForest(nTrees, 1, kappaMax, 1.0, catDomainSizes, rng, condParents, condParentVals);
                 //learnModel(model, instanceFeatureNames, instanceFeatures, true, par1CostFunc, instanceFeaturesIx, configurableParameters, solverConfigs);
