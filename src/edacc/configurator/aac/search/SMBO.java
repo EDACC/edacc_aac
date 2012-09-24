@@ -23,6 +23,7 @@ import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.configurator.aac.racing.FRace;
 import edacc.configurator.aac.racing.SMFRace;
+import edacc.configurator.aac.search.ibsutils.SolverConfigurationIBS;
 import edacc.configurator.aac.util.RInterface;
 import edacc.configurator.math.PCA;
 import edacc.configurator.math.SamplingSequence;
@@ -83,6 +84,7 @@ public class SMBO extends SearchMethods {
     private int EIg = 2; // global search factor {1,2,3}
     private boolean useInstanceIndexFeature = true; // simply use the index of an instance as instance feature
     private int queueSize = 20; // how many configurations to generate at a time and put into a queue
+    private boolean createIBSConfigs = false;
 
     public SMBO(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
         super(pacc, api, rng, parameters, firstSCs, referenceSCs);
@@ -116,6 +118,8 @@ public class SMBO extends SearchMethods {
             EIg = Integer.valueOf(val);
         if ((val = parameters.getSearchMethodParameters().get("SMBO_queueSize")) != null)
             queueSize = Integer.valueOf(val);
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_createIBSConfigs")) != null)
+            createIBSConfigs = Boolean.parseBoolean(val);
         
         pspace = api.loadParameterGraphFromDB(parameters.getIdExperiment());
         
@@ -322,7 +326,23 @@ public class SMBO extends SearchMethods {
                     pacc.log("c OCB: Selected configuration " + api.getCanonicalName(parameters.getIdExperiment(), paramConfig) + " with predicted performance: " + theta.mu + " and sigma " + Math.sqrt(theta.var) + " and OCB: " + theta.ocb[i] + " ocb_lambda: " + ocb_lambda[i]);
                     paramConfig = optimizeLocally(paramConfig, theta.ocb[j], ocb_lambda[j], f_min);
                     int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
-                    newConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
+                    
+                    if (createIBSConfigs) {
+                        double[][] theta_config = new double[][] { randomThetasPred[theta.thetaIdx] };
+                        Set<Integer> preferredInstanceIDs = new HashSet<Integer>();
+                        Map<Integer, Double> meanByInstanceID = new HashMap<Integer, Double>();
+                        for (Instance instance: instances) {
+                            int[] inst_ix = new int[] { instanceFeaturesIx.get(instance.getId()) };
+                            double[][] pred = model.predictMarginal(theta_config, inst_ix);
+                            double predicted_mean = pred[0][0];
+                            double predicted_var = pred[0][1];
+                            meanByInstanceID.put(instance.getId(), predicted_mean);
+                        }
+                        
+                        newConfigs.add(new SolverConfigurationIBS(idSC, paramConfig, parameters.getStatistics(), preferredInstanceIDs));
+                    } else {
+                        newConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
+                    }
                 }
             } else {
                 // EI
@@ -462,6 +482,7 @@ public class SMBO extends SearchMethods {
         p.add("SMBO_ocbExpMu = "+this.ocbExpMu+ " % (mean value of the exponential distribution from which the lambda values are sampled, only applies to ocb selectionCriterion)");
         p.add("SMBO_EIg = "+this.EIg+ " % (global search parameter g in the expected improvement criterion, integer in {1,2,3}, 1=original criterion, 3=more global search behaviour)");
         p.add("SMBO_queueSize = "+this.queueSize+ " % (How many configurations to generate at a time using SMBO. Also the maxmimum number of configurations returned to racing at a time.)");
+        p.add("SMBO_createIBSConfigs = "+this.createIBSConfigs+ " % (Create IBS configs)");
         p.add("% -----------------------\n");
         return p;
     }
