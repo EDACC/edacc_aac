@@ -139,6 +139,7 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 						for (List<Integer> c : clustering) {
 							if (cluster.contains(instanceId)) {
 								cluster = c;
+								break;
 							}
 						}
 						if (cluster == null) {
