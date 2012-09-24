@@ -116,10 +116,10 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 				DecisionTree tree = null;
 				Integer instanceId = null;
 				HashSet<Integer> iids = null;
+				int rand = rng.nextInt(instanceIds.size());
+				instanceId = instanceIds.get(rand);
+				instanceIds.remove(rand);
 				if (clustering == null) {
-					int rand = rng.nextInt(instanceIds.size());
-					instanceId = instanceIds.get(rand);
-					instanceIds.remove(rand);
 					tree = treeCache.get(instanceId);
 				}
 				if (tree == null) {
@@ -134,12 +134,24 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 						solverConfigName = "Random from restricted domains (iid: " + instanceId + ")";
 						pacc.log("[IBS] Generating a decision tree for iid: " + instanceId + " using " + trainData.size() + " parameter configurations.");
 					} else {
-						List<Integer> cluster = clustering.get(rng.nextInt(clustering.size()));
-						pacc.log("[IBS] Using cluster: " + cluster);
 						iids = new HashSet<Integer>();
+						List<Integer> cluster = null;
+						for (List<Integer> c : clustering) {
+							if (cluster.contains(instanceId)) {
+								cluster = c;
+							}
+						}
+						if (cluster == null) {
+							cluster = clustering.get(rng.nextInt(clustering.size()));
+						}
+						
 						for (int iid : cluster) {
 							iids.add(iid);
+							instanceIds.remove(new Integer(iid));
 						}
+						pacc.log("[IBS] Using cluster: " + cluster);
+						
+
 						
 						for (Entry<Integer, List<ExperimentResult>> entry : getScResultMap(iids).entrySet()) {
 							trainData.add(new Pair<ParameterConfiguration, List<ExperimentResult>>(solverConfigs.get(entry.getKey()).getParameterConfiguration(), entry.getValue()));
