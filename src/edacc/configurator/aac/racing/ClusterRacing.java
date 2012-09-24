@@ -342,7 +342,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		}
 		
 		for (int i = 0; i < parameters.getMinRuns() - sc.getJobCount() && !possibleInstanceIds.isEmpty(); i++) {
-			int rand = rng.nextInt(unsolved.size());
+			int rand = rng.nextInt(possibleInstanceIds.size());
 			int instanceid = possibleInstanceIds.get(rand);
 			addRuns(sc, instanceid, 0);
 			unsolved.remove(instanceid);
