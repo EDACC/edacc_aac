@@ -15,6 +15,7 @@ import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.JobListener;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
+import edacc.configurator.aac.search.ibsutils.SolverConfigurationIBS;
 import edacc.configurator.aac.solvercreator.Clustering;
 import edacc.model.Experiment;
 import edacc.model.ExperimentResult;
@@ -166,8 +167,8 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		}
 		
 		for (SolverConfiguration sc : firstSCs) {
-			initializeSolverConfiguration(sc);
-			updateName(scs.get(sc.getIdSolverConfiguration()));
+			//initializeSolverConfiguration(sc);
+			//updateName(scs.get(sc.getIdSolverConfiguration()));
 		}
 	}
 	
@@ -464,8 +465,29 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 			this.c = c;
 			this.racingScs = new LinkedList<Integer>();
 			if (c != null) {
-				this.racingScs.addAll(c.keySet());
-				this.racingScs.remove(new Integer(sc.getIdSolverConfiguration()));
+				if (sc instanceof SolverConfigurationIBS && !((SolverConfigurationIBS) sc).preferredInstanceIds.isEmpty()) {
+					
+					for (Entry<Integer, List<Integer>> e : c.entrySet()) {
+						if (e.getKey().equals(sc.getIdSolverConfiguration())) {
+							continue;
+						}
+						
+						boolean add = false;
+						for (Integer iid : e.getValue()) {
+							if (((SolverConfigurationIBS) sc).preferredInstanceIds.contains(iid)) {
+								add = true;
+								break;
+							}
+						}
+						if (add) {
+							this.racingScs.add(e.getKey());
+						}
+					}
+					
+				} else {
+					this.racingScs.addAll(c.keySet());
+					this.racingScs.remove(new Integer(sc.getIdSolverConfiguration()));
+				}
 			}
 			for (Integer i : racingScs) {
 				scs.get(i).competitors.add(sc.getIdSolverConfiguration());

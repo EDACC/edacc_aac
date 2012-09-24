@@ -15,6 +15,7 @@ import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.configurator.aac.racing.ClusterRacing;
 import edacc.configurator.aac.search.ibsutils.DecisionTree;
+import edacc.configurator.aac.search.ibsutils.SolverConfigurationIBS;
 import edacc.configurator.aac.solvercreator.Clustering;
 import edacc.model.ExperimentResult;
 import edacc.model.ExperimentResultDAO;
@@ -54,16 +55,26 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 		
 		jobsFinished(ExperimentResultDAO.getAllByExperimentId(parameters.getIdExperiment()));
 	}
+	
+	private HashMap<Integer, List<ExperimentResult>> getScResultMap(int instanceId) {
+		HashSet<Integer> tmp = new HashSet<Integer>();
+		tmp.add(instanceId);
+		return getScResultMap(tmp);
+	}
 
-	private HashMap<Integer, List<ExperimentResult>> getScResultMap(int instanceId) throws Exception {
+	private HashMap<Integer, List<ExperimentResult>> getScResultMap(Set<Integer> instanceIds) {
 		HashMap<Integer, List<ExperimentResult>> res = new HashMap<Integer, List<ExperimentResult>>();
-		for (ExperimentResult er : ExperimentResultDAO.getAllByExperimentAndInstanceId(parameters.getIdExperiment(), instanceId)) {
-			List<ExperimentResult> list = res.get(er.getSolverConfigId());
-			if (list == null) {
-				list = new LinkedList<ExperimentResult>();
-				res.put(er.getSolverConfigId(), list);
+		for (SolverConfiguration sc : solverConfigs.values()) {
+			for (ExperimentResult er : sc.getJobs()) {
+				if (instanceIds.contains(er.getInstanceId())) {
+					List<ExperimentResult> list = res.get(er.getSolverConfigId());
+					if (list == null) {
+						list = new LinkedList<ExperimentResult>();
+						res.put(er.getSolverConfigId(), list);
+					}
+					list.add(er);
+				}
 			}
-			list.add(er);
 		}
 		return res;
 	}
@@ -101,6 +112,7 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 				String solverConfigName = null;
 				DecisionTree tree = null;
 				Integer instanceId = null;
+				HashSet<Integer> iids = null;
 				if (clustering == null) {
 					int rand = rng.nextInt(instanceIds.size());
 					instanceId = instanceIds.get(rand);
@@ -121,11 +133,15 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 					} else {
 						List<Integer> cluster = clustering.get(rng.nextInt(clustering.size()));
 						pacc.log("[IBS] Using cluster: " + cluster);
+						iids = new HashSet<Integer>();
 						for (int iid : cluster) {
-							for (Entry<Integer, List<ExperimentResult>> entry : getScResultMap(iid).entrySet()) {
-								trainData.add(new Pair<ParameterConfiguration, List<ExperimentResult>>(solverConfigs.get(entry.getKey()).getParameterConfiguration(), entry.getValue()));
-							}
+							iids.add(iid);
 						}
+						
+						for (Entry<Integer, List<ExperimentResult>> entry : getScResultMap(iids).entrySet()) {
+							trainData.add(new Pair<ParameterConfiguration, List<ExperimentResult>>(solverConfigs.get(entry.getKey()).getParameterConfiguration(), entry.getValue()));
+						}
+						
 						solverConfigName = "Random from restricted domains (cluster size: " + cluster.size() + ", " + trainData.size() + " configs involved)";
 						pacc.log("[IBS] Generating a decision tree for a cluster with size: " + cluster.size() + " using " + trainData.size() + " parameter configurations.");
 					}
@@ -159,7 +175,12 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 					paramconfig.setParameterValue(pd.getFirst(), pd.getSecond().randomValue(rng));
 				}
 				int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), paramconfig, "Random from restricted domains");
-				SolverConfiguration sc = new SolverConfiguration(idSolverConfig, paramconfig, parameters.getStatistics());
+				SolverConfiguration sc = null;
+				if (iids != null) {
+					sc = new SolverConfigurationIBS(idSolverConfig, paramconfig, parameters.getStatistics(), iids);
+				} else {
+					sc = new SolverConfiguration(idSolverConfig, paramconfig, parameters.getStatistics());
+				}
 				sc.setNameSearch(solverConfigName);
 				pacc.log("[IBS] Generated a configuration using model of iid: " + instanceId);
 				res.add(sc);
