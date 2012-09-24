@@ -395,7 +395,38 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		}
 		List<Integer> possibleInstances = new LinkedList<Integer>();
 		if (numPoints > unsolvedInstancesMinPoints) {
-			possibleInstances.addAll(data.unsolved);
+			if (data.unsolved.isEmpty()) {
+				// TODO: cache next info!
+				HashSet<Integer> hasInstanceRuns = new HashSet<Integer>();
+				for (ExperimentResult er : data.sc.getJobs()) {
+					hasInstanceRuns.add(er.getInstanceId());
+				}
+				// TODO: use 1.0-clustering??
+				for (Entry<Integer, List<Integer>> e : getClustering().entrySet()) {
+					// TODO: can this happen? + inefficient?
+					if (data.racingScs.contains(new Integer(e.getKey()))) {
+						continue;
+					}
+					
+					boolean race = true;
+					for (Integer iid : e.getValue()) {
+						if (hasInstanceRuns.contains(iid)) {
+							race = false;
+							break;
+						}
+					}
+					if (race) {
+						data.racingScs.add(e.getKey());
+						SolverConfigurationMetaData inc = scs.get(e.getKey());
+						inc.competitors.add(e.getKey());
+						
+						this.race(inc.sc, data);
+					}
+				}
+				
+			} else {
+				possibleInstances.addAll(data.unsolved);
+			}
 		} else {
 			HashSet<Integer> currentUnsolved = clustering.getNotUsedInstances();
 			for (Integer iid : data.unsolved) {
