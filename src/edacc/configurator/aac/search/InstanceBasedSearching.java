@@ -34,6 +34,7 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 	Set<Integer> solvedInstances;
 	List<Parameter> configurableParameters;
 	ParameterGraph graph;
+	List<Integer> instanceIds = new LinkedList<Integer>(); 
 	
 	public InstanceBasedSearching(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
 		super(pacc, api, rng, parameters, firstSCs, referenceSCs);
@@ -84,8 +85,10 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 		pacc.log("[IBS] Generating " + num + " solver configurations");
 		List<SolverConfiguration> res = new LinkedList<SolverConfiguration>();
 		HashMap<Integer, DecisionTree> treeCache = new HashMap<Integer, DecisionTree>();
-		List<Integer> instanceIds = new LinkedList<Integer>(); 
-		instanceIds.addAll(solvedInstances);
+		
+		if (instanceIds.isEmpty()) {
+			instanceIds.addAll(solvedInstances);
+		}
 		
 		List<List<Integer>> clustering = null;
 		if (pacc.racing instanceof ClusterRacing) {
