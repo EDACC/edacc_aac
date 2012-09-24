@@ -188,7 +188,7 @@ public class RankTransformationTest implements FamilyTest {
         
         
         // Friedman variant
-        double F = 12.0 * c / (N * (N + c));
+        /*double F = 12.0 * c / (N * (N + c));
         double sum = 0.0;
         for (int i = 0; i < n; i++) {
             double innersum = 0.0f;
@@ -198,31 +198,31 @@ public class RankTransformationTest implements FamilyTest {
             innersum -= (N + c) / 2.0;
             sum += innersum*innersum;
         }
-        F *= sum;
+        F *= sum;*/
         
-        return F;
+        return RT;
     }
 
     @Override
     public boolean isFamilyTestSignificant(double T, double alpha) throws MathException {
         if (c <= 1 || n <= 1) return false;
         
-        ChiSquaredDistribution XS = new ChiSquaredDistributionImpl(n - 1);
-        return T > XS.inverseCumulativeProbability(1.0 - alpha);
+        //ChiSquaredDistribution XS = new ChiSquaredDistributionImpl(n - 1);
+        //return T > XS.inverseCumulativeProbability(1.0 - alpha);
         
-        //FDistribution FD = new FDistributionImpl(n - 1, n*c - n - c + 1);
-        //return T > FD.inverseCumulativeProbability(1.0 - alpha);
+        FDistribution FD = new FDistributionImpl(n - 1, n*c - n - c + 1);
+        return T > FD.inverseCumulativeProbability(1.0 - alpha);
     }
     
     @Override
     public double criticalValue(double alpha) throws MathException {
         if (c <= 1 || n <= 1) return 0;
         
-        ChiSquaredDistribution XS = new ChiSquaredDistributionImpl(n - 1);
-        return XS.inverseCumulativeProbability(1.0 - alpha);
+        //ChiSquaredDistribution XS = new ChiSquaredDistributionImpl(n - 1);
+        //return XS.inverseCumulativeProbability(1.0 - alpha);
         
-        //FDistribution FD = new FDistributionImpl(n - 1, n*c - n - c + 1);
-        //return FD.inverseCumulativeProbability(1.0 - alpha);
+        FDistribution FD = new FDistributionImpl(n - 1, n*c - n - c + 1);
+        return FD.inverseCumulativeProbability(1.0 - alpha);
     }
 
     public static void main(String ... args) throws Exception {
