@@ -438,11 +438,12 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		
 		int numInstances = incumbentWinnerInstances;
 		
-		if (numInstances > 0 && !possibleInstances.isEmpty()) {
+		while (numInstances > 0 && !possibleInstances.isEmpty()) {
 			int rand = rng.nextInt(possibleInstances.size());
 			int iid = possibleInstances.get(rand);
 			addRuns(data.sc, iid, Integer.MAX_VALUE - data.sc.getIdSolverConfiguration());
 			possibleInstances.remove(rand);
+			numInstances--;
 		}
 	}
 	
@@ -516,10 +517,11 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 			} else {
 				// lost.
 				
-				addUnsolvedJobs(scs.get(incumbent.getIdSolverConfiguration()));
+				
 				
 				pacc.log("Solver Configuration " + data.sc.getIdSolverConfiguration() + " lost against " + incumbent.getIdSolverConfiguration());
 				updatePoints(incumbent.getIdSolverConfiguration(), 1);
+				addUnsolvedJobs(scs.get(incumbent.getIdSolverConfiguration()));
 				
 				removeScFromRace = true;
 			}
