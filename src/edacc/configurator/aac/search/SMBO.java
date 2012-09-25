@@ -338,7 +338,38 @@ public class SMBO extends SearchMethods {
                             double predicted_var = pred[0][1];
                             meanByInstanceID.put(instance.getId(), predicted_mean);
                         }
+                        Map<Integer, Float> bestByInstanceID = new HashMap<Integer, Float>();
+                        for (SolverConfiguration sc : pacc.racing.getBestSolverConfigurations()) {
+                        	Map<Integer, List<ExperimentResult>> results = new HashMap<Integer, List<ExperimentResult>>();
+                        	for (ExperimentResult er : sc.getJobs()) {
+                        		List<ExperimentResult> list = results.get(er.getInstanceId());
+                        		if (list == null) {
+                        			list = new LinkedList<ExperimentResult>();
+                        			results.put(er.getInstanceId(), list);
+                        		}
+                        		list.add(er);
+                        	}
+                        	
+                        	for (Instance instance: instances) {
+                        		List<ExperimentResult> list = results.get(instance.getId());
+                        		if (list != null) {
+                        			float cost = par1CostFunc.calculateCost(list);
+                        			Float best = bestByInstanceID.get(instance.getId());
+                        			if (best == null || best < cost) {
+                        				bestByInstanceID.put(instance.getId(), cost);
+                        			} 
+                        		}
+                        	}
+                        }
                         
+                        for (Instance instance : instances) {
+                        	Float best = bestByInstanceID.get(instance.getId());
+                        	Double cost = meanByInstanceID.get(instance.getId());
+                        	if (best == null || cost * .9 < best) {
+                        		preferredInstanceIDs.add(instance.getId());
+                        	}
+                        }
+                        pacc.log("[SMBO] Generated an IBS configuration with " + preferredInstanceIDs.size() + " preferred instances.");
                         newConfigs.add(new SolverConfigurationIBS(idSC, paramConfig, parameters.getStatistics(), preferredInstanceIDs));
                     } else {
                         newConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
