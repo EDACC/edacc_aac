@@ -576,8 +576,8 @@ public class SMBO extends SearchMethods {
                     theta[pIx] = valueMap.get((String)paramValue);
                 } else if (p.getDomain() instanceof FlagDomain) {
                     // map flag parameters to {0, 1}
-                    if (FlagDomain.FLAGS.ON.equals(paramValue)) theta[pIx] = 1;
-                    else theta[pIx] = 0;
+                    if (FlagDomain.FLAGS.ON.equals(paramValue)) theta[pIx] = 2;
+                    else theta[pIx] = 1;
                 } else {
                     // TODO
                     theta[pIx] = paramValue.hashCode();
