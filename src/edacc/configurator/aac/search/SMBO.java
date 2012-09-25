@@ -338,6 +338,7 @@ public class SMBO extends SearchMethods {
                 thetaPred[i].ei = calcExpectedImprovement(mu, sigma, f_min);
             }
     
+            List<ParameterConfiguration> selectedConfigs = new LinkedList<ParameterConfiguration>();
             if ("ocb".equals(selectionCriterion)) {
                 // Optimistic confidence bound
                 for (int i = 0; i < numConfigsToGenerate; i++) {
@@ -357,55 +358,7 @@ public class SMBO extends SearchMethods {
                     ParameterConfiguration paramConfig = randomParamConfigs[theta.thetaIdx];
                     pacc.log("c OCB: Selected configuration " + api.getCanonicalName(parameters.getIdExperiment(), paramConfig) + " with predicted performance: " + theta.mu + " and sigma " + Math.sqrt(theta.var) + " and OCB: " + theta.ocb[i] + " ocb_lambda: " + ocb_lambda[i]);
                     paramConfig = optimizeLocally(paramConfig, theta.ocb[j], ocb_lambda[j], f_min);
-                    int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
-                    
-                    if (createIBSConfigs) {
-                        double[][] theta_config = new double[][] { randomThetasPred[theta.thetaIdx] };
-                        Set<Integer> preferredInstanceIDs = new HashSet<Integer>();
-                        Map<Integer, Double> meanByInstanceID = new HashMap<Integer, Double>();
-                        for (Instance instance: instances) {
-                            int[] inst_ix = new int[] { instanceFeaturesIx.get(instance.getId()) };
-                            double[][] pred = model.predictMarginal(theta_config, inst_ix);
-                            double predicted_mean = pred[0][0];
-                            double predicted_var = pred[0][1];
-                            meanByInstanceID.put(instance.getId(), predicted_mean);
-                        }
-                        Map<Integer, Float> bestByInstanceID = new HashMap<Integer, Float>();
-                        for (SolverConfiguration sc : pacc.racing.getBestSolverConfigurations()) {
-                        	Map<Integer, List<ExperimentResult>> results = new HashMap<Integer, List<ExperimentResult>>();
-                        	for (ExperimentResult er : sc.getJobs()) {
-                        		List<ExperimentResult> list = results.get(er.getInstanceId());
-                        		if (list == null) {
-                        			list = new LinkedList<ExperimentResult>();
-                        			results.put(er.getInstanceId(), list);
-                        		}
-                        		list.add(er);
-                        	}
-                        	
-                        	for (Instance instance: instances) {
-                        		List<ExperimentResult> list = results.get(instance.getId());
-                        		if (list != null) {
-                        			float cost = par1CostFunc.calculateCost(list);
-                        			Float best = bestByInstanceID.get(instance.getId());
-                        			if (best == null || best < cost) {
-                        				bestByInstanceID.put(instance.getId(), cost);
-                        			} 
-                        		}
-                        	}
-                        }
-                        
-                        for (Instance instance : instances) {
-                        	Float best = bestByInstanceID.get(instance.getId());
-                        	Double cost = meanByInstanceID.get(instance.getId());
-                        	if (best == null || cost * .9 < best) {
-                        		preferredInstanceIDs.add(instance.getId());
-                        	}
-                        }
-                        pacc.log("[SMBO] Generated an IBS configuration with " + preferredInstanceIDs.size() + " preferred instances.");
-                        newConfigs.add(new SolverConfigurationIBS(idSC, paramConfig, parameters.getStatistics(), preferredInstanceIDs));
-                    } else {
-                        newConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
-                    }
+                    selectedConfigs.add(paramConfig);
                 }
             } else {
                 // EI
@@ -421,13 +374,58 @@ public class SMBO extends SearchMethods {
                     ParameterConfiguration paramConfig = randomParamConfigs[theta.thetaIdx];
                     pacc.log("c EI: Selected configuration " + api.getCanonicalName(parameters.getIdExperiment(), paramConfig) + " with predicted performance: " + theta.mu + " and sigma " + Math.sqrt(theta.var) + " and EI: " + theta.ei);
                     paramConfig = optimizeLocally(paramConfig, theta.ei, 0.0, f_min);
-                    if (api.exists(parameters.getIdExperiment(), paramConfig) != 0) {
-                        pacc.log("c WARNING: Selected existing configuration. Reusing old.");
-                        newConfigs.add(new SolverConfiguration(api.exists(parameters.getIdExperiment(), paramConfig), paramConfig, parameters.getStatistics()));
-                    } else {
-                        int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
-                        newConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
+                    selectedConfigs.add(paramConfig);
+                }
+            }
+            
+            for (ParameterConfiguration paramConfig: selectedConfigs) {
+                int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
+                if (createIBSConfigs) {
+                    double[][] theta_config = new double[][] { paramConfigToTuple(paramConfig) };
+                    Set<Integer> preferredInstanceIDs = new HashSet<Integer>();
+                    Map<Integer, Double> meanByInstanceID = new HashMap<Integer, Double>();
+                    for (Instance instance: instances) {
+                        int[] inst_ix = new int[] { instanceFeaturesIx.get(instance.getId()) };
+                        double[][] pred = model.predictMarginal(theta_config, inst_ix);
+                        double predicted_mean = pred[0][0];
+                        double predicted_var = pred[0][1];
+                        meanByInstanceID.put(instance.getId(), predicted_mean);
                     }
+                    Map<Integer, Float> bestByInstanceID = new HashMap<Integer, Float>();
+                    for (SolverConfiguration sc : pacc.racing.getBestSolverConfigurations()) {
+                        Map<Integer, List<ExperimentResult>> results = new HashMap<Integer, List<ExperimentResult>>();
+                        for (ExperimentResult er : sc.getJobs()) {
+                            List<ExperimentResult> list = results.get(er.getInstanceId());
+                            if (list == null) {
+                                list = new LinkedList<ExperimentResult>();
+                                results.put(er.getInstanceId(), list);
+                            }
+                            list.add(er);
+                        }
+                        
+                        for (Instance instance: instances) {
+                            List<ExperimentResult> list = results.get(instance.getId());
+                            if (list != null) {
+                                float cost = par1CostFunc.calculateCost(list);
+                                Float best = bestByInstanceID.get(instance.getId());
+                                if (best == null || best < cost) {
+                                    bestByInstanceID.put(instance.getId(), cost);
+                                } 
+                            }
+                        }
+                    }
+                    
+                    for (Instance instance : instances) {
+                        Float best = bestByInstanceID.get(instance.getId());
+                        Double cost = meanByInstanceID.get(instance.getId());
+                        if (best == null || cost * .9 < best) {
+                            preferredInstanceIDs.add(instance.getId());
+                        }
+                    }
+                    pacc.log("[SMBO] Generated an IBS configuration with " + preferredInstanceIDs.size() + " preferred instances.");
+                    newConfigs.add(new SolverConfigurationIBS(idSC, paramConfig, parameters.getStatistics(), preferredInstanceIDs));
+                } else {
+                    newConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
                 }
             }
             
