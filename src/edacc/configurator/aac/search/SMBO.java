@@ -1,5 +1,6 @@
 package edacc.configurator.aac.search;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -85,6 +86,9 @@ public class SMBO extends SearchMethods {
     private boolean useInstanceIndexFeature = true; // simply use the index of an instance as instance feature
     private int queueSize = 20; // how many configurations to generate at a time and put into a queue
     private boolean createIBSConfigs = false;
+    
+    private String featureFolder = null;
+    private String featureCacheFolder = null;
 
     public SMBO(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
         super(pacc, api, rng, parameters, firstSCs, referenceSCs);
@@ -120,11 +124,19 @@ public class SMBO extends SearchMethods {
             queueSize = Integer.valueOf(val);
         if ((val = parameters.getSearchMethodParameters().get("SMBO_createIBSConfigs")) != null)
             createIBSConfigs = Boolean.parseBoolean(val);
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_featureFolder")) != null)
+            featureFolder = val;
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_featureCacheFolder")) != null)
+            featureCacheFolder = val;
         
         pspace = api.loadParameterGraphFromDB(parameters.getIdExperiment());
         
-        // TODO: Load from configuration?
-        //instanceFeatureNames.add("POSNEG-RATIO-CLAUSE-mean");
+        if (featureFolder != null) {
+            for (String feature: AAC.getFeatureNames(new File(featureFolder))) instanceFeatureNames.add(feature);
+        } else {
+            // TODO: Load from configuration?
+            //instanceFeatureNames.add("POSNEG-RATIO-CLAUSE-mean");
+        }
         
         if (useInstanceIndexFeature) instanceFeatureNames.add("instance-index");
         
@@ -133,14 +145,21 @@ public class SMBO extends SearchMethods {
         instanceFeatures = new double[instances.size()][instanceFeatureNames.size()];
         for (Instance instance: instances) {
             instanceFeaturesIx.put(instance.getId(), instances.indexOf(instance));
-            
             Map<String, Float> featureValueByName = new HashMap<String, Float>();
-            for (InstanceHasProperty ihp: instance.getPropertyValues().values()) {
-                if (!instanceFeatureNames.contains(ihp.getProperty().getName())) continue;
-                try {
-                    featureValueByName.put(ihp.getProperty().getName(), Float.valueOf(ihp.getValue()));
-                } catch (Exception e) {
-                    throw new Exception("All instance features have to be numeric (convertible to a Java Float).");
+            
+            if (featureFolder != null) {
+                float[] featureValues = AAC.calculateFeatures(instance.getId(), new File(featureFolder), new File(featureCacheFolder));
+                for (int i = 0; i < featureValues.length; i++) {
+                    featureValueByName.put(instanceFeatureNames.get(i), featureValues[i]);
+                }
+            } else {
+                for (InstanceHasProperty ihp: instance.getPropertyValues().values()) {
+                    if (!instanceFeatureNames.contains(ihp.getProperty().getName())) continue;
+                    try {
+                        featureValueByName.put(ihp.getProperty().getName(), Float.valueOf(ihp.getValue()));
+                    } catch (Exception e) {
+                        throw new Exception("All instance features have to be numeric (convertible to a Java Float).");
+                    }
                 }
             }
             
@@ -588,8 +607,8 @@ public class SMBO extends SearchMethods {
                     theta[pIx] = valueMap.get((String)paramValue);
                 } else if (p.getDomain() instanceof FlagDomain) {
                     // map flag parameters to {0, 1}
-                    if (FlagDomain.FLAGS.ON.equals(paramValue)) theta[pIx] = 1;
-                    else theta[pIx] = 0;
+                    if (FlagDomain.FLAGS.ON.equals(paramValue)) theta[pIx] = 2;
+                    else theta[pIx] = 1;
                 } else {
                     // TODO
                     theta[pIx] = paramValue.hashCode();
