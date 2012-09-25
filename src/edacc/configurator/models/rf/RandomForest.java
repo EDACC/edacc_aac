@@ -114,9 +114,9 @@ public class RandomForest {
             par1CostFunc = new PARX(Experiment.Cost.cost, true, 1.0f);
         }
         
-        int[][] condParents = null;
-        int[][][] condParentVals = null;
-        pspace.conditionalParentsForRF(configurableParameters, condParents, condParentVals);
+        Object[] cpRF = pspace.conditionalParentsForRF(configurableParameters);
+        int[][] condParents = (int[][])cpRF[0];
+        int[][][] condParentVals = (int[][][])cpRF[1];
         
         rf = new CensoredRandomForest(nTrees, logModel ? 1 : 0, kappaMax, 1.0, catDomainSizes, rng, condParents, condParentVals);
     }

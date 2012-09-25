@@ -206,10 +206,23 @@ public class SMBO extends SearchMethods {
             kappaMax = ExperimentDAO.getById(parameters.getIdExperiment()).getCostPenalty();
             par1CostFunc = new PARX(Experiment.Cost.cost, true, 1.0f);
         }
+
         
-        int[][] condParents = null;
-        int[][][] condParentVals = null;
-        pspace.conditionalParentsForRF(configurableParameters, condParents, condParentVals);
+        Object[] cpRF = pspace.conditionalParentsForRF(configurableParameters);
+        int[][] condParents = (int[][])cpRF[0];
+        int[][][] condParentVals = (int[][][])cpRF[1];
+        int[][] augmentedCondParents = new int[condParents.length + instanceFeatureNames.size()][];
+        for (int i = 0; i < condParents.length; i++) augmentedCondParents[i] = condParents[i];
+        condParents = augmentedCondParents;
+
+        /*for (int i = 0; i < condParents.length; i++) {
+            System.out.print("Conditional parents of " + configurableParameters.get(i) + ": ");
+            if (condParents[i] == null) { System.out.println("None"); continue; }
+            for (int j = 0; j < condParents[i].length; j++) {
+                System.out.print(configurableParameters.get(condParents[i][j]) + ", ");
+            }
+            System.out.println();
+        }*/
         
         // Initialize the predictive model
         model = new CensoredRandomForest(nTrees, logModel ? 1 : 0, kappaMax, 1.0, catDomainSizes, rng, condParents, condParentVals);
