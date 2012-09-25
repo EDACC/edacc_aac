@@ -1031,4 +1031,13 @@ public class AAC {
 		
 		return res;
 	}
+	
+	public static String[] getFeatureNames(File featureFolder) throws Exception {
+        Properties properties = new Properties();
+        File propFile = new File(featureFolder, "features.properties");
+        FileInputStream in = new FileInputStream(propFile);
+        properties.load(in);
+        in.close();
+        return properties.getProperty("Features").split(",");
+	}
 }
