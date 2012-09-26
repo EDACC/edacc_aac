@@ -574,6 +574,7 @@ public class DecisionTree {
 	}*/
 	
 	private SearchResult getDomainOrNull(Node node, double stddev, Domain[] domains, List<Integer> parameter_indexes) {
+		System.out.println("[DecisionTree] getDomainOrNull " + parameter_indexes.size());
 		if (node.left == null && node.right == null && node.nullNode == null) {
 			if (node.results.size() <= max_results || node.stddev > stddev) {
 				List<Pair<Parameter, Domain>> parameters = new ArrayList<Pair<Parameter, Domain>>();

@@ -86,10 +86,6 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 		List<SolverConfiguration> res = new LinkedList<SolverConfiguration>();
 		HashMap<Integer, DecisionTree> treeCache = new HashMap<Integer, DecisionTree>();
 		
-		if (instanceIds.isEmpty()) {
-			instanceIds.addAll(solvedInstances);
-		}
-		
 		List<List<Integer>> clustering = null;
 		if (pacc.racing instanceof ClusterRacing) {
 			HashMap<Integer, List<Integer>> tmp = ((ClusterRacing) pacc.racing).getClustering();
@@ -100,6 +96,9 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 		}
 		
 		while (num > 0) {
+			if (instanceIds.isEmpty()) {
+				instanceIds.addAll(solvedInstances);
+			}
 			num--;
 			if (clustering == null && instanceIds.isEmpty()) {
 				// create a random config
@@ -177,8 +176,13 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 					ParameterConfiguration paramconfig = graph.getRandomConfiguration(rng);
 					int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), paramconfig, "random config");
 					SolverConfiguration sc = new SolverConfiguration(idSolverConfig, paramconfig, parameters.getStatistics());
-					sc.setNameSearch(sc.getIdSolverConfiguration() + " random config (query result was null)");
-					pacc.log("[IBS] Generated a random configuration (query result was null)");
+					if (q == null) {
+						sc.setNameSearch(sc.getIdSolverConfiguration() + " random config (query result was null)");
+						pacc.log("[IBS] Generated a random configuration (query result was null)");
+					} else if (q.configs.isEmpty() || q.parametersSorted.isEmpty()) {
+						sc.setNameSearch(sc.getIdSolverConfiguration() + " random config (no possible randomizable parameters)");
+						pacc.log("[IBS] Generated a random configuration (no possible randomizable parameters)");
+					}
 					res.add(sc);
 					
 					continue;
@@ -215,10 +219,6 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 				sc.setNameSearch(sc.getIdSolverConfiguration() + " " + solverConfigName);
 				pacc.log("[IBS] Generated a configuration using model of iid: " + instanceId);
 				res.add(sc);
-			}
-			
-			if (instanceIds.isEmpty()) {
-				instanceIds.addAll(solvedInstances);
 			}
 		}
 		for (SolverConfiguration sc : res) {

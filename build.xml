@@ -24,7 +24,9 @@
 	
 	<target name="compile">
 		<mkdir dir="bin"/>
-		<javac debug="true" debuglevel="lines,vars,source" includeAntRuntime="false" srcdir="src" destdir="bin" classpathref="classpath"/>
+		<javac debug="true" debuglevel="lines,vars,source" includeAntRuntime="false" srcdir="src" destdir="bin" classpathref="classpath" >
+			<compilerarg line="-source 1.6 -target 1.6" />
+		</javac>
 	</target>
 	
     <target name="aac" depends="compile">
