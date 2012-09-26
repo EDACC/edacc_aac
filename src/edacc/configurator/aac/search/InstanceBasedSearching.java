@@ -186,9 +186,24 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 				List<ParameterConfiguration> possibleBaseConfigs = new LinkedList<ParameterConfiguration>();
 				possibleBaseConfigs.addAll(q.configs);
 				
+				pacc.log("[IBS] Number of split parameters: " + q.parametersSorted.size());
+				while (q.parametersSorted.size() > 2) {
+					q.parametersSorted.remove(0);
+				}
+				
 				ParameterConfiguration paramconfig = new ParameterConfiguration(possibleBaseConfigs.get(rng.nextInt(possibleBaseConfigs.size())));
 				for (Pair<Parameter, Domain> pd : q.parameterDomains) {
-					paramconfig.setParameterValue(pd.getFirst(), pd.getSecond().randomValue(rng));
+					boolean randVal = false;
+					for (Parameter p : q.parametersSorted) {
+						if (p.getName().equals(pd.getFirst().getName())) {
+							randVal = true;
+							break;
+						}
+					}
+					if (randVal) {
+						pacc.log("[IBS] Randomizing parameter " + pd.getFirst().getName() + " with domain " + pd.getSecond().toString());
+						paramconfig.setParameterValue(pd.getFirst(), pd.getSecond().randomValue(rng));
+					}
 				}
 				int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), paramconfig, "Random from restricted domains");
 				SolverConfiguration sc = null;

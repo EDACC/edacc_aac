@@ -544,15 +544,19 @@ public class DecisionTree {
 		Set<ParameterConfiguration> configs;
 		List<Pair<Parameter, Domain>> parameters;
 		Set<Integer> instanceIds;
+		List<Parameter> parametersSorted;
+		double stddev;
 		
-		public SearchResult(Set<ParameterConfiguration> configs, List<Pair<Parameter, Domain>> parameters, Set<Integer> instanceIds) {
+		public SearchResult(Set<ParameterConfiguration> configs, List<Pair<Parameter, Domain>> parameters, Set<Integer> instanceIds, List<Parameter> parametersSorted, double stddev) {
 			this.configs = configs;
 			this.parameters = parameters;
 			this.instanceIds = instanceIds;
+			this.parametersSorted = parametersSorted;
+			this.stddev = stddev;
 		}
 	}
 	
-	private SearchResult mergeSearchResults(SearchResult sr1, SearchResult sr2) {
+	/*private SearchResult mergeSearchResults(SearchResult sr1, SearchResult sr2) {
 		if (sr1 == null)
 			return sr2;
 		if (sr2 == null)
@@ -567,9 +571,9 @@ public class DecisionTree {
 		instanceIds.addAll(sr1.instanceIds);
 		instanceIds.addAll(sr2.instanceIds);
 		return new SearchResult(configs, parameters, instanceIds);
-	}
+	}*/
 	
-	private SearchResult getDomainOrNull(Node node, double stddev, Domain[] domains) {
+	private SearchResult getDomainOrNull(Node node, double stddev, Domain[] domains, List<Integer> parameter_indexes) {
 		if (node.left == null && node.right == null && node.nullNode == null) {
 			if (node.results.size() <= max_results || node.stddev > stddev) {
 				List<Pair<Parameter, Domain>> parameters = new ArrayList<Pair<Parameter, Domain>>();
@@ -586,7 +590,12 @@ public class DecisionTree {
 					configs.add(s.config);
 				}
 				
-				return new SearchResult(configs, parameters, instanceIds);
+				List<Parameter> sortedParams = new LinkedList<Parameter>();
+				for (int p_index: parameter_indexes) {
+					sortedParams.add(params.get(p_index));
+				}
+				
+				return new SearchResult(configs, parameters, instanceIds, sortedParams, node.stddev);
 			}
 			return null;
 		}
@@ -600,14 +609,20 @@ public class DecisionTree {
 				p_index = node.left.attr.index;
 				tmpDomain = domains[p_index];
 				domains[p_index] = node.left.domain;
+				parameter_indexes.add(p_index);
 			}
 			
-			result = getDomainOrNull(node.left, stddev, domains);
+			result = getDomainOrNull(node.left, stddev, domains, parameter_indexes);
 			
+			if (result.stddev >= stddev) {
+				return result;
+			}
 			// backtracking
 			if (node.left.domain != null) {
 				domains[p_index] = tmpDomain;
+				parameter_indexes.remove(parameter_indexes.size()-1);
 			}
+			
 		}
 		if (node.right != null) {
 			// save old domain for backtracking
@@ -617,16 +632,28 @@ public class DecisionTree {
 				p_index = node.right.attr.index;
 				tmpDomain = domains[p_index];
 				domains[p_index] = node.right.domain;
+				parameter_indexes.add(p_index);
 			}
 			
-			result = mergeSearchResults(result, getDomainOrNull(node.right, stddev, domains));
+			result = getDomainOrNull(node.right, stddev, domains, parameter_indexes);
+			
+			if (result.stddev >= stddev) {
+				return result;
+			}
 			// backtracking
 			if (node.right.domain != null) {
 				domains[p_index] = tmpDomain;
+				parameter_indexes.remove(parameter_indexes.size()-1);
 			}			
 		}
 		if (node.nullNode != null) {
-			result = mergeSearchResults(result, getDomainOrNull(node.nullNode, stddev, domains));
+			result = getDomainOrNull(node.nullNode, stddev, domains, parameter_indexes);
+			if (result.stddev >= stddev) {
+				return result;
+			}
+		}
+		if (result == null || result.stddev < stddev) {
+			return null;
 		}
 		return result;
 	}
@@ -646,21 +673,26 @@ public class DecisionTree {
 		attributes.add(new Attribute(new SampleValueType("instanceId"), instanceIdDomain, d_index));
 		domains[d_index++] = instanceIdDomain;
 		
-		SearchResult sr = getDomainOrNull(root, beta, domains);
+		SearchResult sr = getDomainOrNull(root, beta, domains, new LinkedList<Integer>());
 		if (sr == null) {
 			return null;
 		}
-		return new QueryResult (sr.configs, sr.parameters, sr.instanceIds);
+		return new QueryResult (sr.configs, sr.parameters, sr.instanceIds, sr.parametersSorted, sr.stddev);
 	}
 	
 	public class QueryResult {
 		public Set<ParameterConfiguration> configs;
 		public List<Pair<Parameter, Domain>> parameterDomains;
 		public Set<Integer> instanceIds;
-		public QueryResult(Set<ParameterConfiguration> configs, List<Pair<Parameter, Domain>> parameterDomains, Set<Integer> instanceIds) {
+		public List<Parameter> parametersSorted;
+		public double stddev;
+		
+		public QueryResult(Set<ParameterConfiguration> configs, List<Pair<Parameter, Domain>> parameterDomains, Set<Integer> instanceIds, List<Parameter> parametersSorted, double stddev) {
 			this.configs = configs;
 			this.parameterDomains = parameterDomains;
 			this.instanceIds = instanceIds;
+			this.parametersSorted = parametersSorted;
+			this.stddev = stddev;
 		}
 	}
 
