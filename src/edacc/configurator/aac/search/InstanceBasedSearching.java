@@ -172,7 +172,7 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 					}
 				}
 				DecisionTree.QueryResult q = tree.query(stddev);
-				if (q == null || q.configs.isEmpty()) {
+				if (q == null || q.configs.isEmpty() || q.parametersSorted.isEmpty()) {
 					
 					ParameterConfiguration paramconfig = graph.getRandomConfiguration(rng);
 					int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), paramconfig, "random config");
@@ -188,7 +188,7 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 				
 				pacc.log("[IBS] Number of split parameters: " + q.parametersSorted.size());
 				while (q.parametersSorted.size() > 2) {
-					q.parametersSorted.remove(0);
+					q.parametersSorted.remove(q.parametersSorted.size()-1);
 				}
 				
 				ParameterConfiguration paramconfig = new ParameterConfiguration(possibleBaseConfigs.get(rng.nextInt(possibleBaseConfigs.size())));
