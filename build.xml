@@ -28,6 +28,7 @@
 	</target>
 	
     <target name="aac" depends="compile">
+    	<mkdir dir="${dist.dir}/${aac.dir}"/>
         <jar destfile="${dist.dir}/${aac.dir}/${aac.jar}">
             <manifest>
                 <attribute name="Main-Class" value="edacc.configurator.aac.AAC"/>
@@ -43,6 +44,7 @@
     </target>
 	
 	<target name="solvercreator" depends="compile">
+		<mkdir dir="${dist.dir}/${solvercreator.dir}"/>
 		<jar destfile="${dist.dir}/${solvercreator.dir}/${solvercreator.jar}">
             <manifest>
                 <attribute name="Main-Class" value="edacc.configurator.aac.solvercreator.SolverCreator"/>
@@ -59,6 +61,7 @@
 	</target>
 	
 	<target name="solverlauncher" depends="compile">
+		<mkdir dir="${dist.dir}/${solverlauncher.dir}"/>
 		<jar destfile="${dist.dir}/${solverlauncher.dir}/${solverlauncher.jar}">
             <manifest>
                 <attribute name="Main-Class" value="edacc.configurator.aac.solvercreator.SolverLauncher"/>
