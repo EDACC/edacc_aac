@@ -239,16 +239,17 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 				// add solver configuration to list new sc, and try to race in next iteration
 				pacc.addSolverConfigurationToListNewSC(sc);
 			} 
-
-			if (data.racingScs.isEmpty() && data.competitors.isEmpty() && !c.containsKey(data.sc.getIdSolverConfiguration())) {
-				pacc.log("Removing " + data.sc.getIdSolverConfiguration() + ".");
-				removedSCIds.add(data.sc.getIdSolverConfiguration());
-				clustering.remove(data.sc.getIdSolverConfiguration());
-			}
 			
 			updateName(data);
 		}
 
+		for (SolverConfigurationMetaData data : scs.values()) {
+			if (data.racingScs.isEmpty() && data.competitors.isEmpty() && !c.containsKey(data.sc.getIdSolverConfiguration())) {
+				if (!removedSCIds.contains(data.sc.getIdSolverConfiguration())) {
+					pacc.addSolverConfigurationToListNewSC(data.sc); // will be marked as removed in next iteration
+				}
+			}
+		}
 	}
 
 	@Override
