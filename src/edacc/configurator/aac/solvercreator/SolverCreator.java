@@ -557,7 +557,14 @@ public class SolverCreator {
 		}
 		
 		if (Boolean.parseBoolean(properties.getProperty("CalculateCost"))) {
-			HashMap<Integer, List<Integer>> c = C.getClustering(false);
+			
+			for (int scid : C.getSolverConfigIds()) {
+				if (SolverConfigurationDAO.getSolverConfigurationById(scid).getName().contains("(removed)")) {
+					C.remove(scid);
+				}
+			}
+			
+			HashMap<Integer, List<Integer>> c = C.getClustering(false, 0.9f);
 			int timeouts = 0;
 			int instanceCount = 0;
 			float res = 0.f;

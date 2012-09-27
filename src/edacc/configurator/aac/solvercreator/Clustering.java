@@ -337,6 +337,9 @@ public class Clustering implements Serializable {
 	}
 	
 	public HashMap<Integer, List<Integer>> getClustering(boolean removeSmallClusters, float threshold) {
+		if (threshold >= 1.f) {
+			return getClustering(removeSmallClusters);
+		}
 		List<Pair<Integer, Float>> scidWeight = new LinkedList<Pair<Integer, Float>>();
 		for (int scid : M.keySet()) {
 			scidWeight.add(new Pair<Integer, Float>(scid, getWeight(scid)));
