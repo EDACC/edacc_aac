@@ -211,11 +211,11 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 				}
 				int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), paramconfig, "Random from restricted domains");
 				SolverConfiguration sc = null;
-				if (iids != null) {
-					sc = new SolverConfigurationIBS(idSolverConfig, paramconfig, parameters.getStatistics(), iids);
-				} else {
+				//if (iids != null) {
+				//	sc = new SolverConfigurationIBS(idSolverConfig, paramconfig, parameters.getStatistics(), iids);
+				//} else {
 					sc = new SolverConfiguration(idSolverConfig, paramconfig, parameters.getStatistics());
-				}
+				//}
 				sc.setNameSearch(sc.getIdSolverConfiguration() + " " + solverConfigName);
 				pacc.log("[IBS] Generated a configuration using model of iid: " + instanceId);
 				res.add(sc);

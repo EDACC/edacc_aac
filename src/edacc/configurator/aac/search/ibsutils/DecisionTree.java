@@ -615,7 +615,7 @@ public class DecisionTree {
 			
 			result = getDomainOrNull(node.left, stddev, domains, parameter_indexes);
 			
-			if (result.stddev >= stddev) {
+			if (result != null && result.stddev >= stddev) {
 				return result;
 			}
 			// backtracking
@@ -638,7 +638,7 @@ public class DecisionTree {
 			
 			result = getDomainOrNull(node.right, stddev, domains, parameter_indexes);
 			
-			if (result.stddev >= stddev) {
+			if (result != null && result.stddev >= stddev) {
 				return result;
 			}
 			// backtracking
@@ -649,7 +649,7 @@ public class DecisionTree {
 		}
 		if (node.nullNode != null) {
 			result = getDomainOrNull(node.nullNode, stddev, domains, parameter_indexes);
-			if (result.stddev >= stddev) {
+			if (result != null && result.stddev >= stddev) {
 				return result;
 			}
 		}

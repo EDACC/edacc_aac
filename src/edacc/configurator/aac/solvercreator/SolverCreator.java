@@ -556,6 +556,29 @@ public class SolverCreator {
 			}
 		}
 		
+		if (Boolean.parseBoolean(properties.getProperty("CalculateCost"))) {
+			HashMap<Integer, List<Integer>> c = C.getClustering(false);
+			int timeouts = 0;
+			int instanceCount = 0;
+			float res = 0.f;
+			for (Entry<Integer, List<Integer>> e : c.entrySet()) {
+				for (int iid : e.getValue()) {
+					float cost = C.getCost(e.getKey(), iid);
+					if (Float.isInfinite(cost)) {
+						timeouts++;
+					} else {
+						res += cost;
+						instanceCount++;
+					}
+				}
+			}
+			System.out.println("Clustering size: " + c.size());
+			System.out.println("Cost: " + res);
+			System.out.println("Instances: " + instanceCount);
+			System.out.println("Avg: " + (res / instanceCount));
+			System.out.println("Timeouts: " + timeouts);
+		}
+		
 		
 		if (Boolean.parseBoolean(properties.getProperty("Interactive"))) {
 			interactiveMode(C, new File(featureDirectory));

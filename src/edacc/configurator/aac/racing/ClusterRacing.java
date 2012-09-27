@@ -315,7 +315,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 	}
 	
 	public void updateName(SolverConfigurationMetaData data) {		
-		data.sc.setNameRacing("Num races: " + data.racingScs.size() + " Num competitors: " + data.competitors.size() + (removedSCIds.contains(data.sc.getIdSolverConfiguration()) ? " (removed)" : ""));
+		data.sc.setNameRacing(data.sc.getNumber() + " races: " + data.racingScs.size() + " competitors: " + data.competitors.size() + " points: " + incumbentPoints.get(data.sc.getIdSolverConfiguration()) + (removedSCIds.contains(data.sc.getIdSolverConfiguration()) ? " (removed)" : ""));
 	}
 	
 	private void addRuns(SolverConfiguration sc, int instanceid, int priority) throws Exception {
