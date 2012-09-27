@@ -564,7 +564,7 @@ public class SolverCreator {
 				}
 			}
 			
-			HashMap<Integer, List<Integer>> c = C.getClustering(false, 0.9f);
+			HashMap<Integer, List<Integer>> c = C.getClustering(false);
 			int timeouts = 0;
 			int instanceCount = 0;
 			float res = 0.f;

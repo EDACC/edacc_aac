@@ -233,11 +233,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 			copy.addAll(data.racingScs);
 			for (int id : copy) {
 				SolverConfiguration inc = scs.get(id).sc;
-				if (inc.getNumRunningJobs() + inc.getNumNotStartedJobs() > 0) {
-					racedAll = false;
-				} else {
-					race(inc, data);
-				}
+				racedAll &= race(inc, data);
 			}
 			if (!racedAll) {
 				// add solver configuration to list new sc, and try to race in next iteration
@@ -365,11 +361,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 			copy.addAll(data.racingScs);
 			for (Integer id : copy) {
 				SolverConfiguration inc = scs.get(id).sc;
-				if (inc.getNumRunningJobs() + inc.getNumNotStartedJobs() > 0) {
-					racedAll = false;
-				} else {
-					race(inc, data);
-				}
+				racedAll &= race(inc, data);
 			}
 			if (!racedAll) {
 				pacc.addSolverConfigurationToListNewSC(sc);
@@ -447,7 +439,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		}
 	}
 	
-	private void race(SolverConfiguration incumbent, SolverConfigurationMetaData data) throws Exception {
+	private boolean race(SolverConfiguration incumbent, SolverConfigurationMetaData data) throws Exception {
 		List<Integer> instanceIds = data.c.get(incumbent.getIdSolverConfiguration());
 		
 		HashMap<Integer, List<ExperimentResult>> myJobs = new HashMap<Integer, List<ExperimentResult>>();
@@ -466,10 +458,18 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 			}
 		}
 		
+		boolean jobsFinished = true;
 		for (ExperimentResult er : incumbent.getJobs()) {
 			if (myJobs.containsKey(er.getInstanceId()) && !myJobs.get(er.getInstanceId()).isEmpty()) {
+				if (er.getStatus().equals(StatusCode.RUNNING) || er.getStatus().equals(StatusCode.NOT_STARTED)) {
+					jobsFinished = false;
+					break;
+				}
 				hisJobsAll.add(er);
 			} 
+		}
+		if (!jobsFinished) {
+			return false;
 		}
 		
 		if (myJobsAll.isEmpty()) {
@@ -539,6 +539,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 				clustering.remove(data.sc.getIdSolverConfiguration());
 			}*/
 		}
+		return true;
 	}
 	
 	
