@@ -117,6 +117,9 @@ public class RandomForest {
         Object[] cpRF = pspace.conditionalParentsForRF(configurableParameters);
         int[][] condParents = (int[][])cpRF[0];
         int[][][] condParentVals = (int[][][])cpRF[1];
+        int[][] augmentedCondParents = new int[condParents.length + instanceFeatureNames.size()][];
+        for (int i = 0; i < condParents.length; i++) augmentedCondParents[i] = condParents[i];
+        condParents = augmentedCondParents;
         
         rf = new CensoredRandomForest(nTrees, logModel ? 1 : 0, kappaMax, 1.0, catDomainSizes, rng, condParents, condParentVals);
     }

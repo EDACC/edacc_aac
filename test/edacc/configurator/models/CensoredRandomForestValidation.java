@@ -79,7 +79,7 @@ public class CensoredRandomForestValidation {
         List<String> instanceFeatureNames = new LinkedList<String>();
         
         
-        for (int nTrees = 1; nTrees <= 256; nTrees *= 2) {
+        for (int nTrees = 1; nTrees <= 256; nTrees += 1) {
             double rep_rss = 0;
             int numRep = 2;
             for (int rep = 0; rep < numRep; rep++) {
