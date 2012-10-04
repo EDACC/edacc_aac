@@ -293,7 +293,7 @@ public class ClusterHandler implements ClusterMethods{
      * @param sc
      * @param competitor
      * @param costFunc
-     * @return the costs as float values 
+     * @return the costs as double values 
      */
     public Costs costs(SolverConfiguration sc, SolverConfiguration competitor, CostFunction costFunc) {
 		List<ExperimentResult> scJobs = new LinkedList<ExperimentResult>();
@@ -329,8 +329,8 @@ public class ClusterHandler implements ClusterMethods{
 				competitorJobs.add(competitorClusterJobs.get(i).get(j));
 			}
 		}
-		float costBest = costFunc.calculateCost(scJobs);
-		float costOther = costFunc.calculateCost(competitorJobs);
+		double costBest = costFunc.calculateCost(scJobs);
+		double costOther = costFunc.calculateCost(competitorJobs);
 		return new Costs(costBest, costOther, scJobs.size());
     }
     
@@ -458,7 +458,7 @@ public class ClusterHandler implements ClusterMethods{
 			}
 		}
 		// Set bestSc
-		float bestCost = Float.MAX_VALUE;
+		double bestCost = Double.MAX_VALUE;
 		for (SolverConfiguration sc : startupSCs) {
 			if (sc.getCost() < bestCost) {
 				bestCost = sc.getCost();

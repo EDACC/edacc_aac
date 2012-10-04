@@ -54,7 +54,7 @@ public class SMFRace extends RacingMethods {
     private List<SolverConfiguration> raceSurvivors;
     private List<SolverConfiguration> incumbents;
     private Map<Integer, Map<SolverConfiguration, ExperimentResult>> courseResults;
-    private Map<SolverConfiguration, Float> lastRoundCost;
+    private Map<SolverConfiguration, Double> lastRoundCost;
     private List<InstanceIdSeed> completeCourse;
     private SolverConfiguration bestSC = null;
     private int level = 0; // current level (no. of jobs per config in the race)
@@ -85,7 +85,7 @@ public class SMFRace extends RacingMethods {
         this.incumbents = new ArrayList<SolverConfiguration>();
         this.courseResults = new HashMap<Integer, Map<SolverConfiguration, ExperimentResult>>();
         this.raceSurvivors = new ArrayList<SolverConfiguration>();
-        this.lastRoundCost = new HashMap<SolverConfiguration, Float>();
+        this.lastRoundCost = new HashMap<SolverConfiguration, Double>();
 
         rengine = RInterface.getRengine();
 
@@ -463,7 +463,7 @@ public class SMFRace extends RacingMethods {
         
         // Adapt instance specific time limits
         for (Instance instance: api.getExperimentInstances(parameters.getIdExperiment())) {
-            float worstIncumbentCost = Float.NEGATIVE_INFINITY;
+            double worstIncumbentCost = Double.NEGATIVE_INFINITY;
             boolean hasResults = false;
             for (SolverConfiguration incumbent: incumbents) {
                 for (ExperimentResult run: incumbent.getFinishedJobs()) {

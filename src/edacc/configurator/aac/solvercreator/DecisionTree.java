@@ -37,7 +37,7 @@ public class DecisionTree implements Serializable {
 	private int m;
 	private Random rng;
 	
-	public float performance;
+	public double performance;
 	
 	public DecisionTree(HashMap<Integer, List<Integer>> _clustering, ImpurityMeasure impurityMeasure, Clustering clustering_original, Clustering clu2, int m, Random rng, float validationInstancesFactor) {
 		// TODO: if there are equal feature vectors for different instances the training process might result in an exception!
@@ -84,15 +84,15 @@ public class DecisionTree implements Serializable {
 		System.out.println("[DecisionTree] Used " + usedFeatures.size() + " features of " + num_features);
 		System.out.println("[DecisionTree] Feature indexes are: " + Arrays.toString(featureIndexes));
 		if (validationData.size() > 0) {
-			float num = 0;
-			float perf = 0;
+		    double num = 0;
+		    double perf = 0;
 			int timeouts = 0;
 			int num_i = 0;
 			for (Entry<Integer, List<Integer>> entry : validationData.entrySet()) {
 				for (int instanceid : entry.getValue()) {
 					int clazz = this.query(features.get(instanceid)).getFirst();
 					System.out.println(instanceid + ".. " + clustering_original.getCost(clazz, instanceid) + " : " + clustering_original.getMinimumCost(instanceid));
-					if (Float.isInfinite(clustering_original.getCost(clazz, instanceid))) {
+					if (Double.isInfinite(clustering_original.getCost(clazz, instanceid))) {
 						timeouts++;
 					} else {
 						perf += clustering_original.getCost(clazz, instanceid);

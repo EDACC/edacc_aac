@@ -30,8 +30,8 @@ public class StatisticFunction {
 	 * @return
 	 */
 	public int compare(List<ExperimentResult> first, List<ExperimentResult> second) {
-		float first_cost = func.calculateCost(first);
-		float second_cost = func.calculateCost(second);
+		double first_cost = func.calculateCost(first);
+		double second_cost = func.calculateCost(second);
 		if (first_cost == second_cost) {
 			return 0;
 		} else if (first_cost > second_cost) {

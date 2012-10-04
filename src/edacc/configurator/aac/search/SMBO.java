@@ -394,7 +394,7 @@ public class SMBO extends SearchMethods {
             double predicted_var = pred[0][1];
             meanByInstanceID.put(instance.getId(), predicted_mean);
         }
-        Map<Integer, Float> bestByInstanceID = new HashMap<Integer, Float>();
+        Map<Integer, Double> bestByInstanceID = new HashMap<Integer, Double>();
         for (SolverConfiguration sc : pacc.racing.getBestSolverConfigurations()) {
             Map<Integer, List<ExperimentResult>> results = new HashMap<Integer, List<ExperimentResult>>();
             for (ExperimentResult er : sc.getJobs()) {
@@ -409,8 +409,8 @@ public class SMBO extends SearchMethods {
             for (Instance instance: instances) {
                 List<ExperimentResult> list = results.get(instance.getId());
                 if (list != null) {
-                    float cost = par1CostFunc.calculateCost(list);
-                    Float best = bestByInstanceID.get(instance.getId());
+                    double cost = par1CostFunc.calculateCost(list);
+                    Double best = bestByInstanceID.get(instance.getId());
                     if (best == null || best < cost) {
                         bestByInstanceID.put(instance.getId(), cost);
                     } 
@@ -419,7 +419,7 @@ public class SMBO extends SearchMethods {
         }
         
         for (Instance instance : instances) {
-            Float best = bestByInstanceID.get(instance.getId());
+            Double best = bestByInstanceID.get(instance.getId());
             Double cost = meanByInstanceID.get(instance.getId());
             if (best == null || cost * .9 < best) {
                 preferredInstanceIDs.add(instance.getId());

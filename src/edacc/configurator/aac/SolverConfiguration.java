@@ -25,11 +25,11 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	 * the cost of the configuration with regards to a statistic function and a
 	 * metric (cost or runtime);
 	 */
-	private Float cost;
+	private Double cost;
 	
-	private Float dbCost;
+	private Double dbCost;
 
-	public Float getDbCost() {
+	public Double getDbCost() {
 		return dbCost;
 	}
 
@@ -78,7 +78,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 		this.number = -1;
 	}
 	
-	public SolverConfiguration(int idSolverConfiguration, ParameterConfiguration pc, StatisticFunction statFunc, float dbCost) {
+	public SolverConfiguration(int idSolverConfiguration, ParameterConfiguration pc, StatisticFunction statFunc, double dbCost) {
 		this();
 		this.dbCost = dbCost;
 		this.pConfig = pc;
@@ -142,7 +142,7 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	 * 
 	 * @return the cost value with regards to the statistic function
 	 */
-	public final Float getCost() {
+	public final Double getCost() {
 		return statFunc.getCostFunction().calculateCost(jobs);
 	}
 
@@ -154,11 +154,11 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	 * 
 	 * @return the cost value with regards to the statistic function
 	 */
-	public final Float getCumulatedCost() {
+	public final Double getCumulatedCost() {
 		return statFunc.getCostFunction().calculateCumulatedCost(jobs);
 	}
 
-	public final void setCost(Float cost) {
+	public final void setCost(Double cost) {
 		this.cost = cost;
 	}
 

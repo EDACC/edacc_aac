@@ -100,7 +100,7 @@ public interface ClusterMethods {
          * @param sc
          * @param competitor
          * @param costFunc
-         * @return the costs as float values 
+         * @return the costs as double values 
          */
         public Costs costs(SolverConfiguration sc, SolverConfiguration competitor, CostFunction costFunc);
 }

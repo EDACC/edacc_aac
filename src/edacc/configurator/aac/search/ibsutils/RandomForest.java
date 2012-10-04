@@ -20,7 +20,7 @@ public class RandomForest {
 		this.rng = rng;
 	}
 	
-	public Float getCost(ParameterConfiguration paramConfig) {
+	public Double getCost(ParameterConfiguration paramConfig) {
 		List<ExperimentResult> results = new LinkedList<ExperimentResult>();
 		/*for (RandomTree tree : forest) {
 			List<ExperimentResult> tmp = tree.getResults(paramConfig);

@@ -640,7 +640,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 				solved |= er.getResultCode().isCorrect();
 			}
 		}
-		float cost = (solved ? par1.calculateCost(list) : Float.POSITIVE_INFINITY);
+		double cost = (solved ? par1.calculateCost(list) : Double.POSITIVE_INFINITY);
 		clustering.update(sc.getIdSolverConfiguration(), instanceId, cost);
 		clusteringChanged = true;
 	}

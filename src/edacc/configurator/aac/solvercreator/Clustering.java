@@ -37,15 +37,15 @@ public class Clustering implements Serializable {
 	 */
 	private static final long serialVersionUID = 2847802957451633450L;
 	
-	private float weighted_alpha = 1.2f;
+	private double weighted_alpha = 1.2f;
 	
 	private int n; // number of instances = I.size();
 	protected HashMap<Integer, Integer> I; // maps instance id to column
 	
-	protected HashMap<Integer, float[]> M; // Membership Matrix M, maps sc id to instance row vector
-	protected HashMap<Integer, float[]> C; // Cost Matrix C, maps sc id to cost for instance vector
+	protected HashMap<Integer, double[]> M; // Membership Matrix M, maps sc id to instance row vector
+	protected HashMap<Integer, double[]> C; // Cost Matrix C, maps sc id to cost for instance vector
 	//HashMap<Integer, Float> W; // relative weight of sc
-	transient private float[] K; // K_i = sum over solver configs for instance row i (ith instance)
+	transient private double[] K; // K_i = sum over solver configs for instance row i (ith instance)
 	
 	// cache for data to be updated before using matrix M
 	transient private boolean solverConfigsRemoved;
@@ -59,8 +59,8 @@ public class Clustering implements Serializable {
 		I = new HashMap<Integer, Integer>();
 		
 		// generate empty membership, cost and weight matrices
-		M = new HashMap<Integer, float[]>();
-		C = new HashMap<Integer, float[]>();
+		M = new HashMap<Integer, double[]>();
+		C = new HashMap<Integer, double[]>();
 		//W = new HashMap<Integer, Float>();
 		
 		// initialize data to be updated
@@ -78,12 +78,12 @@ public class Clustering implements Serializable {
 			I.put(entry.getKey(), entry.getValue());
 		}
 		n = other.n;
-		for (Entry<Integer, float[]> entry : other.M.entrySet()) {
-			float[] values = entry.getValue();
+		for (Entry<Integer, double[]> entry : other.M.entrySet()) {
+		    double[] values = entry.getValue();
 			M.put(entry.getKey(), Arrays.copyOf(values, values.length));
 		}
-		for (Entry<Integer, float[]> entry : other.C.entrySet()) {
-			float[] values = entry.getValue();
+		for (Entry<Integer, double[]> entry : other.C.entrySet()) {
+		    double[] values = entry.getValue();
 			C.put(entry.getKey(), Arrays.copyOf(values, values.length));
 		}
 		update_columns.addAll(other.update_columns);
@@ -111,7 +111,7 @@ public class Clustering implements Serializable {
 		n = I.size();
 		
 		// initialize K
-		K = new float[n];
+		K = new double[n];
 		for (int i = 0; i < n; i++) {
 			K[i] = 0.f;
 		}
@@ -140,16 +140,16 @@ public class Clustering implements Serializable {
 			// Update M entry
 			{
 				int scs = 0;
-				float sum = 0.f;
-				float max = 0.f;
-				for (float[] tmp : C.values()) {
-					float t = tmp[column];
-					if (!Float.isInfinite(tmp[column])) {
+				double sum = 0.f;
+				double max = 0.f;
+				for (double[] tmp : C.values()) {
+				    double t = tmp[column];
+					if (!Double.isInfinite(tmp[column])) {
 					//	tmp[column] = (float) Math.log(tmp[column]);
 						if (tmp[column] < 0.f) tmp[column] = 0.f;
 					}
 					
-					if (!Float.isInfinite(tmp[column])) {
+					if (!Double.isInfinite(tmp[column])) {
 						sum += tmp[column];
 						scs++;
 						if (tmp[column] > max) {
@@ -161,20 +161,20 @@ public class Clustering implements Serializable {
 				}
 
 				for (int tmp_scid : M.keySet()) {
-					float[] tmp_c = C.get(tmp_scid);
-					float[] tmp_m = M.get(tmp_scid);
+					double[] tmp_c = C.get(tmp_scid);
+					double[] tmp_m = M.get(tmp_scid);
 					
-					float t = tmp_c[column];
-					if (!Float.isInfinite(tmp_c[column])) {
+					double t = tmp_c[column];
+					if (!Double.isInfinite(tmp_c[column])) {
 					//	tmp_c[column] = (float) Math.log(tmp_c[column]);
 						if (tmp_c[column] < 0.f) tmp_c[column] = 0.f;
 					}
 					
-					if (Float.isInfinite(tmp_c[column])) {
+					if (Double.isInfinite(tmp_c[column])) {
 						tmp_m[column] = 0.f;
 					} else {
 						// TODO: eps
-						float eps = 0.0001f;
+						double eps = 0.0001f;
 						if (scs * max - sum > eps) {
 							tmp_m[column] = (max * weighted_alpha - tmp_c[column]) / (scs * max * weighted_alpha - sum);
 						} else {
@@ -188,8 +188,8 @@ public class Clustering implements Serializable {
 			}
 
 			// Update K entry
-			float sum = 0.f;
-			for (float[] tmp : M.values()) {
+			double sum = 0.f;
+			for (double[] tmp : M.values()) {
 				sum += tmp[column];
 			}
 			K[column] = sum;
@@ -202,21 +202,21 @@ public class Clustering implements Serializable {
 	 * Updates the cost of the given solver configuration on the given instance.
 	 * @param scid the id of the solver configuration
 	 * @param instanceid the id of the instance
-	 * @param cost the cost, can be FLOAT.POSITIVE_INFINITY, but must be greater or equal zero.
+	 * @param cost the cost, can be DOUBLE.POSITIVE_INFINITY, but must be greater or equal zero.
 	 */
-	public void update(int scid, int instanceid, float cost) {
+	public void update(int scid, int instanceid, double cost) {
 		if (!M.containsKey(scid)) {
 			// new solver configuration, first cost
 			// initial M row is empty for all instances
-			float[] f = new float[n];
+			double[] f = new double[n];
 			for (int i = 0; i < n; i++) {
 				f[i] = 0.f;
 			}
 			M.put(scid, f);
 			// initial C row is infinity for all instances
-			f = new float[n];
+			f = new double[n];
 			for (int i = 0; i < n; i++) {
-				f[i] = Float.POSITIVE_INFINITY;
+				f[i] = Double.POSITIVE_INFINITY;
 			}
 			C.put(scid, f);
 			
@@ -233,7 +233,7 @@ public class Clustering implements Serializable {
 			}
 		}
 		int column = I.get(instanceid);
-		float[] c = C.get(scid);
+		double[] c = C.get(scid);
 		
 		// Update C entry
 		c[column] = cost;
@@ -252,13 +252,13 @@ public class Clustering implements Serializable {
 		solverConfigsRemoved = true;
 	}
 	
-	public float performance(HashMap<Integer, List<Integer>> clustering) {
-		float res = 0.f;
+	public double performance(HashMap<Integer, List<Integer>> clustering) {
+	    double res = 0.f;
 
-		float[] maxValues = new float[n];
+		double[] maxValues = new double[n];
 		for (int i = 0; i < n; i++) maxValues[i] = 0.f;
 		
-		for (Entry<Integer, float[]> entry : M.entrySet()) {
+		for (Entry<Integer, double[]> entry : M.entrySet()) {
 			for (int i = 0; i < n; i++) {
 				if (entry.getValue()[i] > maxValues[i]) {
 					maxValues[i] = entry.getValue()[i];
@@ -266,8 +266,8 @@ public class Clustering implements Serializable {
 			}
 		}
 		
-		float max = 0.f;
-		for (float f : maxValues) {
+		double max = 0.f;
+		for (double f : maxValues) {
 			max += f;
 		}
 		if (max < 0.001f) {
@@ -277,7 +277,7 @@ public class Clustering implements Serializable {
 		for (Entry<Integer, List<Integer>> entry : clustering.entrySet()) {
 			for (Integer instanceId : entry.getValue()) {
 				int col = I.get(instanceId);
-				float val = M.get(entry.getKey())[col];
+				double val = M.get(entry.getKey())[col];
 				res += val;
 			}
 		}
@@ -291,20 +291,20 @@ public class Clustering implements Serializable {
 		List<Integer> instanceIds = new LinkedList<Integer>();
 		instanceIds.addAll(I.keySet());
 		
-		HashMap<Integer, Pair<Integer, Float>> maxSCIdValues = new HashMap<Integer, Pair<Integer, Float>>();
+		HashMap<Integer, Pair<Integer, Double>> maxSCIdValues = new HashMap<Integer, Pair<Integer, Double>>();
 		for (int i = instanceIds.size()-1; i >= 0; i --) {
 			int instanceId = instanceIds.get(i);
 			int scid = -1;
-			float max = 0.f;
+			double max = 0.f;
 			for (int tmp_scid : M.keySet()) {
-				float[] m = M.get(tmp_scid);
+			    double[] m = M.get(tmp_scid);
 				if (m[I.get(instanceId)] > max) {
 					max = m[I.get(instanceId)];
 					scid = tmp_scid;
 				}
 			}
 			if (scid != -1) {
-				maxSCIdValues.put(instanceId, new Pair<Integer, Float>(scid, max));
+				maxSCIdValues.put(instanceId, new Pair<Integer, Double>(scid, max));
 			} else {
 				instanceIds.remove(i);
 			}
@@ -322,8 +322,8 @@ public class Clustering implements Serializable {
 			
 			for (int i = instanceIds.size()-1; i >= 0; i--) {
 				int insId = instanceIds.get(i);
-				float val = M.get(scid)[I.get(insId)];
-				float max = maxSCIdValues.get(insId).getSecond();
+				double val = M.get(scid)[I.get(insId)];
+				double max = maxSCIdValues.get(insId).getSecond();
 				// TODO: multiplicator
 				if (val * 1.5f >= max) {
 					cluster.add(insId);
@@ -336,17 +336,17 @@ public class Clustering implements Serializable {
 		return res;
 	}
 	
-	public HashMap<Integer, List<Integer>> getClustering(boolean removeSmallClusters, float threshold) {
+	public HashMap<Integer, List<Integer>> getClustering(boolean removeSmallClusters, double threshold) {
 		if (threshold >= 1.f) {
 			return getClustering(removeSmallClusters);
 		}
-		List<Pair<Integer, Float>> scidWeight = new LinkedList<Pair<Integer, Float>>();
+		List<Pair<Integer, Double>> scidWeight = new LinkedList<Pair<Integer, Double>>();
 		for (int scid : M.keySet()) {
-			scidWeight.add(new Pair<Integer, Float>(scid, getWeight(scid)));
+			scidWeight.add(new Pair<Integer, Double>(scid, getWeight(scid)));
 		}
-		Collections.sort(scidWeight, new Comparator<Pair<Integer, Float>>() {
+		Collections.sort(scidWeight, new Comparator<Pair<Integer, Double>>() {
 			@Override
-			public int compare(Pair<Integer, Float> arg0, Pair<Integer, Float> arg1) {
+			public int compare(Pair<Integer, Double> arg0, Pair<Integer, Double> arg1) {
 				if (arg0.getSecond() - 0.000001f < arg1.getSecond() && arg0.getSecond() + 0.000001f > arg1.getSecond()) {
 					return 0;
 				} else if (arg0.getSecond() > arg1.getSecond()) {
@@ -386,10 +386,10 @@ public class Clustering implements Serializable {
 		}
 		HashMap<Integer, List<Integer>> res = new HashMap<Integer, List<Integer>>();
 		for (int instanceid : I.keySet()) {
-			float max = 0.f;
+		    double max = 0.f;
 			int scid = -1;
 			for (int tmp_scid : solverConfigs) {
-				float[] m = M.get(tmp_scid);
+			    double[] m = M.get(tmp_scid);
 				if (m[I.get(instanceid)] > max) {
 					max = m[I.get(instanceid)];
 					scid = tmp_scid;
@@ -413,14 +413,14 @@ public class Clustering implements Serializable {
 				for (int scid : res.keySet()) {
 					List<Integer> instances = res.get(scid);
 					if (instances.size() < 5) {
-						float max = 0.f;
+					    double max = 0.f;
 						int new_scid = -1;
 						for (int instanceid : instances) {
 							for (int tmp_scid : res.keySet()) {
 								if (tmp_scid == scid) {
 									continue;
 								}
-								float[] m = M.get(tmp_scid);
+								double[] m = M.get(tmp_scid);
 								if (m[I.get(instanceid)] > max) {
 									found = true;
 									max = m[I.get(instanceid)];
@@ -448,10 +448,10 @@ public class Clustering implements Serializable {
 		return res;
 	}
 	
-	private float getCumulatedWeight() {
+	private double getCumulatedWeight() {
 		// TODO: cache cumulated weight, not really a problem.
-		float sum = 0.f;
-		for (float[] m : M.values()) {
+	    double sum = 0.f;
+		for (double[] m : M.values()) {
 			for (int i = 0; i < n; i++) {
 				sum += m[i];
 			}
@@ -459,9 +459,9 @@ public class Clustering implements Serializable {
 		return sum;
 	}
 	
-	private float getAbsoluteWeight(int scid) {
-		float[] m = M.get(scid);
-		float res = 0.f;
+	private double getAbsoluteWeight(int scid) {
+	    double[] m = M.get(scid);
+	    double res = 0.f;
 		for (int i = 0; i < n; i++) {
 			res += m[i];
 		}
@@ -484,7 +484,7 @@ public class Clustering implements Serializable {
 	 * @param scid the solver configuration id
 	 * @return the weight for the solver configuration
 	 */
-	public float getWeight(int scid) {
+	public double getWeight(int scid) {
 		updateData();
 		return getAbsoluteWeight(scid) / getCumulatedWeight();
 	}
@@ -506,27 +506,27 @@ public class Clustering implements Serializable {
 		return res;
 	}
 	
-	public float getMembership(int scid, int instanceid) {
+	public double getMembership(int scid, int instanceid) {
 		updateData();
 		Integer col = I.get(instanceid);
 		if (col == null) {
 			return 0.f;
 		}
-		float[] values = M.get(scid);
+		double[] values = M.get(scid);
 		if (values == null) {
 			return 0.f;
 		}
 		return values[col];
 	}
 	
-	public float getMaximumMembership(int instanceid) {
+	public double getMaximumMembership(int instanceid) {
 		updateData();
 		Integer col = I.get(instanceid);
 		if (col == null) {
 			return 0.f;
 		}
-		float res = 0.f;
-		for (float[] values : M.values()) {
+		double res = 0.f;
+		for (double[] values : M.values()) {
 			if (values[col] > res) {
 				res = values[col];
 			}
@@ -534,14 +534,14 @@ public class Clustering implements Serializable {
 		return res;
 	}
 	
-	public float getMinimumCost(int instanceid) {
+	public double getMinimumCost(int instanceid) {
 		updateData();
 		Integer col = I.get(instanceid);
 		if (col == null) {
-			return Float.POSITIVE_INFINITY;
+			return Double.POSITIVE_INFINITY;
 		}
-		float res = Float.POSITIVE_INFINITY;
-		for (float[] values : C.values()) {
+		double res = Double.POSITIVE_INFINITY;
+		for (double[] values : C.values()) {
 			if (values[col] < res) {
 				res = values[col];
 			}
@@ -549,13 +549,13 @@ public class Clustering implements Serializable {
 		return res;
 	}
 	
-	public float getCost(int scid, int instanceid) {
+	public double getCost(int scid, int instanceid) {
 		updateData();
 		Integer col = I.get(instanceid);
 		if (col == null) {
 			return 0.f;
 		}
-		float[] values = C.get(scid);
+		double[] values = C.get(scid);
 		if (values == null) {
 			return 0.f;
 		}
@@ -579,10 +579,10 @@ public class Clustering implements Serializable {
 		}
 		System.out.printf("%9s\n", "weight");
 		for (int scid : M.keySet()) {
-			float weight = getWeight(scid);
+		    double weight = getWeight(scid);
 			if (weight <= 0.0f)
 				continue;
-			float[] m = M.get(scid);
+			double[] m = M.get(scid);
 			System.out.printf("%9d", scid);
 			for (int i = 0; i < n; i++) {
 				System.out.printf("%9f", m[i]);
@@ -597,20 +597,20 @@ public class Clustering implements Serializable {
 		System.out.println();
 	}
 	
-	public float getDistance(int i1, int i2) {
+	public double getDistance(int i1, int i2) {
 		updateData();
 		
-		List<Pair<Integer, Float>> l1 = new LinkedList<Pair<Integer, Float>>();
-		List<Pair<Integer, Float>> l2 = new LinkedList<Pair<Integer, Float>>();
+		List<Pair<Integer, Double>> l1 = new LinkedList<Pair<Integer, Double>>();
+		List<Pair<Integer, Double>> l2 = new LinkedList<Pair<Integer, Double>>();
 		
-		for (Entry<Integer, float[]> row : M.entrySet()) {
-			l1.add(new Pair<Integer, Float>(row.getKey(), row.getValue()[I.get(i1)]));
-			l2.add(new Pair<Integer, Float>(row.getKey(), row.getValue()[I.get(i2)]));
+		for (Entry<Integer, double[]> row : M.entrySet()) {
+			l1.add(new Pair<Integer, Double>(row.getKey(), row.getValue()[I.get(i1)]));
+			l2.add(new Pair<Integer, Double>(row.getKey(), row.getValue()[I.get(i2)]));
 		}
-		Comparator<Pair<Integer, Float>> comp = new Comparator<Pair<Integer, Float>>() {
+		Comparator<Pair<Integer, Double>> comp = new Comparator<Pair<Integer, Double>>() {
 
 			@Override
-			public int compare(Pair<Integer, Float> arg0, Pair<Integer, Float> arg1) {
+			public int compare(Pair<Integer, Double> arg0, Pair<Integer, Double> arg1) {
 				if (arg0.getSecond() < arg1.getSecond()) {
 					return 1;
 				} else if (arg1.getSecond() < arg0.getSecond()) {
@@ -639,13 +639,13 @@ public class Clustering implements Serializable {
 			}
 		}
 		
-		return ((float) dist1 + (float) dist2) / 2.f;
+		return ((double) dist1 + (double) dist2) / 2.f;
 	}
 	
-	public HashMap<Pair<Integer, Integer>, Float> getDistanceMatrix() {
+	public HashMap<Pair<Integer, Integer>, Double> getDistanceMatrix() {
 		updateData();
 		
-		HashMap<Pair<Integer, Integer>, Float> res = new HashMap<Pair<Integer, Integer>, Float>();
+		HashMap<Pair<Integer, Integer>, Double> res = new HashMap<Pair<Integer, Integer>, Double>();
 		for (int i1 : I.keySet()) {
 			for (int i2 : I.keySet()) {
 				res.put(new Pair<Integer, Integer>(i1, i2), getDistance(i1,i2));
@@ -654,13 +654,13 @@ public class Clustering implements Serializable {
 		return res;
 	}
 	
-	private float getDistanceSingleLinkage(List<Integer> c1, List<Integer> c2, HashMap<Pair<Integer, Integer>, Float> distanceMatrix) {
+	private double getDistanceSingleLinkage(List<Integer> c1, List<Integer> c2, HashMap<Pair<Integer, Integer>, Double> distanceMatrix) {
 		updateData();
 		
-		float dist = Float.MAX_VALUE;
+		double dist = Double.MAX_VALUE;
 		for (int i = 0; i < c1.size(); i++) {
 			for (int j = 0; j < c2.size(); j++) {
-				float tmp = distanceMatrix.get(new Pair<Integer, Integer>(c1.get(i), c2.get(j)));
+			    double tmp = distanceMatrix.get(new Pair<Integer, Integer>(c1.get(i), c2.get(j)));
 				if (tmp < dist) {
 					dist = tmp;
 				}
@@ -669,13 +669,13 @@ public class Clustering implements Serializable {
 		return dist;
 	}
 	
-	private float getDistanceCompleteLinkage(List<Integer> c1, List<Integer> c2, HashMap<Pair<Integer, Integer>, Float> distanceMatrix) {
+	private double getDistanceCompleteLinkage(List<Integer> c1, List<Integer> c2, HashMap<Pair<Integer, Integer>, Double> distanceMatrix) {
 		updateData();
 		
-		float dist = 0.f;
+		double dist = 0.f;
 		for (int i = 0; i < c1.size(); i++) {
 			for (int j = 0; j < c2.size(); j++) {
-				float tmp = distanceMatrix.get(new Pair<Integer, Integer>(c1.get(i), c2.get(j)));
+			    double tmp = distanceMatrix.get(new Pair<Integer, Integer>(c1.get(i), c2.get(j)));
 				if (tmp > dist) {
 					dist = tmp;
 				}
@@ -684,25 +684,25 @@ public class Clustering implements Serializable {
 		return dist;
 	}
 	
-	private float getDistanceAverageLinkage(List<Integer> c1, List<Integer> c2, HashMap<Pair<Integer, Integer>, Float> distanceMatrix) {
+	private double getDistanceAverageLinkage(List<Integer> c1, List<Integer> c2, HashMap<Pair<Integer, Integer>, Double> distanceMatrix) {
 		updateData();
 		
-		float dist = 0.f;
+		double dist = 0.f;
 		for (int i = 0; i < c1.size(); i++) {
 			for (int j = 0; j < c2.size(); j++) {
 				dist += distanceMatrix.get(new Pair<Integer, Integer>(c1.get(i), c2.get(j)));
 			}
 		}
-		return dist / (float) (c1.size() + c2.size());
+		return dist / (double) (c1.size() + c2.size());
 	}
 	
 	public int getBestConfigurationForCluster(List<Integer> cluster) {
 		updateData();
 		
-		float weight = 0.f;
+		double weight = 0.f;
 		int res = -1;
-		for (Entry<Integer, float[]> entry : M.entrySet()) {
-			float tmp = 0.f;
+		for (Entry<Integer, double[]> entry : M.entrySet()) {
+		    double tmp = 0.f;
 			for (int instanceid : cluster) {
 				tmp += entry.getValue()[I.get(instanceid)];
 			}
@@ -725,13 +725,13 @@ public class Clustering implements Serializable {
 				c.add(tmp);
 			}
 		}
-		HashMap<Pair<Integer, Integer>, Float> matrix = getDistanceMatrix();
+		HashMap<Pair<Integer, Integer>, Double> matrix = getDistanceMatrix();
 		while (c.size() > k) {
 			int m1 = -1, m2 = -1;
-			float dist = Float.MAX_VALUE;
+			double dist = Double.MAX_VALUE;
 			for (int i = 0; i < c.size(); i++) {
 				for (int j = i+1; j < c.size(); j++) {
-					float tmp;
+				    double tmp;
 					if (method.equals(HierarchicalClusterMethod.COMPLETE_LINKAGE)) {
 						tmp = getDistanceCompleteLinkage(c.get(i), c.get(j), matrix);
 					} else if (method.equals(HierarchicalClusterMethod.SINGLE_LINKAGE)) {

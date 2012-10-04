@@ -445,8 +445,8 @@ public class Roar extends RacingMethods {
 			}
 		}
 		CostFunction costFunc = parameters.getStatistics().getCostFunction();
-		float costBest = costFunc.calculateCost(bestJobsInCommon);
-		float costOther = costFunc.calculateCost(otherJobsInCommon);
+		double costBest = costFunc.calculateCost(bestJobsInCommon);
+		double costOther = costFunc.calculateCost(otherJobsInCommon);
 		return new Costs(costBest, costOther, otherJobsInCommon.size());
 	}
 
