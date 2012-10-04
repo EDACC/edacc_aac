@@ -203,13 +203,15 @@ public class SMBO extends SearchMethods {
         // Initialize pseudo-random sequence for the initial sampling
         sequence = new SamplingSequence(samplingPath);
         sequenceValues = sequence.getSequence(configurableParameters.size(), maxSamples);
+        
+        generatedConfigs.addAll(firstSCs);
     }
 
     @Override
     public List<SolverConfiguration> generateNewSC(int num) throws Exception {
         if (num <= 0) return new LinkedList<SolverConfiguration>();
         
-        if (generatedConfigs.size() < numInitialConfigurationsFactor * configurableParameters.size()) {
+        if (generatedConfigs.size() < numInitialConfigurationsFactor * configurableParameters.size() && numInitialConfigurationsFactor > 0) {
             List<SolverConfiguration> rssConfigs = new LinkedList<SolverConfiguration>();
             if (pacc.racing instanceof FRace || pacc.racing instanceof SMFRace) {
                 // FRace and SMFRace don't automatically use the old best configurations
@@ -484,6 +486,8 @@ public class SMBO extends SearchMethods {
         boolean[] censored = new boolean[countJobs];
         double[] y = new double[countJobs];
         
+        double maxy = Double.NEGATIVE_INFINITY;
+        
         int jIx = 0;
         for (SolverConfiguration config: generatedConfigs) {
             for (ExperimentResult run: config.getFinishedJobs()) {
@@ -499,12 +503,13 @@ public class SMBO extends SearchMethods {
                     }
                     y[jIx] = Math.log10(y[jIx]);
                 }
+                if (y[jIx] > maxy) maxy = y[jIx];
                 jIx++;
             }
         }
         
-        System.out.println(theta[0].length + " " + instanceFeatures[0].length + " " + configurableParameters.size() + " " + instanceFeatureNames.size());
-        
+        System.out.println("maxy: " + maxy);
+
         model.learnModel(theta, instanceFeatures, configurableParameters.size(), instanceFeatureNames.size(), theta_inst_idxs, y, censored);
     }
     
@@ -610,7 +615,11 @@ public class SMBO extends SearchMethods {
             if (paramValue == null) theta[pIx] = Double.NaN;
             else {
                 if (p.getDomain() instanceof RealDomain) {
-                    theta[pIx] = (Double)paramValue;
+                    if (paramValue instanceof Float) {
+                        theta[pIx] = (Float)paramValue;
+                    } else if (paramValue instanceof Double) {
+                        theta[pIx] = (Double)paramValue;
+                    }
                 } else if (p.getDomain() instanceof IntegerDomain) {
                     if (paramValue instanceof Integer) {
                         theta[pIx] = (Integer)paramValue;
