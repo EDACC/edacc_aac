@@ -1,34 +1,34 @@
 package edacc.configurator.aac.clustering;
 
 public class Costs {
-	private float costSc1;
-	private float costSc2;
+	private double costSc1;
+	private double costSc2;
 	private int runsInCommon;
 	
-	public Costs(float costSc1, float costSc2 ) {
+	public Costs(double costSc1, double costSc2 ) {
 		this.costSc1 = costSc1;
 		this.costSc2 = costSc2;
 	}
 	
-	public Costs(float costSc1, float costSc2, int runsInCommon) {
+	public Costs(double costSc1, double costSc2, int runsInCommon) {
 		this.costSc1 = costSc1;
 		this.costSc2 = costSc2;
 		this.runsInCommon = runsInCommon;
 	}
 
-	public float getCostSc1() {
+	public double getCostSc1() {
 		return costSc1;
 	}
 
-	public void setCostSc1(float costSc1) {
+	public void setCostSc1(double costSc1) {
 		this.costSc1 = costSc1;
 	}
 
-	public float getCostSc2() {
+	public double getCostSc2() {
 		return costSc2;
 	}
 
-	public void setCostSc2(float costSc2) {
+	public void setCostSc2(double costSc2) {
 		this.costSc2 = costSc2;
 	}
 

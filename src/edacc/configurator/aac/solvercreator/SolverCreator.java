@@ -280,7 +280,7 @@ public class SolverCreator {
 							break;
 						}
 					}
-					float c = inf ? Float.POSITIVE_INFINITY : f.calculateCost(r);
+					double c = inf ? Double.POSITIVE_INFINITY : f.calculateCost(r);
 					C.update(p.getFirst(), p.getSecond(), c);
 				}
 			}
@@ -307,16 +307,16 @@ public class SolverCreator {
 			}
 		}
 		
-		List<Pair<Integer, Float>> scidWeight = new LinkedList<Pair<Integer, Float>>();
+		List<Pair<Integer, Double>> scidWeight = new LinkedList<Pair<Integer, Double>>();
 		
 		for (int scid : C.getSolverConfigIds()) {
-			scidWeight.add(new Pair<Integer, Float>(scid, C.getWeight(scid)));
+			scidWeight.add(new Pair<Integer, Double>(scid, C.getWeight(scid)));
 		}
 		
-		Collections.sort(scidWeight, new Comparator<Pair<Integer, Float>>() {
+		Collections.sort(scidWeight, new Comparator<Pair<Integer, Double>>() {
 
 			@Override
-			public int compare(Pair<Integer, Float> arg0, Pair<Integer, Float> arg1) {
+			public int compare(Pair<Integer, Double> arg0, Pair<Integer, Double> arg1) {
 				if (arg0.getSecond() - 0.000001f < arg1.getSecond() && arg0.getSecond() + 0.000001f > arg1.getSecond()) {
 					return 0;
 				} else if (arg0.getSecond() > arg1.getSecond()) {
@@ -332,7 +332,7 @@ public class SolverCreator {
 		int numConfigs =  Integer.parseInt(properties.getProperty("NumConfigs"));
 		if (numConfigs != -1) {
 			while (scidWeight.size() > numConfigs) {
-				Pair<Integer, Float> p = scidWeight.get(0);
+				Pair<Integer, Double> p = scidWeight.get(0);
 				System.out.println("Removing " + p.getFirst() + " with weight " + p.getSecond());
 				C.remove(p.getFirst());
 				scidWeight.remove(0);
@@ -375,14 +375,14 @@ public class SolverCreator {
 		
 		if (Boolean.parseBoolean(properties.getProperty("ShowWeightedRanking"))) {
 			// weighted ranking
-			List<Pair<Integer, Float>> scweights = new LinkedList<Pair<Integer, Float>>();
+			List<Pair<Integer, Double>> scweights = new LinkedList<Pair<Integer, Double>>();
 			for (int scid : scids) {
-				scweights.add(new Pair<Integer, Float>(scid, C.getWeight(scid)));
+				scweights.add(new Pair<Integer, Double>(scid, C.getWeight(scid)));
 			}
-			Collections.sort(scweights, new Comparator<Pair<Integer, Float>>() {
+			Collections.sort(scweights, new Comparator<Pair<Integer, Double>>() {
 
 				@Override
-				public int compare(Pair<Integer, Float> arg0, Pair<Integer, Float> arg1) {
+				public int compare(Pair<Integer, Double> arg0, Pair<Integer, Double> arg1) {
 					if (arg0.getSecond() < arg1.getSecond()) {
 						return 1;
 					} else if (arg1.getSecond() < arg0.getSecond()) {
@@ -394,7 +394,7 @@ public class SolverCreator {
 
 			});
 			int count = 1;
-			for (Pair<Integer, Float> p : scweights) {
+			for (Pair<Integer, Double> p : scweights) {
 				SolverConfiguration sc = SolverConfigurationDAO.getSolverConfigurationById(p.getFirst());
 				System.out.println((count++) + ") " + sc.getName() + "   W: " + p.getSecond());
 			}
@@ -497,10 +497,10 @@ public class SolverCreator {
 					clustering.put(scidInt, new LinkedList<Integer>());
 				}
 				for (int iid : C.I.keySet()) {
-					float mincost = Float.POSITIVE_INFINITY;
+					double mincost = Float.POSITIVE_INFINITY;
 					int thescid = -1;
 					for (int scid: clustering.keySet()) {
-						if (!Float.isInfinite(C.getCost(scid, iid)) && C.getCost(scid, iid) < mincost) {
+						if (!Double.isInfinite(C.getCost(scid, iid)) && C.getCost(scid, iid) < mincost) {
 							thescid = scid;
 							mincost = C.getCost(scid, iid);
 						}
@@ -720,8 +720,8 @@ public class SolverCreator {
 		float res = 0.f;
 		for (Entry<Integer, List<Integer>> e : clustering.entrySet()) {
 			for (int iid : e.getValue()) {
-				float cost = C.getCost(e.getKey(), iid);
-				if (Float.isInfinite(cost)) {
+				double cost = C.getCost(e.getKey(), iid);
+				if (Double.isInfinite(cost)) {
 					// impossible..
 				} else {
 					res += cost;

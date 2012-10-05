@@ -363,7 +363,7 @@ public class Challenge extends RacingMethods implements JobListener {
 				CostFunction median = new Median(Experiment.Cost.resultTime, true) {
 
 					@Override
-					public float singleCost(edacc.model.ExperimentResult job) {
+					public double singleCost(edacc.model.ExperimentResult job) {
 						if (!String.valueOf(job.getResultCode().getResultCode()).startsWith("1")) {
 							return currentLimit;
 						} else {
@@ -371,7 +371,7 @@ public class Challenge extends RacingMethods implements JobListener {
 						}
 					}
 				};
-				int newLimit = Math.round(median.calculateCost(results) * limitCPUTimeFactor);
+				int newLimit = (int)Math.round(median.calculateCost(results) * limitCPUTimeFactor);
 				if (newLimit < 1) {
 					newLimit = 1;
 				}
@@ -745,8 +745,8 @@ public class Challenge extends RacingMethods implements JobListener {
 
 			@Override
 			public int compare(Pair<Integer, List<ExperimentResult>> o1, Pair<Integer, List<ExperimentResult>> o2) {
-				float firstVal = parameters.getStatistics().getCostFunction().calculateCost(o1.getSecond());
-				float secondVal = parameters.getStatistics().getCostFunction().calculateCost(o2.getSecond());
+			    double firstVal = parameters.getStatistics().getCostFunction().calculateCost(o1.getSecond());
+			    double secondVal = parameters.getStatistics().getCostFunction().calculateCost(o2.getSecond());
 				
 				firstVal -= pacc.getCPUTimeLimit(o1.getFirst()); //parameters.getStatistics().getCostFunction().calculateCost(allJobs.get(o1.getFirst()));
 				secondVal -= pacc.getCPUTimeLimit(o2.getFirst()); //parameters.getStatistics().getCostFunction().calculateCost(allJobs.get(o2.getFirst()));
@@ -1003,8 +1003,8 @@ public class Challenge extends RacingMethods implements JobListener {
 					}
 				}
 				
-				float firstCost = parameters.getStatistics().getCostFunction().getMinimize() ? -numFirstSuccessful : numFirstSuccessful;
-				float secondCost = parameters.getStatistics().getCostFunction().getMinimize() ? -numSecondSuccessful : numSecondSuccessful;
+				double firstCost = parameters.getStatistics().getCostFunction().getMinimize() ? -numFirstSuccessful : numFirstSuccessful;
+				double secondCost = parameters.getStatistics().getCostFunction().getMinimize() ? -numSecondSuccessful : numSecondSuccessful;
 				if (numFirstSuccessful == numSecondSuccessful) {
 					firstCost = parameters.getStatistics().getCostFunction().calculateCost(firstRuns.get(instanceId));
 					secondCost = parameters.getStatistics().getCostFunction().calculateCost(secondRuns.get(instanceId));
@@ -1057,7 +1057,7 @@ public class Challenge extends RacingMethods implements JobListener {
 					}
 				}
 			}
-			float cost = hasCost ? parameters.getStatistics().getCostFunction().calculateCost(results) : Float.POSITIVE_INFINITY;
+			double cost = hasCost ? parameters.getStatistics().getCostFunction().calculateCost(results) : Double.POSITIVE_INFINITY;
 			clustering.update(result.getSolverConfigId(), result.getInstanceId(), cost);
 		}
 	}

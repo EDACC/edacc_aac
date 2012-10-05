@@ -36,8 +36,8 @@ public class FRace extends RacingMethods {
     private List<SolverConfiguration> curFinishedConfigurations;
     private List<SolverConfiguration> initialRaceConfigurations;
     private List<SolverConfiguration> raceSurvivors;
-    private Map<Integer, Map<SolverConfiguration, Float>> courseResults;
-    private Map<SolverConfiguration, Float> lastRoundCost;
+    private Map<Integer, Map<SolverConfiguration, Double>> courseResults;
+    private Map<SolverConfiguration, Double> lastRoundCost;
     private SolverConfiguration bestSC = null;
     private int level = 0; // current level (no. of jobs per config in the race)
     private int starts = 0;
@@ -62,9 +62,9 @@ public class FRace extends RacingMethods {
         this.raceConfigurations = new ArrayList<SolverConfiguration>();
         this.initialRaceConfigurations = new ArrayList<SolverConfiguration>();
         this.curFinishedConfigurations = new ArrayList<SolverConfiguration>();
-        this.courseResults = new HashMap<Integer, Map<SolverConfiguration, Float>>();
+        this.courseResults = new HashMap<Integer, Map<SolverConfiguration, Double>>();
         this.raceSurvivors = new ArrayList<SolverConfiguration>();
-        this.lastRoundCost = new HashMap<SolverConfiguration, Float>();
+        this.lastRoundCost = new HashMap<SolverConfiguration, Double>();
         
         String val;
         if ((val = parameters.getRacingMethodParameters().get("FRace_alpha")) != null)
@@ -108,12 +108,12 @@ public class FRace extends RacingMethods {
                 for (ExperimentResult run : api.getRuns(parameters.getIdExperiment(), solverConfig.getIdSolverConfiguration())) {
                     if (i > level) break; // only consider runs up until the current level (already existing configurations might have more)
                     if (!courseResults.containsKey(i))
-                        courseResults.put(i, new HashMap<SolverConfiguration, Float>());
+                        courseResults.put(i, new HashMap<SolverConfiguration, Double>());
                     courseResults.get(i).put(solverConfig, parameters.getStatistics().getCostFunction().singleCost(run));
                     i += 1;
                 }
                 pacc.log(solverConfig.getName() + " ID: " + solverConfig.getIdSolverConfiguration()  + " - Cost: " + solverConfig.getCost());
-                if (!lastRoundCost.containsKey(solverConfig) || lastRoundCost.get(solverConfig).floatValue() != solverConfig.getCost()) {
+                if (!lastRoundCost.containsKey(solverConfig) || lastRoundCost.get(solverConfig).doubleValue() != solverConfig.getCost()) {
                     changedCost = true;
                 }
                 lastRoundCost.put(solverConfig, solverConfig.getCost());

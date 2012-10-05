@@ -15,7 +15,7 @@ public class RandomForest implements Serializable {
 	private static final long serialVersionUID = 23153256236L;
 	private List<DecisionTree> forest;
 	private Random rng;
-	private float performance;
+	private double performance;
 	public RandomForest(Clustering clustering_original, Clustering clustering, Random rng, int treeCount, int n) {
 		forest = new LinkedList<DecisionTree>();
 		this.rng = rng;
@@ -61,12 +61,12 @@ public class RandomForest implements Serializable {
 				forest.add(tree);
 			//}
 		}
-		float perf = 0.f;
-		float num = 0.f;
+		double perf = 0.f;
+		double num = 0.f;
 		int timeouts = 0;
 		for (int iid: validationInstances) {
 			int clazz = getSolverConfig(clustering_original.F.get(iid));
-			if (Float.isInfinite(clustering_original.getCost(clazz, iid))) {
+			if (Double.isInfinite(clustering_original.getCost(clazz, iid))) {
 				timeouts++;
 			} else {
 				perf += clustering_original.getCost(clazz, iid);

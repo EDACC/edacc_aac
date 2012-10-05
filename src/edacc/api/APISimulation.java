@@ -510,7 +510,7 @@ public class APISimulation extends APIImpl {
 	}
 
 	@Override
-	public synchronized void updateSolverConfigurationCost(int idSolverConfig, float cost, CostFunction func) throws Exception {
+	public synchronized void updateSolverConfigurationCost(int idSolverConfig, double cost, CostFunction func) throws Exception {
 		// TODO: implement?
 	}
 

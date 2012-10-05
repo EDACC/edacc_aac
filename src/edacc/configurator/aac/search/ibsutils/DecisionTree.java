@@ -697,7 +697,7 @@ public class DecisionTree {
 		}
 	}
 
-	public Float getCost(ParameterConfiguration config, int instanceId) throws NoConnectionToDBException, PropertyNotInDBException, PropertyTypeNotExistException, ComputationMethodDoesNotExistException, InstanceClassMustBeSourceException, SQLException, IOException, InstanceHasPropertyNotInDBException {
+	public Double getCost(ParameterConfiguration config, int instanceId) throws NoConnectionToDBException, PropertyNotInDBException, PropertyTypeNotExistException, ComputationMethodDoesNotExistException, InstanceClassMustBeSourceException, SQLException, IOException, InstanceHasPropertyNotInDBException {
 		List<ExperimentResult> results = getResults(config, instanceId);
 		if (results.size() == 0)
 			return null;
@@ -909,7 +909,7 @@ public class DecisionTree {
 		Comparable[] instancePropertyValues;
 		Instance instance;
 		List<ExperimentResult> results;
-		float cost;
+		double cost;
 		int instanceId;
 		
 		public Sample(ParameterConfiguration config, Comparable[] parameterValues, Comparable[] instancePropertyValues, List<ExperimentResult> results, int instanceId) {
@@ -1220,12 +1220,12 @@ public class DecisionTree {
 			}*/
 			boolean error = false;
 			CostFunction func = new Average(Experiment.Cost.resultTime, true);
-			float minCost = Float.MAX_VALUE;
+			double minCost = Double.MAX_VALUE;
 			ParameterConfiguration config = null;
 			for (Sample s: node.results) {
 				//float tmpCost = func.calculateCost(s.results);
-				float tmpCost = s.results.size();
-				float numSolved = 0.f;
+				double tmpCost = s.results.size();
+				double numSolved = 0.f;
 				for (ExperimentResult er : s.results) {
 					if (String.valueOf(er.getResultCode().getResultCode()).startsWith("1")) {
 						numSolved = numSolved + 1.f;

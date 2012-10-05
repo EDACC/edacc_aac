@@ -37,17 +37,17 @@ public class CensoredRandomForestTest {
         }*/
         
         
-        int N = 100;
-        File file = new File("/home/daniel/download/BBO_1D_configuration_runs.csv");
+        int N = 11;
+        File file = new File("/home/daniel/downloads/test.data");
         BufferedReader bufRdr  = new BufferedReader(new FileReader(file));
         bufRdr.readLine(); // read header
         
         int nParams = 1;
-        int nFeatures = 8;
+        int nFeatures = 1;
         
         int[] catDomainSizes = new int[nParams+nFeatures];
         
-        int logModel = 1;
+        int logModel = 0;
         
         double censoringThreshold = 1e100;
         
@@ -139,7 +139,7 @@ public class CensoredRandomForestTest {
             }
         }
         
-        CensoredRandomForest rf = new CensoredRandomForest(50, logModel, censoringThreshold, 1, catDomainSizes, new Random());
+        CensoredRandomForest rf = new CensoredRandomForest(500, logModel, censoringThreshold, 1, catDomainSizes, new Random());
         rf.learnModel(all_theta, all_x, nParams, nFeatures, ixs, y, cens);
         System.out.println("Learned model");
         
@@ -148,7 +148,7 @@ public class CensoredRandomForestTest {
             double[][] preds = new double[10001][2];
     
             ix = 0;
-            for (double x1 = -5; x1 < 5; x1 += 0.01) {
+            for (double x1 = -0.2; x1 < 1.2; x1 += 0.01) {
                 preds[ix][0] = x1;
                 ix++;
             }
@@ -157,7 +157,7 @@ public class CensoredRandomForestTest {
             
             
             ix = 0;
-            for (double x1 = -5; x1 < 5; x1 += 0.01) {
+            for (double x1 = -0.2; x1 < 1.2; x1 += 0.01) {
                 double mu = pred[ix][0]; 
                 double sigma = Math.sqrt(pred[ix][1]);
                 double ei = expectedImprovement(mu, sigma, f_min);

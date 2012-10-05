@@ -86,48 +86,16 @@ public class SMBO extends SearchMethods {
     private boolean useInstanceIndexFeature = true; // simply use the index of an instance as instance feature
     private int queueSize = 20; // how many configurations to generate at a time and put into a queue
     private boolean createIBSConfigs = false;
-    
+
+    private String samplingPath = "";
     private String featureFolder = null;
     private String featureCacheFolder = null;
 
+
     public SMBO(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
         super(pacc, api, rng, parameters, firstSCs, referenceSCs);
-
-        // parse parameters
-        String samplingPath = "";
-        String val;
-        if ((val = parameters.getSearchMethodParameters().get("SMBO_samplingPath")) != null)
-            samplingPath = val;
-        if ((val = parameters.getSearchMethodParameters().get("SMBO_numPC")) != null)
-            numPC = Integer.valueOf(val);
-        if ((val = parameters.getSearchMethodParameters().get("SMBO_logModel")) != null)
-            logModel = Integer.valueOf(val) == 1;
-        if ((val = parameters.getSearchMethodParameters().get("SMBO_selectionCriterion")) != null)
-            selectionCriterion = val;
-        if ((val = parameters.getSearchMethodParameters().get("SMBO_numInitialConfigurationsFactor")) != null)
-            numInitialConfigurationsFactor = Integer.valueOf(val);
-        if ((val = parameters.getSearchMethodParameters().get("SMBO_numRandomTheta")) != null)
-            numRandomTheta = Integer.valueOf(val);
-        if ((val = parameters.getSearchMethodParameters().get("SMBO_maxLocalSearchSteps")) != null)
-            maxLocalSearchSteps = Integer.valueOf(val);
-        if ((val = parameters.getSearchMethodParameters().get("SMBO_lsStddev")) != null)
-            lsStddev = Float.valueOf(val);
-        if ((val = parameters.getSearchMethodParameters().get("SMBO_lsSamples")) != null)
-            lsSamples = Integer.valueOf(val);
-        if ((val = parameters.getSearchMethodParameters().get("SMBO_nTrees")) != null)
-            nTrees = Integer.valueOf(val);
-        if ((val = parameters.getSearchMethodParameters().get("SMBO_ocbExpMu")) != null)
-            ocbExpMu = Float.valueOf(val);
-        if ((val = parameters.getSearchMethodParameters().get("SMBO_EIg")) != null)
-            EIg = Integer.valueOf(val);
-        if ((val = parameters.getSearchMethodParameters().get("SMBO_queueSize")) != null)
-            queueSize = Integer.valueOf(val);
-        if ((val = parameters.getSearchMethodParameters().get("SMBO_createIBSConfigs")) != null)
-            createIBSConfigs = Boolean.parseBoolean(val);
-        if ((val = parameters.getSearchMethodParameters().get("SMBO_featureFolder")) != null)
-            featureFolder = val;
-        if ((val = parameters.getSearchMethodParameters().get("SMBO_featureCacheFolder")) != null)
-            featureCacheFolder = val;
+        
+        parseSMBOParameters();
         
         pspace = api.loadParameterGraphFromDB(parameters.getIdExperiment());
         
@@ -174,10 +142,15 @@ public class SMBO extends SearchMethods {
         PCA pca = new PCA(RInterface.getRengine());
         instanceFeatures = pca.transform(instanceFeatures.length, instanceFeatureNames.size(), instanceFeatures, numPC);
         pacc.log("c Using " + Math.min(numPC, instanceFeatureNames.size()) + " instance features");
+        double[][] pcaFeatures = new double[instanceFeatures.length][Math.min(numPC, instanceFeatureNames.size())];
         for (int i = 0; i < instanceFeatures.length; i++) {
-            for (int j = 0; j < Math.min(numPC, instanceFeatureNames.size()); j++) System.out.print(instanceFeatures[i][j]);
+            for (int j = 0; j < Math.min(numPC, instanceFeatureNames.size()); j++) {
+                System.out.print(instanceFeatures[i][j] + " ");
+                pcaFeatures[i][j] = instanceFeatures[i][j];
+            }
             System.out.println();
         }
+        instanceFeatures = pcaFeatures;
         
         int numFeatures = instanceFeatureNames.size();
         instanceFeatureNames.clear();
@@ -230,13 +203,15 @@ public class SMBO extends SearchMethods {
         // Initialize pseudo-random sequence for the initial sampling
         sequence = new SamplingSequence(samplingPath);
         sequenceValues = sequence.getSequence(configurableParameters.size(), maxSamples);
+        
+        generatedConfigs.addAll(firstSCs);
     }
 
     @Override
     public List<SolverConfiguration> generateNewSC(int num) throws Exception {
         if (num <= 0) return new LinkedList<SolverConfiguration>();
         
-        if (generatedConfigs.size() < numInitialConfigurationsFactor * configurableParameters.size()) {
+        if (generatedConfigs.size() < numInitialConfigurationsFactor * configurableParameters.size() && numInitialConfigurationsFactor > 0) {
             List<SolverConfiguration> rssConfigs = new LinkedList<SolverConfiguration>();
             if (pacc.racing instanceof FRace || pacc.racing instanceof SMFRace) {
                 // FRace and SMFRace don't automatically use the old best configurations
@@ -317,7 +292,9 @@ public class SMBO extends SearchMethods {
                 randomThetas[i] = paramConfigToTuple(paramConfig);
                 randomParamConfigs[i] = paramConfig;
             }
+            pacc.log("c Generating " + numRandomTheta + " random configurations took " + (System.currentTimeMillis() - start) + " ms");
             
+            start = System.currentTimeMillis();
             // Predict runtime of the random configurations and calculate improvement measures
             double[][] randomThetasPred = model.predict(randomThetas);
             pacc.log("c Predicting " + numRandomTheta + " random configurations took " + (System.currentTimeMillis() - start) + " ms");
@@ -381,49 +358,7 @@ public class SMBO extends SearchMethods {
             for (ParameterConfiguration paramConfig: selectedConfigs) {
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
                 if (createIBSConfigs) {
-                    double[][] theta_config = new double[][] { paramConfigToTuple(paramConfig) };
-                    Set<Integer> preferredInstanceIDs = new HashSet<Integer>();
-                    Map<Integer, Double> meanByInstanceID = new HashMap<Integer, Double>();
-                    for (Instance instance: instances) {
-                        int[] inst_ix = new int[] { instanceFeaturesIx.get(instance.getId()) };
-                        double[][] pred = model.predictMarginal(theta_config, inst_ix);
-                        double predicted_mean = pred[0][0];
-                        double predicted_var = pred[0][1];
-                        meanByInstanceID.put(instance.getId(), predicted_mean);
-                    }
-                    Map<Integer, Float> bestByInstanceID = new HashMap<Integer, Float>();
-                    for (SolverConfiguration sc : pacc.racing.getBestSolverConfigurations()) {
-                        Map<Integer, List<ExperimentResult>> results = new HashMap<Integer, List<ExperimentResult>>();
-                        for (ExperimentResult er : sc.getJobs()) {
-                            List<ExperimentResult> list = results.get(er.getInstanceId());
-                            if (list == null) {
-                                list = new LinkedList<ExperimentResult>();
-                                results.put(er.getInstanceId(), list);
-                            }
-                            list.add(er);
-                        }
-                        
-                        for (Instance instance: instances) {
-                            List<ExperimentResult> list = results.get(instance.getId());
-                            if (list != null) {
-                                float cost = par1CostFunc.calculateCost(list);
-                                Float best = bestByInstanceID.get(instance.getId());
-                                if (best == null || best < cost) {
-                                    bestByInstanceID.put(instance.getId(), cost);
-                                } 
-                            }
-                        }
-                    }
-                    
-                    for (Instance instance : instances) {
-                        Float best = bestByInstanceID.get(instance.getId());
-                        Double cost = meanByInstanceID.get(instance.getId());
-                        if (best == null || cost * .9 < best) {
-                            preferredInstanceIDs.add(instance.getId());
-                        }
-                    }
-                    pacc.log("[SMBO] Generated an IBS configuration with " + preferredInstanceIDs.size() + " preferred instances.");
-                    newConfigs.add(new SolverConfigurationIBS(idSC, paramConfig, parameters.getStatistics(), preferredInstanceIDs));
+                    newConfigs.add(createIBSConfig(idSC, paramConfig));
                 } else {
                     newConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
                 }
@@ -448,6 +383,52 @@ public class SMBO extends SearchMethods {
             }
             return retConfigs;
         }
+    }
+    
+    private SolverConfiguration createIBSConfig(int idSC, ParameterConfiguration paramConfig) {
+        double[][] theta_config = new double[][] { paramConfigToTuple(paramConfig) };
+        Set<Integer> preferredInstanceIDs = new HashSet<Integer>();
+        Map<Integer, Double> meanByInstanceID = new HashMap<Integer, Double>();
+        for (Instance instance: instances) {
+            int[] inst_ix = new int[] { instanceFeaturesIx.get(instance.getId()) };
+            double[][] pred = model.predictMarginal(theta_config, inst_ix);
+            double predicted_mean = pred[0][0];
+            double predicted_var = pred[0][1];
+            meanByInstanceID.put(instance.getId(), predicted_mean);
+        }
+        Map<Integer, Double> bestByInstanceID = new HashMap<Integer, Double>();
+        for (SolverConfiguration sc : pacc.racing.getBestSolverConfigurations()) {
+            Map<Integer, List<ExperimentResult>> results = new HashMap<Integer, List<ExperimentResult>>();
+            for (ExperimentResult er : sc.getJobs()) {
+                List<ExperimentResult> list = results.get(er.getInstanceId());
+                if (list == null) {
+                    list = new LinkedList<ExperimentResult>();
+                    results.put(er.getInstanceId(), list);
+                }
+                list.add(er);
+            }
+            
+            for (Instance instance: instances) {
+                List<ExperimentResult> list = results.get(instance.getId());
+                if (list != null) {
+                    double cost = par1CostFunc.calculateCost(list);
+                    Double best = bestByInstanceID.get(instance.getId());
+                    if (best == null || best < cost) {
+                        bestByInstanceID.put(instance.getId(), cost);
+                    } 
+                }
+            }
+        }
+        
+        for (Instance instance : instances) {
+            Double best = bestByInstanceID.get(instance.getId());
+            Double cost = meanByInstanceID.get(instance.getId());
+            if (best == null || cost * .9 < best) {
+                preferredInstanceIDs.add(instance.getId());
+            }
+        }
+        pacc.log("[SMBO] Generated an IBS configuration with " + preferredInstanceIDs.size() + " preferred instances.");
+        return new SolverConfigurationIBS(idSC, paramConfig, parameters.getStatistics(), preferredInstanceIDs);
     }
     
     private ParameterConfiguration optimizeLocally(ParameterConfiguration paramConfig, double startCriterionValue, double ocb_lambda, double f_min) throws Exception {
@@ -505,6 +486,8 @@ public class SMBO extends SearchMethods {
         boolean[] censored = new boolean[countJobs];
         double[] y = new double[countJobs];
         
+        double maxy = Double.NEGATIVE_INFINITY;
+        
         int jIx = 0;
         for (SolverConfiguration config: generatedConfigs) {
             for (ExperimentResult run: config.getFinishedJobs()) {
@@ -520,11 +503,50 @@ public class SMBO extends SearchMethods {
                     }
                     y[jIx] = Math.log10(y[jIx]);
                 }
+                if (y[jIx] > maxy) maxy = y[jIx];
                 jIx++;
             }
         }
         
+        System.out.println("maxy: " + maxy);
+
         model.learnModel(theta, instanceFeatures, configurableParameters.size(), instanceFeatureNames.size(), theta_inst_idxs, y, censored);
+    }
+    
+    private void parseSMBOParameters() {
+        String val;
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_samplingPath")) != null)
+            samplingPath = val;
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_numPC")) != null)
+            numPC = Integer.valueOf(val);
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_logModel")) != null)
+            logModel = Integer.valueOf(val) == 1;
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_selectionCriterion")) != null)
+            selectionCriterion = val;
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_numInitialConfigurationsFactor")) != null)
+            numInitialConfigurationsFactor = Integer.valueOf(val);
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_numRandomTheta")) != null)
+            numRandomTheta = Integer.valueOf(val);
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_maxLocalSearchSteps")) != null)
+            maxLocalSearchSteps = Integer.valueOf(val);
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_lsStddev")) != null)
+            lsStddev = Float.valueOf(val);
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_lsSamples")) != null)
+            lsSamples = Integer.valueOf(val);
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_nTrees")) != null)
+            nTrees = Integer.valueOf(val);
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_ocbExpMu")) != null)
+            ocbExpMu = Float.valueOf(val);
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_EIg")) != null)
+            EIg = Integer.valueOf(val);
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_queueSize")) != null)
+            queueSize = Integer.valueOf(val);
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_createIBSConfigs")) != null)
+            createIBSConfigs = Boolean.parseBoolean(val);
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_featureFolder")) != null)
+            featureFolder = val;
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_featureCacheFolder")) != null)
+            featureCacheFolder = val;
     }
 
     @Override
@@ -593,9 +615,17 @@ public class SMBO extends SearchMethods {
             if (paramValue == null) theta[pIx] = Double.NaN;
             else {
                 if (p.getDomain() instanceof RealDomain) {
-                    theta[pIx] = (Double)paramValue;
+                    if (paramValue instanceof Float) {
+                        theta[pIx] = (Float)paramValue;
+                    } else if (paramValue instanceof Double) {
+                        theta[pIx] = (Double)paramValue;
+                    }
                 } else if (p.getDomain() instanceof IntegerDomain) {
-                    theta[pIx] = (Integer)paramValue;
+                    if (paramValue instanceof Integer) {
+                        theta[pIx] = (Integer)paramValue;
+                    } else if (paramValue instanceof Long) {
+                        theta[pIx] = (Long)paramValue;
+                    }
                 } else if (p.getDomain() instanceof CategoricalDomain) {
                     // map categorical parameters to integers 1 through domain.size, 0 = not set
                     Map<String, Integer> valueMap = new HashMap<String, Integer>();

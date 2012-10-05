@@ -95,10 +95,10 @@ public class STTRace extends RacingMethods {
 		System.out.println("S: " + n1 + "(e)" + " vse " + n2 + "(e)");
 		System.out.println("S: " + n1f + "(ef)" + " vse " + n2f + "(ef)");
 		System.out.println("S: n = " + n);
-		float[] y = new float[n]; // times of sc1
-		float[] z = new float[n]; // times of sc2
+		double[] y = new double[n]; // times of sc1
+		double[] z = new double[n]; // times of sc2
 
-		float[] x = new float[n]; // time difference y-z
+		double[] x = new double[n]; // time difference y-z
 		int i = 0;
 		double testValue, threshold = 2.D * a / (double) n;
 		double mean = 0., std2 = 0.; // mean and quadratic standard deviation
@@ -142,7 +142,7 @@ public class STTRace extends RacingMethods {
 		for (int j = 0; j < n; j++) {
 			std2 += (x[j] - mean) * (x[j] - mean);
 		}
-		std2 = std2 / (float) n;
+		std2 = std2 / (double) n;
 		System.out.println("S: std2 = " + std2);
 		// the sequential t-test
 		testValue = Math.log(1.0 + mean * mean / std2);
