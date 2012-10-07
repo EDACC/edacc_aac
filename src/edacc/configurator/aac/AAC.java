@@ -933,7 +933,7 @@ public class AAC {
 	 * Logs <code>message</code> to standard output.
 	 * @param message the message
 	 */
-	public void log(String message) {
+	public synchronized void log(String message) {
 		if (System.currentTimeMillis() - lastStats > 120*1000) {
 			lastStats = System.currentTimeMillis();
 			log("Walltime: " + getWallTime() + ",CPUTime: " + cumulatedCPUTime + ",NumSC: " + statNumSolverConfigs + ",NumJobs: " + statNumJobs);
