@@ -197,6 +197,89 @@ public class Clustering implements Serializable {
 		update_columns.clear();
 	}
 	
+	public List<Integer> getKBestSCsOnInstance(int instanceId, int k) {
+		updateData();
+		List<Integer> res = new LinkedList<Integer>();
+		
+		List<Pair<Integer, Double>> scWeight = new LinkedList<Pair<Integer, Double>>();
+		for (int scid : this.getSolverConfigIds()) {
+			if (this.getWeight(scid) > 0.f) {
+				scWeight.add(new Pair<Integer, Double>(scid, this.getMembership(scid, instanceId)));
+			}
+		}
+		if (scWeight.size() <= k) {
+			for (Pair<Integer, Double> p : scWeight) {
+				res.add(p.getFirst());
+			}
+		} else {
+			Collections.sort(scWeight, new Comparator<Pair<Integer, Double>>() {
+
+				@Override
+				public int compare(Pair<Integer, Double> arg0, Pair<Integer, Double> arg1) {
+					if (arg0.getSecond() < arg1.getSecond()) {
+						return 1;
+					} else if (arg0.getSecond() > arg1.getSecond()) {
+						return -1;
+					} else {
+						return 0;
+					}
+				}
+				
+			});
+			for (int i = 0; i < k; i++) {
+				res.add(scWeight.get(i).getFirst());
+			}
+		}
+		return res;
+	}
+	
+	public List<Integer> getBestSCsOnInstance(int instanceId, float factor) {
+		updateData();
+		List<Integer> res = new LinkedList<Integer>();
+		
+		double mincost = Float.MAX_VALUE;
+		
+		for (int scid : this.getSolverConfigIds()) {
+			if (this.getMembership(scid, instanceId) > 0.f) {
+				if (mincost > getCost(scid, instanceId)) {
+					mincost = getCost(scid, instanceId);
+				}
+			}
+		}
+		for (int scid : this.getSolverConfigIds()) {
+			if (this.getMembership(scid, instanceId) > 0.f) {
+				if (mincost * factor > getCost(scid, instanceId)) {
+					res.add(scid);
+				}
+			}
+		}
+		return res;
+	}
+	
+	public List<Integer> getInstancesForSC(int scid, float factor) {
+		updateData();
+		List<Integer> res = new LinkedList<Integer>();
+		HashMap<Integer, Double> mincosts = new HashMap<Integer, Double>();
+		
+		for (int iid : I.keySet()) {
+			for (int scid2 : this.getSolverConfigIds()) {
+				if (this.getMembership(scid2, iid) > 0.f) {
+					Double mincost = mincosts.get(iid);
+					if (mincost == null || mincost > getCost(scid2, iid)) {
+						mincosts.put(iid, getCost(scid2, iid));
+					}
+				}
+			}
+		}
+		for (int iid : I.keySet()) {
+			if (this.getMembership(scid, iid) > 0.f) {
+				if (mincosts.get(iid) * factor > getCost(scid, iid)) {
+					res.add(iid);
+				}
+			}
+		}
+		return res;
+	}
 
 	/**
 	 * Updates the cost of the given solver configuration on the given instance.
@@ -553,11 +636,11 @@ public class Clustering implements Serializable {
 		updateData();
 		Integer col = I.get(instanceid);
 		if (col == null) {
-			return 0.f;
+			return Float.POSITIVE_INFINITY;
 		}
 		double[] values = C.get(scid);
 		if (values == null) {
-			return 0.f;
+			return Float.POSITIVE_INFINITY;
 		}
 		return values[col];
 	}
@@ -633,7 +716,7 @@ public class Clustering implements Serializable {
 			}
 		}
 		for (int i = 0; i < l1.size(); i++) {
-			if (l1.get(i).getFirst().equals(l2.get(0))) {
+			if (l1.get(i).getFirst().equals(l2.get(0).getFirst())) {
 				dist2 = i;
 				break;
 			}

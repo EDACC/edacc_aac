@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,6 +22,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Properties;
 import java.util.Random;
+import java.util.Set;
 import java.util.Map.Entry;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -30,6 +32,7 @@ import edacc.api.APIImpl;
 import edacc.api.costfunctions.CostFunction;
 import edacc.api.costfunctions.PARX;
 import edacc.configurator.aac.AAC;
+import edacc.configurator.aac.solvercreator.Clustering.HierarchicalClusterMethod;
 import edacc.model.ExperimentResult;
 import edacc.model.ExperimentResultDAO;
 import edacc.model.Instance;
@@ -98,6 +101,8 @@ public class SolverCreator {
 		
 		// connect to database
 		api.connect(properties.getProperty("DBHost"), Integer.parseInt(properties.getProperty("DBPort")), properties.getProperty("DB"), properties.getProperty("DBUser"), properties.getProperty("DBPassword"), Boolean.parseBoolean(properties.getProperty("DBCompress")));
+		
+		float clustering_threshold = Float.parseFloat(properties.getProperty("ClusteringThreshold"));
 		
 		List<Object> data = new LinkedList<Object>();
 		
@@ -285,11 +290,20 @@ public class SolverCreator {
 		
 		Clustering C_orig = new Clustering(C);
 		
-		List<Integer> scids2 = C.getSolverConfigIds();
 		
-		for (int scid : scids2) {
-			if (!SolverConfigurationDAO.getSolverConfigurationById(scid).getName().contains("BEST")) {
-				C.remove(scid);
+		if (Boolean.parseBoolean(properties.getProperty("RemoveNotBest"))) {
+			for (int scid : C.getSolverConfigIds()) {
+				if (!SolverConfigurationDAO.getSolverConfigurationById(scid).getName().contains("BEST")) {
+					C.remove(scid);
+				}
+			}
+		}
+		
+		if (Boolean.parseBoolean(properties.getProperty("RemoveRemoved"))) {
+			for (int scid : C.getSolverConfigIds()) {
+				if (SolverConfigurationDAO.getSolverConfigurationById(scid).getName().contains("(removed)")) {
+					C.remove(scid);
+				}
 			}
 		}
 		
@@ -329,7 +343,7 @@ public class SolverCreator {
 		
 		if (Boolean.parseBoolean(properties.getProperty("ShowClustering"))) {
 			System.out.println("Generating clustering for single decision tree using default method..");
-			HashMap<Integer, List<Integer>> c = C.getClustering(false);
+			HashMap<Integer, List<Integer>> c = C.getClustering(false, clustering_threshold);
 			System.out.println("Clustering size: " + c.size());
 			List<Pair<String, List<Integer>>> clustering = new LinkedList<Pair<String, List<Integer>>>();
 			for (Entry<Integer, List<Integer>> entry : c.entrySet()) {
@@ -406,7 +420,7 @@ public class SolverCreator {
 		if (Boolean.parseBoolean(properties.getProperty("BuildDecisionTree"))) {
 			System.out.println("Calculating clustering..");
 
-			HashMap<Integer, List<Integer>> c = C.getClustering(false);//, 0.9f);
+			HashMap<Integer, List<Integer>> c = C.getClustering(false, clustering_threshold);//, 0.9f);
 			System.out.println("Building decision tree..");
 			DecisionTree tree = new DecisionTree(c, DecisionTree.ImpurityMeasure.valueOf(properties.getProperty("DecisionTree_ImpurityMeasure")), C_orig, C, -1, new Random(), 0.2f);
 			System.out.println("Performance(C) = " + C_orig.performance(c));
@@ -415,9 +429,148 @@ public class SolverCreator {
 			
 		}
 		
+		
+		if (Boolean.parseBoolean(properties.getProperty("CalculateCost"))) {			
+			/*HashMap<Integer, List<Integer>> c = C.getClustering(false, clustering_threshold);
+			System.out.println("Original - Threshold 1.0:");
+			showCost(C_orig.getClustering(false), C_orig);
+			System.out.println("Original - Threshold " + clustering_threshold + ":");
+			showCost(C_orig.getClustering(false, clustering_threshold), C_orig);
+			System.out.println("Modified - Threshold 1.0:");
+			showCost(C.getClustering(false), C);
+			System.out.println("Modified - Threshold " + clustering_threshold + ":");
+			showCost(C.getClustering(false, clustering_threshold), C);*/
+		/*	System.out.println("Hierarchical (AVG_LINKAGE):");
+			showCost(C.getClusteringHierarchical(HierarchicalClusterMethod.AVERAGE_LINKAGE, 10), C);			
+			System.out.println("Hierarchical (COMPLETE_LINKAGE):");
+			showCost(C.getClusteringHierarchical(HierarchicalClusterMethod.COMPLETE_LINKAGE, 10), C);
+			System.out.println("Hierarchical (SINGLE_LINKAGE):");
+			showCost(C.getClusteringHierarchical(HierarchicalClusterMethod.SINGLE_LINKAGE, 10), C);*/
+			
+			Set<Integer> instanceIds = new HashSet<Integer>();
+			HashMap<Integer, Set<Integer>> blablub = new HashMap<Integer, Set<Integer>>();
+			for (int scid : C.getSolverConfigIds()) {
+				List<Integer> theInstances = C.getInstancesForSC(scid, 100000000.f);
+				instanceIds.addAll(theInstances);
+				if (!theInstances.isEmpty()) {
+					Set<Integer> tmp = new HashSet<Integer>();
+					tmp.addAll(theInstances);
+					blablub.put(scid, tmp);
+				}
+			}
+			List<Integer> instanceIdList = new LinkedList<Integer>();
+			instanceIdList.addAll(instanceIds);
+			Collections.sort(instanceIdList);
+			for (int i = 0; i < instanceIdList.size(); i++) {
+				System.out.print(instanceIdList.get(i));
+				if (i != instanceIdList.size()-1) {
+					System.out.print(" ");
+				}
+			}
+			System.out.println();
+			for (Entry<Integer, Set<Integer>> e : blablub.entrySet()) {
+				System.out.print(e.getKey() + " ");
+				List<Integer> list = new LinkedList<Integer>();
+				list.addAll(e.getValue());
+				Collections.sort(list);
+				for (int i = 0; i < list.size(); i++) {
+					System.out.print(list.get(i));
+					if (i != list.size()-1){
+						System.out.print(" ");
+					}
+				}
+				System.out.println();
+			}
+			
+		BufferedReader br = new BufferedReader(new FileReader(new File("../test/exp_25.msc")));
+			String line;
+			HashMap<Integer, List<Integer>> minclustering = null;
+			float minmin = Float.POSITIVE_INFINITY;
+			while ((line = br.readLine()) != null) {
+				String[] scidsStr = line.split(" ");
+				if (scidsStr.length == 0) {
+					continue;
+				}
+				HashMap<Integer, List<Integer>> clustering = new HashMap<Integer, List<Integer>>();
+				for (String scid : scidsStr) {
+					int scidInt = Integer.valueOf(scid);
+					clustering.put(scidInt, new LinkedList<Integer>());
+				}
+				for (int iid : C.I.keySet()) {
+					double mincost = Float.POSITIVE_INFINITY;
+					int thescid = -1;
+					for (int scid: clustering.keySet()) {
+						if (!Double.isInfinite(C.getCost(scid, iid)) && C.getCost(scid, iid) < mincost) {
+							thescid = scid;
+							mincost = C.getCost(scid, iid);
+						}
+					}
+					if (thescid != -1)
+						clustering.get(thescid).add(iid);
+				}
+				System.out.println(clustering.keySet() + ": ");
+				float tmp = showCost(clustering, C);
+				if (tmp < minmin) {
+					minmin = tmp;
+					minclustering = clustering;
+				}
+			}
+			System.out.println(minmin);
+			System.out.println(minclustering.keySet());
+			showCost(minclustering, C);
+			for (Entry<Integer, List<Integer>> e : minclustering.entrySet()) {
+				System.out.println(e.getKey() + ": " + e.getValue());
+			}
+			
+			for (int scid : C.getSolverConfigIds()) {
+				if (!minclustering.containsKey(scid)) {
+					C.remove(scid);
+				}
+			}
+		/*	int csize = 0;
+			HashMap<Integer, List<Integer>> clustering = new HashMap<Integer, List<Integer>>();
+			while (!instanceIds.isEmpty()) {
+				int scid = -1;
+				int count = -1;
+				for (Entry<Integer, Set<Integer>> e : blablub.entrySet()) {
+					if (e.getValue().size() > count) {
+						count = e.getValue().size();
+						scid = e.getKey();
+					}
+				}
+				List<Integer> tmp = new LinkedList<Integer>();
+				tmp.addAll(blablub.get(scid));
+				csize ++;
+				
+				for (Set<Integer> s : blablub.values()) {
+					s.removeAll(tmp);
+					
+				}
+				instanceIds.removeAll(tmp);
+				clustering.put(scid, tmp);
+			}
+			showCost(clustering, C);*/
+			/*Clustering C_tmp = new Clustering(C);
+			for (int iid : C_tmp.I.keySet()) {
+				Set<Integer> best = new HashSet<Integer>();
+				best.addAll(C_tmp.getBestSCsOnInstance(iid, 2.f));
+				for (int scid : C_tmp.getSolverConfigIds()) {
+					if (!best.contains(scid)) {
+						C_tmp.update(scid, iid, Float.POSITIVE_INFINITY);
+					}
+				}
+			}
+			
+			System.out.println("5 best - Threshold 1.0:");
+			showCost(C_tmp.getClustering(false), C_tmp);
+			System.out.println("5 best - Threshold " + clustering_threshold + ":");
+			showCost(C_tmp.getClustering(false, clustering_threshold), C_tmp);*/
+			
+		}
+		
 		if (Boolean.parseBoolean(properties.getProperty("BuildRandomForest"))) {
 			System.out.println("Generating random forest..");
-			RandomForest forest = new RandomForest(C_orig, C, new Random(), Integer.parseInt(properties.getProperty("RandomForestTreeCount")), 250);
+			RandomForest forest = new RandomForest(C_orig, C, new Random(), Integer.parseInt(properties.getProperty("RandomForestTreeCount")), 384);
 			data.add(forest);
 			System.out.println("done.");
 		}
@@ -554,43 +707,35 @@ public class SolverCreator {
 			} else {
 				System.err.println("Could not create directory: " + folder);
 			}
-		}
-		
-		if (Boolean.parseBoolean(properties.getProperty("CalculateCost"))) {
-			
-			for (int scid : C.getSolverConfigIds()) {
-				if (SolverConfigurationDAO.getSolverConfigurationById(scid).getName().contains("(removed)")) {
-					C.remove(scid);
-				}
-			}
-			
-			HashMap<Integer, List<Integer>> c = C.getClustering(false);
-			int timeouts = 0;
-			int instanceCount = 0;
-			double res = 0.f;
-			for (Entry<Integer, List<Integer>> e : c.entrySet()) {
-				for (int iid : e.getValue()) {
-				    double cost = C.getCost(e.getKey(), iid);
-					if (Double.isInfinite(cost)) {
-						timeouts++;
-					} else {
-						res += cost;
-						instanceCount++;
-					}
-				}
-			}
-			System.out.println("Clustering size: " + c.size());
-			System.out.println("Cost: " + res);
-			System.out.println("Instances: " + instanceCount);
-			System.out.println("Avg: " + (res / instanceCount));
-			System.out.println("Timeouts: " + timeouts);
-		}
-		
+		}		
 		
 		if (Boolean.parseBoolean(properties.getProperty("Interactive"))) {
 			interactiveMode(C, new File(featureDirectory));
 		}
 		
+	}
+	
+	private static float showCost(HashMap<Integer, List<Integer>> clustering, Clustering C) {
+		int instanceCount = 0;
+		float res = 0.f;
+		for (Entry<Integer, List<Integer>> e : clustering.entrySet()) {
+			for (int iid : e.getValue()) {
+				double cost = C.getCost(e.getKey(), iid);
+				if (Double.isInfinite(cost)) {
+					// impossible..
+				} else {
+					res += cost;
+					instanceCount++;
+				}
+			}
+		}
+		
+		System.out.println("Clustering size: " + clustering.size());
+		System.out.println("Cost: " + res);
+		System.out.println("Instances: " + instanceCount);
+		System.out.println("Avg: " + (res / instanceCount));
+		System.out.println();
+		return (res / instanceCount);
 	}
 	
 	

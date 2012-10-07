@@ -106,7 +106,7 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 				ParameterConfiguration paramconfig = graph.getRandomConfiguration(rng);
 				int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), paramconfig, "random config");
 				SolverConfiguration sc = new SolverConfiguration(idSolverConfig, paramconfig, parameters.getStatistics());
-				sc.setNameSearch(sc.getIdSolverConfiguration() + " random config");
+				sc.setNameSearch("random config");
 				pacc.log("[IBS] Generated a random configuration");
 				res.add(sc);
 			} else {
@@ -177,10 +177,10 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 					int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), paramconfig, "random config");
 					SolverConfiguration sc = new SolverConfiguration(idSolverConfig, paramconfig, parameters.getStatistics());
 					if (q == null) {
-						sc.setNameSearch(sc.getIdSolverConfiguration() + " random config (query result was null)");
+						sc.setNameSearch("random config (query result was null)");
 						pacc.log("[IBS] Generated a random configuration (query result was null)");
 					} else if (q.configs.isEmpty() || q.parametersSorted.isEmpty()) {
-						sc.setNameSearch(sc.getIdSolverConfiguration() + " random config (no possible randomizable parameters)");
+						sc.setNameSearch("random config (no possible randomizable parameters)");
 						pacc.log("[IBS] Generated a random configuration (no possible randomizable parameters)");
 					}
 					res.add(sc);
@@ -216,7 +216,7 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 				//} else {
 					sc = new SolverConfiguration(idSolverConfig, paramconfig, parameters.getStatistics());
 				//}
-				sc.setNameSearch(sc.getIdSolverConfiguration() + " " + solverConfigName);
+				sc.setNameSearch(solverConfigName);
 				pacc.log("[IBS] Generated a configuration using model of iid: " + instanceId);
 				res.add(sc);
 			}
