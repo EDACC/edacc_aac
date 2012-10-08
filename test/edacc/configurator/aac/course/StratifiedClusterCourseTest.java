@@ -67,7 +67,7 @@ public class StratifiedClusterCourseTest {
         List<String> fSizeNames = new LinkedList<String>();
         fSizeNames.add("nvars");
 
-        StratifiedClusterCourse sc = new StratifiedClusterCourse(RInterface.getRengine(), instances, fNames, fSizeNames, 1, new Random());
+        StratifiedClusterCourse sc = new StratifiedClusterCourse(RInterface.getRengine(), instances, fNames, fSizeNames, 1, new Random(), null, null);
         
         System.out.println("Stratified, clustered course:");
         for (InstanceIdSeed isp: sc.getCourse()) {

@@ -76,7 +76,7 @@ public class SMBO extends SearchMethods {
     
     // Configurable parameters
     private boolean logModel = true;
-    private String selectionCriterion = "ei"; // ei, ocb
+    private String selectionCriterion = "ocb"; // ei, ocb
     private int numPC = 7;
     private int numInitialConfigurationsFactor = 20; // how many samples per parameter initially
     private int numRandomTheta = 10000; // how many random theta to predict for EI/OCB optimization
@@ -87,7 +87,7 @@ public class SMBO extends SearchMethods {
     private double ocbExpMu = 1;
     private int EIg = 2; // global search factor {1,2,3}
     private boolean useInstanceIndexFeature = true; // simply use the index of an instance as instance feature
-    private int queueSize = 20; // how many configurations to generate at a time and put into a queue
+    private int queueSize = 40; // how many configurations to generate at a time and put into a queue
     private boolean createIBSConfigs = false;
     private boolean initialDesignFromDefault = true;
 
@@ -209,13 +209,13 @@ public class SMBO extends SearchMethods {
         sequenceValues = sequence.getSequence(configurableParameters.size(), maxSamples);
         
         generatedConfigs.addAll(firstSCs);
-        pacc.log("c: Starting out with " + firstSCs.size() + " default configs");
+        pacc.log("c Starting out with " + firstSCs.size() + " default configs");
         if (initialDesignFromDefault && firstSCs.size() > 0) {
             List<ParameterConfiguration> defaultMutations = new LinkedList<ParameterConfiguration>();
             for (SolverConfiguration config: firstSCs) {
                 defaultMutations.addAll(pspace.getGaussianNeighbourhood(config.getParameterConfiguration(), rng, 0.2f, 1, true));
             }
-            pacc.log("Starting with an initial design of " + defaultMutations.size() + " neighbours of the default configurations");
+            pacc.log("c Using an initial design of " + defaultMutations.size() + " neighbours of the default configurations");
             
             for (ParameterConfiguration paramConfig: defaultMutations) {
                 if (api.exists(parameters.getIdExperiment(), paramConfig) != 0) {
@@ -665,6 +665,8 @@ public class SMBO extends SearchMethods {
             featureFolder = val;
         if ((val = parameters.getSearchMethodParameters().get("SMBO_featureCacheFolder")) != null)
             featureCacheFolder = val;
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_initialDesignFromDefault")) != null)
+            initialDesignFromDefault = Integer.valueOf(val) == 1;
     }
 
     @Override
@@ -684,6 +686,9 @@ public class SMBO extends SearchMethods {
         p.add("SMBO_EIg = "+this.EIg+ " % (global search parameter g in the expected improvement criterion, integer in {1,2,3}, 1=original criterion, 3=more global search behaviour)");
         p.add("SMBO_queueSize = "+this.queueSize+ " % (How many configurations to generate at a time using SMBO. Also the maxmimum number of configurations returned to racing at a time.)");
         p.add("SMBO_createIBSConfigs = "+this.createIBSConfigs+ " % (Create IBS configs)");
+        p.add("SMBO_featureFolder = "+this.featureFolder == null ? "n/a" : this.featureFolder+ " % (Instance features folder)");
+        p.add("SMBO_featureCacheFolder = "+this.featureCacheFolder == null ? "n/a" : this.featureCacheFolder+ " % (Instance features cache folder)");
+        p.add("SMBO_initialDesignFromDefault = "+this.initialDesignFromDefault+ " % (Create a initial design by evaluating the neighbourhoods of the default configurations)");
         p.add("% -----------------------\n");
         return p;
     }
