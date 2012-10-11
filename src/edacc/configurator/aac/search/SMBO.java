@@ -77,7 +77,7 @@ public class SMBO extends SearchMethods {
     // Configurable parameters
     private boolean logModel = true;
     private String selectionCriterion = "ocb"; // ei, ocb
-    private int numPC = 7;
+    private int numPC = 13;
     private int numInitialConfigurationsFactor = 20; // how many samples per parameter initially
     private int numRandomTheta = 10000; // how many random theta to predict for EI/OCB optimization
     private int maxLocalSearchSteps = 5;
@@ -441,7 +441,7 @@ public class SMBO extends SearchMethods {
                         }
                         pacc.log("c "+threadInfo+" Best random configuration has ocb " + bestRandomValue);
                         
-                        final int numLS = 5;
+                        final int numLS = 10;
                         
                         ThetaCrit[] allThetaCrit = new ThetaCrit[numRandomTheta + Math.min(numLS, generatedThetaPred.length)];
                         // Optimize the top-numLS configurations using local search

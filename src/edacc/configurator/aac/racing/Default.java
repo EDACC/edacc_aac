@@ -52,6 +52,7 @@ public class Default extends RacingMethods {
 				}
 				pacc.sleep(1000);
 			}
+			pacc.validateIncumbent(bestSC);
 		} else {
 			pacc.updateJobsStatus(bestSC);
 		}
@@ -82,6 +83,7 @@ public class Default extends RacingMethods {
 						sc.setIncumbentNumber(incumbentNumber++);
 						pacc.log("new incumbent: " + sc.getIdSolverConfiguration() + ":" + pacc.getWallTime() + ":" + pacc.getCumulatedCPUTime() + ":" + sc.getCost());
 						pacc.log("i " + pacc.getWallTime() + "," + sc.getCost() + ",n.A. ," + sc.getIdSolverConfiguration() + ",n.A. ," + sc.getParameterConfiguration().toString());
+						pacc.validateIncumbent(bestSC);
 					}
 					// api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(),
 					// sc.getCost(),
