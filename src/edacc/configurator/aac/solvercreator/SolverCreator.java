@@ -155,7 +155,7 @@ public class SolverCreator {
 				Thread[] threads = new Thread[cores];
 				System.out.println("Starting " + cores + " threads for property calculation");
 				
-			/*	for (int i = 0; i < cores; i++) {
+				for (int i = 0; i < cores; i++) {
 					threads[i] = new Thread(new Runnable() {
 						
 						@Override
@@ -190,7 +190,7 @@ public class SolverCreator {
 				
 				for (Thread thread : threads) {
 					thread.join();
-				}*/
+				}
 				System.out.println("Done.");
 				
 				// remove me
@@ -691,7 +691,7 @@ public class SolverCreator {
 	            bw.write("FeaturesBin = " + properties.getProperty("FeaturesRunCommand") + "\n");
 	            bw.write("FeaturesParameters = " + properties.getProperty("FeaturesParameters") + "\n");
 	            for (edacc.model.SolverBinaries binary : binaries) {
-	            	bw.write("SolverBin_" + binary.getId() + " = ./" + binary.getRunPath() + "\n");
+	            	bw.write("SolverBin_" + binary.getId() + " = " + (binary.getRunCommand() == "" ? "" : binary.getRunCommand() + " ") + "./" + binary.getRunPath() + "\n");
 	            }
 	            bw.write("Data = ./data\n");
 	            bw.close();
@@ -700,7 +700,7 @@ public class SolverCreator {
 	            System.out.println("Creating start script..");
 	            fw = new FileWriter(new File(solverFolder, "start.sh").getAbsoluteFile());
 	            bw = new BufferedWriter(fw);
-	            bw.write("#!/bin/bash\njava -Xmx1024M -jar SolverLauncher.jar $1 $2 $3\n");
+	            bw.write("#!/bin/bash\njava -Xmx1024M -jar SolverLauncher.jar $@\n");
 	            bw.close();
 	            fw.close();
 			} else {
