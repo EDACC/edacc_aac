@@ -11,6 +11,7 @@ import java.util.Random;
 import java.util.Set;
 
 import edacc.api.API;
+import edacc.api.costfunctions.Median;
 import edacc.api.costfunctions.PARX;
 import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.JobListener;
@@ -32,14 +33,14 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 	private HashMap<Integer, SolverConfigurationMetaData> scs;
 	private HashSet<Integer> removedSCIds;
 	private HashMap<Integer, List<ExperimentResult>> instanceJobs;
-	private HashMap<Integer, Float> instanceMedianTime;
-	private HashMap<Integer, Float> instanceMedianTimeCorrect;
+	private HashMap<Integer, Double> instanceMedianTime;
+	private HashMap<Integer, Double> instanceMedianTimeCorrect;
 	private HashSet<Integer> instanceJobsLowerLimit;
 	private HashMap<Integer, Integer> incumbentPoints;
 	
 	
-	private PARX par1 = new PARX(Experiment.Cost.resultTime, true, 0, 1);
-	
+	private PARX par1 = new PARX(Experiment.Cost.cost, true, 0, 1);
+	private Median median = new Median(Experiment.Cost.cost, true);
 	private int unsolvedInstancesMaxJobs = 10;
 	private int unsolvedInstancesMinPoints = 10;
 	private int incumbentWinnerInstances = 3;
@@ -118,8 +119,8 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		}
 		
 		instanceJobs = new HashMap<Integer, List<ExperimentResult>>();
-		instanceMedianTime = new HashMap<Integer, Float>();
-		instanceMedianTimeCorrect = new HashMap<Integer, Float>();
+		instanceMedianTime = new HashMap<Integer, Double>();
+		instanceMedianTimeCorrect = new HashMap<Integer, Double>();
 		instanceJobsLowerLimit = new HashSet<Integer>();
 		removedSCIds = new HashSet<Integer>();
 		List<Integer> instances = new LinkedList<Integer>();
@@ -686,7 +687,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		}
 	}
 	
-	private Float median(List<ExperimentResult> jobs, boolean onlyCorrect) {
+	private Double median(List<ExperimentResult> jobs, boolean onlyCorrect) {
 		List<ExperimentResult> results;
 		if (onlyCorrect) {
 			results = new LinkedList<ExperimentResult>();
@@ -702,8 +703,8 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		if (results.isEmpty()) {
 			return null;
 		}
-		
-		Collections.sort(results, new Comparator<ExperimentResult>() {
+		return median.calculateCost(results);
+		/*Collections.sort(results, new Comparator<ExperimentResult>() {
 
 			@Override
 			public int compare(ExperimentResult arg0, ExperimentResult arg1) {
@@ -731,7 +732,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 			return m.getResultTime();
 		} else {
 			return new Float(pacc.getCPUTimeLimit(m.getInstanceId()));
-		}
+		}*/
 	}
 	
 	public void updateModel(SolverConfiguration sc, int instanceId) {
@@ -786,11 +787,11 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 					jobs.remove(i);
 				}
 			}
-			Float m = median(jobs, false);
-			Float mc = median(jobs, true);
+			Double m = median(jobs, false);
+			Double mc = median(jobs, true);
 			
-			instanceMedianTime.put(instanceId, m == null ? new Float(pacc.getCPUTimeLimit(instanceId)) : m);
-			instanceMedianTimeCorrect.put(instanceId, mc == null ? new Float(pacc.getCPUTimeLimit(instanceId)) : mc);
+			instanceMedianTime.put(instanceId, m == null ? new Double(pacc.getCPUTimeLimit(instanceId)) : m);
+			instanceMedianTimeCorrect.put(instanceId, mc == null ? new Double(pacc.getCPUTimeLimit(instanceId)) : mc);
 		}
 		
 		if (useAdaptiveInstanceTimeouts) {
@@ -800,7 +801,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 			
 				if (jobs.size() > instanceTimeoutsMinNumJobs) {
 					int current_limit = pacc.getCPUTimeLimit(instanceId);
-					int m = Math.round(instanceMedianTime.get(instanceId) * instanceTimeoutFactor);
+					int m = (int) Math.round(instanceMedianTime.get(instanceId) * instanceTimeoutFactor);
 					if (m < 1)
 						m = 1;
 					if (m < current_limit) {
@@ -849,11 +850,11 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 					}
 					
 					if (jobsRemoved) {
-						Float me = median(jobs, false);
-						Float mc = median(jobs, true);
+						Double me = median(jobs, false);
+						Double mc = median(jobs, true);
 
-						instanceMedianTime.put(instanceId, me == null ? new Float(pacc.getCPUTimeLimit(instanceId)) : me);
-						instanceMedianTimeCorrect.put(instanceId, mc == null ? new Float(pacc.getCPUTimeLimit(instanceId)) : mc);
+						instanceMedianTime.put(instanceId, me == null ? new Double(pacc.getCPUTimeLimit(instanceId)) : me);
+						instanceMedianTimeCorrect.put(instanceId, mc == null ? new Double(pacc.getCPUTimeLimit(instanceId)) : mc);
 					}
 				}
 			}

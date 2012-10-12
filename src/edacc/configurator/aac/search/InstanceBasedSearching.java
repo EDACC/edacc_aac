@@ -35,10 +35,13 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 	List<Parameter> configurableParameters;
 	ParameterGraph graph;
 	List<Integer> instanceIds = new LinkedList<Integer>(); 
+	int numConfigsModel, numConfigsRandom;
 	
 	public InstanceBasedSearching(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
 		super(pacc, api, rng, parameters, firstSCs, referenceSCs);
 		
+		numConfigsModel = 0;
+		numConfigsRandom = 0;
 		String val;
 		if ((val = parameters.getSearchMethodParameters().get("InstanceBasedSearching_stddev")) != null) {
 			stddev = Double.parseDouble(val);
@@ -100,15 +103,15 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 				instanceIds.addAll(solvedInstances);
 			}
 			num--;
-			if (clustering == null && instanceIds.isEmpty()) {
+			if (numConfigsRandom == 0 || (numConfigsModel / (float) numConfigsRandom > 9.f) || (clustering == null && instanceIds.isEmpty())) {
 				// create a random config
-				
 				ParameterConfiguration paramconfig = graph.getRandomConfiguration(rng);
 				int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), paramconfig, "random config");
 				SolverConfiguration sc = new SolverConfiguration(idSolverConfig, paramconfig, parameters.getStatistics());
 				sc.setNameSearch("random config");
 				pacc.log("[IBS] Generated a random configuration");
 				res.add(sc);
+				numConfigsRandom++;
 			} else {
 				// create a random config using the model
 				String solverConfigName = null;
@@ -170,35 +173,43 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 						treeCache.put(instanceId, tree);
 					}
 				}
-				DecisionTree.QueryResult q = tree.query(stddev);
-				if (q == null || q.configs.isEmpty() || q.parametersSorted.isEmpty()) {
-					
+				List<DecisionTree.QueryResult> q = tree.query(stddev);
+				boolean resultsRemoved = false;
+				for (int i = q.size()-1; i >= 0; i--) {
+					if (q.get(i).parametersSorted.isEmpty() || q.get(i).configs.isEmpty()) {
+						q.remove(i);
+						resultsRemoved = true;
+					}
+				}
+				if (q.isEmpty()) {
 					ParameterConfiguration paramconfig = graph.getRandomConfiguration(rng);
 					int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), paramconfig, "random config");
 					SolverConfiguration sc = new SolverConfiguration(idSolverConfig, paramconfig, parameters.getStatistics());
-					if (q == null) {
-						sc.setNameSearch("random config (query result was null)");
+					if (!resultsRemoved) {
+						sc.setNameSearch("random config (query result was empty)");
 						pacc.log("[IBS] Generated a random configuration (query result was null)");
-					} else if (q.configs.isEmpty() || q.parametersSorted.isEmpty()) {
+					} else {
 						sc.setNameSearch("random config (no possible randomizable parameters)");
 						pacc.log("[IBS] Generated a random configuration (no possible randomizable parameters)");
 					}
 					res.add(sc);
-					
+					numConfigsRandom++;
 					continue;
 				}
+				pacc.log("[IBS] Query: " + q.size() + " results.");
 				List<ParameterConfiguration> possibleBaseConfigs = new LinkedList<ParameterConfiguration>();
-				possibleBaseConfigs.addAll(q.configs);
+				DecisionTree.QueryResult result = q.get(rng.nextInt(q.size()));
+				possibleBaseConfigs.addAll(result.configs);
 				
-				pacc.log("[IBS] Number of split parameters: " + q.parametersSorted.size());
-				while (q.parametersSorted.size() > 2) {
-					q.parametersSorted.remove(q.parametersSorted.size()-1);
+				pacc.log("[IBS] Number of split parameters: " + result.parametersSorted.size());
+				while (result.parametersSorted.size() > 2) {
+					result.parametersSorted.remove(result.parametersSorted.size()-1);
 				}
 				
 				ParameterConfiguration paramconfig = new ParameterConfiguration(possibleBaseConfigs.get(rng.nextInt(possibleBaseConfigs.size())));
-				for (Pair<Parameter, Domain> pd : q.parameterDomains) {
+				for (Pair<Parameter, Domain> pd : result.parameterDomains) {
 					boolean randVal = false;
-					for (Parameter p : q.parametersSorted) {
+					for (Parameter p : result.parametersSorted) {
 						if (p.getName().equals(pd.getFirst().getName())) {
 							randVal = true;
 							break;
@@ -219,6 +230,7 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 				sc.setNameSearch(solverConfigName);
 				pacc.log("[IBS] Generated a configuration using model of iid: " + instanceId);
 				res.add(sc);
+				numConfigsModel++;
 			}
 		}
 		for (SolverConfiguration sc : res) {

@@ -65,7 +65,6 @@ public class SolverCreator {
 			properties.load(in);
 			in.close();
 		} else {
-
 			InputStream in = Clustering.class.getResourceAsStream("settings.properties");
 			if (in != null) {
 				// starting within eclipse
@@ -156,7 +155,7 @@ public class SolverCreator {
 				Thread[] threads = new Thread[cores];
 				System.out.println("Starting " + cores + " threads for property calculation");
 				
-				for (int i = 0; i < cores; i++) {
+			/*	for (int i = 0; i < cores; i++) {
 					threads[i] = new Thread(new Runnable() {
 						
 						@Override
@@ -191,7 +190,7 @@ public class SolverCreator {
 				
 				for (Thread thread : threads) {
 					thread.join();
-				}
+				}*/
 				System.out.println("Done.");
 				
 				// remove me
@@ -254,7 +253,7 @@ public class SolverCreator {
 
 			// create clustering
 			C = new Clustering(instanceIds, featureMapping);
-			CostFunction f = new PARX(Cost.resultTime, true, 0, 1);
+			CostFunction f = new PARX(Cost.cost, true, 0, 1);
 			
 			// load experiment results
 			HashMap<Pair<Integer, Integer>, List<ExperimentResult>> results = new HashMap<Pair<Integer, Integer>, List<ExperimentResult>>();
