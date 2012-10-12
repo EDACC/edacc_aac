@@ -94,6 +94,9 @@ public class SMBO extends SearchMethods {
     private String samplingPath = "";
     private String featureFolder = null;
     private String featureCacheFolder = null;
+    
+    private int statNumBestRandom = 0;
+    private int statTotalOptimizations = 0;
 
 
     public SMBO(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
@@ -487,6 +490,10 @@ public class SMBO extends SearchMethods {
                                 pacc.log("c " + threadInfo + " Selected configuration already in the list. Trying next one");
                                 selectedThetaCrit = allThetaCrit[ix++];
                             }
+                            statTotalOptimizations++;
+                            if (selectedThetaCrit.value == bestRandomValue) {
+                                statNumBestRandom++;
+                            }
                             selectedConfigs.add(selectedThetaCrit.pred.paramConfig);
                         }
                         pacc.log("c "+threadInfo+" OCB maximization selected configuration with ocb " + selectedThetaCrit.value + " -- Configuration: " + selectedThetaCrit.pred.paramConfig);
@@ -695,7 +702,8 @@ public class SMBO extends SearchMethods {
 
     @Override
     public void searchFinished() {
-        pacc.log("Calculating variable importance measures from OOB samples:");
+        pacc.log("c Out of " + statTotalOptimizations + " criterion optimizations, " + statNumBestRandom + " where due to a random config");
+        pacc.log("c Calculating variable importance measures from OOB samples:");
         double[] VI = model.calculateVI();
         for (int i = 0; i < configurableParameters.size(); i++) {
             pacc.log(configurableParameters.get(i).getName() + ": " + VI[i]);

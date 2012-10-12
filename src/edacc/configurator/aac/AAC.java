@@ -1051,6 +1051,6 @@ public class AAC {
         
         int idSC = api.createSolverConfig(parameters.getIdExperimentEvaluation(), incumbent.getParameterConfiguration(), validationName);
         
-        log("c Added incumbent to validation experiment " + parameters.getIdExperiment() + " with name: " + validationName);
+        log("c Added incumbent to validation experiment " + parameters.getIdExperimentEvaluation() + " with name: " + validationName);
     }
 }
