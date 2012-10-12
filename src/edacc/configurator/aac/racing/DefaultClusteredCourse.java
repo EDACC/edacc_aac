@@ -5,28 +5,57 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Random;
 
+import org.rosuda.JRI.Rengine;
+
 import edacc.api.API;
 import edacc.configurator.aac.AAC;
+import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
+import edacc.configurator.aac.course.StratifiedClusterCourse;
+import edacc.configurator.aac.util.RInterface;
 import edacc.model.ConfigurationScenarioDAO;
 
-public class Default extends RacingMethods {
+public class DefaultClusteredCourse extends RacingMethods {
 	SolverConfiguration bestSC;
 	int incumbentNumber;
 	int num_instances;
 	HashSet<Integer> stopEvalSolverConfigIds = new HashSet<Integer>();
+	private List<InstanceIdSeed> completeCourse;
+	private Rengine rengine;
+	
+	private String featureFolder = null;
+	private String featureCacheFolder = null;
 
-	public Default(AAC proar, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
+	public DefaultClusteredCourse(AAC proar, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
 		super(proar, rng, api, parameters, firstSCs, referenceSCs);
 		incumbentNumber = 0;
 		num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse().getInitialLength();
-	
-		if (!firstSCs.isEmpty()) {
-			// TODO: ...
-			initBestSC(firstSCs.get(0));
-		}
-	}
+		
+        String val;
+        if ((val = parameters.getRacingMethodParameters().get("DefaultClusteredCourse_featureFolder")) != null)
+            featureFolder = val;
+        if ((val = parameters.getRacingMethodParameters().get("DefaultClusteredCourse_featureCacheFolder")) != null)
+            featureCacheFolder = val;
+		
+        rengine = RInterface.getRengine();
+
+        if (rengine.eval("library(asbio)") == null) {
+            rengine.end();
+            throw new Exception("Did not find R library asbio (try running install.packages(\"asbio\")).");
+        }
+        if (rengine.eval("library(survival)") == null) {
+            rengine.end();
+            throw new Exception("Did not find R library survival (should come with R though).");
+        }
+		
+		this.completeCourse = new StratifiedClusterCourse(rengine, api.getExperimentInstances(parameters.getIdExperiment()), null, null, parameters.getMaxParcoursExpansionFactor(), rng, featureFolder, featureCacheFolder).getCourse();
+		
+        if (!firstSCs.isEmpty()) {
+            // TODO: ...
+            initBestSC(firstSCs.get(0));
+        }
+    }
 	
 	private void initBestSC(SolverConfiguration sc) throws Exception {
 		this.bestSC = firstSCs.get(0);
@@ -36,7 +65,12 @@ public class Default extends RacingMethods {
 		int expansion = 0;
 		if (bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
 			expansion = Math.min(parameters.getMaxParcoursExpansionFactor() * num_instances - bestSC.getJobCount(), parameters.getInitialDefaultParcoursLength());
-			pacc.expandParcoursSC(bestSC, expansion);
+			for (int i = 0; i < expansion; i++) {
+                pacc.addJob(bestSC, completeCourse.get(bestSC.getJobCount()).seed,
+                        completeCourse.get(bestSC.getJobCount()).instanceId,
+                        parameters.getMaxParcoursExpansionFactor() * num_instances - bestSC.getJobCount());
+			}
+			//pacc.expandParcoursSC(bestSC, expansion);
 		}
 		if (expansion > 0) {
 			pacc.log("c Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration() + " by " + expansion);
@@ -51,8 +85,8 @@ public class Default extends RacingMethods {
 					break;
 				}
 				pacc.sleep(1000);
+				pacc.validateIncumbent(bestSC);
 			}
-			pacc.validateIncumbent(bestSC);
 		} else {
 			pacc.updateJobsStatus(bestSC);
 		}
@@ -104,7 +138,11 @@ public class Default extends RacingMethods {
 				pacc.log("d Solver config " + sc.getIdSolverConfiguration() + " with cost " + sc.getCost() + " lost against best solver config on " + sc.getJobCount() + " runs.");
 				if (bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
 					pacc.log("c Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration() + " by 1");
-					pacc.expandParcoursSC(bestSC, 1);
+					pacc.addJob(bestSC, completeCourse.get(bestSC.getJobCount()).seed,
+	                        completeCourse.get(bestSC.getJobCount()).instanceId,
+	                        parameters.getMaxParcoursExpansionFactor() * num_instances - bestSC.getJobCount());
+					
+					//pacc.expandParcoursSC(bestSC, 1);
 					pacc.addSolverConfigurationToListNewSC(bestSC);
 				}
 			}

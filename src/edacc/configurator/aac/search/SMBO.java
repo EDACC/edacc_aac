@@ -12,6 +12,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import org.apache.commons.math.MathException;
 import org.apache.commons.math3.distribution.ExponentialDistribution;
@@ -73,8 +76,8 @@ public class SMBO extends SearchMethods {
     
     // Configurable parameters
     private boolean logModel = true;
-    private String selectionCriterion = "ei"; // ei, ocb
-    private int numPC = 7;
+    private String selectionCriterion = "ocb"; // ei, ocb
+    private int numPC = 13;
     private int numInitialConfigurationsFactor = 20; // how many samples per parameter initially
     private int numRandomTheta = 10000; // how many random theta to predict for EI/OCB optimization
     private int maxLocalSearchSteps = 5;
@@ -84,12 +87,16 @@ public class SMBO extends SearchMethods {
     private double ocbExpMu = 1;
     private int EIg = 2; // global search factor {1,2,3}
     private boolean useInstanceIndexFeature = true; // simply use the index of an instance as instance feature
-    private int queueSize = 20; // how many configurations to generate at a time and put into a queue
+    private int queueSize = 40; // how many configurations to generate at a time and put into a queue
     private boolean createIBSConfigs = false;
+    private boolean initialDesignFromDefault = true;
 
     private String samplingPath = "";
     private String featureFolder = null;
     private String featureCacheFolder = null;
+    
+    private int statNumBestRandom = 0;
+    private int statTotalOptimizations = 0;
 
 
     public SMBO(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
@@ -205,6 +212,30 @@ public class SMBO extends SearchMethods {
         sequenceValues = sequence.getSequence(configurableParameters.size(), maxSamples);
         
         generatedConfigs.addAll(firstSCs);
+        pacc.log("c Starting out with " + firstSCs.size() + " default configs");
+        if (initialDesignFromDefault && firstSCs.size() > 0) {
+            List<ParameterConfiguration> defaultMutations = new LinkedList<ParameterConfiguration>();
+            for (SolverConfiguration config: firstSCs) {
+                defaultMutations.addAll(pspace.getGaussianNeighbourhood(config.getParameterConfiguration(), rng, 0.2f, 1, true));
+            }
+            pacc.log("c Using an initial design of " + defaultMutations.size() + " neighbours of the default configurations");
+            
+            for (ParameterConfiguration paramConfig: defaultMutations) {
+                if (api.exists(parameters.getIdExperiment(), paramConfig) != 0) {
+                    pacc.log("c WARNING selected configuration already exists. Skipping");
+                    continue;
+                }
+                int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
+                SolverConfiguration cfg = null;
+                if (createIBSConfigs) {
+                    cfg = createIBSConfig(idSC, paramConfig);
+                } else {
+                    cfg = new SolverConfiguration(idSC, paramConfig, parameters.getStatistics());
+                }
+                generatedConfigs.add(cfg);
+                configurationQueue.add(cfg);
+            }
+        }
     }
 
     @Override
@@ -283,79 +314,12 @@ public class SMBO extends SearchMethods {
             //f_min = inc_theta_pred[0][0];
             pacc.log("c Current best configuration: " + bestConfigs.get(0).getIdSolverConfiguration() + " " + bestConfigs.get(0).getParameterConfiguration().toString() + " with cost " + bestConfigs.get(0).getCost());
             
-            // Samples random parameter configurations
-            start = System.currentTimeMillis();
-            double[][] randomThetas = new double[numRandomTheta][];
-            ParameterConfiguration[] randomParamConfigs = new ParameterConfiguration[numRandomTheta]; 
-            for (int i = 0; i < numRandomTheta; i++) {
-                ParameterConfiguration paramConfig = pspace.getRandomConfiguration(rng);
-                randomThetas[i] = paramConfigToTuple(paramConfig);
-                randomParamConfigs[i] = paramConfig;
-            }
-            pacc.log("c Generating " + numRandomTheta + " random configurations took " + (System.currentTimeMillis() - start) + " ms");
-            
-            start = System.currentTimeMillis();
-            // Predict runtime of the random configurations and calculate improvement measures
-            double[][] randomThetasPred = model.predict(randomThetas);
-            pacc.log("c Predicting " + numRandomTheta + " random configurations took " + (System.currentTimeMillis() - start) + " ms");
-            ThetaPrediction[] thetaPred = new ThetaPrediction[numRandomTheta];
-            ExponentialDistribution expDist = new ExponentialDistribution(ocbExpMu);
-            double[] ocb_lambda = expDist.sample(numConfigsToGenerate);
-            for (int i = 0; i < numRandomTheta; i++) {
-                thetaPred[i] = new ThetaPrediction();
-                thetaPred[i].mu = randomThetasPred[i][0];
-                thetaPred[i].var = randomThetasPred[i][1];
-                thetaPred[i].thetaIdx = i;
-                thetaPred[i].ocb = new double[numConfigsToGenerate];
-    
-                double sigma = Math.sqrt(thetaPred[i].var);
-                double mu = thetaPred[i].mu;
-                
-                for (int j = 0; j < numConfigsToGenerate; j++) thetaPred[i].ocb[j] = -mu + ocb_lambda[j] * sigma;
-                thetaPred[i].ei = calcExpectedImprovement(mu, sigma, f_min);
-            }
-    
-            List<ParameterConfiguration> selectedConfigs = new LinkedList<ParameterConfiguration>();
-            if ("ocb".equals(selectionCriterion)) {
-                // Optimistic confidence bound
-                for (int i = 0; i < numConfigsToGenerate; i++) {
-                    final int j = i;
-                    Arrays.sort(thetaPred, new Comparator<ThetaPrediction>() {
-                        @Override
-                        public int compare(final ThetaPrediction pred1, final ThetaPrediction pred2) {
-                            return -Double.compare(pred1.ocb[j], pred2.ocb[j]); // sort in decreasing order
-                        }
-                    });
-                    
-                    int ix = 0;
-                    ThetaPrediction theta = thetaPred[ix];
-                    while (api.exists(parameters.getIdExperiment(), randomParamConfigs[theta.thetaIdx]) != 0 && ix < thetaPred.length) {
-                        theta = thetaPred[++ix];
-                    }
-                    ParameterConfiguration paramConfig = randomParamConfigs[theta.thetaIdx];
-                    pacc.log("c OCB: Selected configuration " + api.getCanonicalName(parameters.getIdExperiment(), paramConfig) + " with predicted performance: " + theta.mu + " and sigma " + Math.sqrt(theta.var) + " and OCB: " + theta.ocb[i] + " ocb_lambda: " + ocb_lambda[i]);
-                    paramConfig = optimizeLocally(paramConfig, theta.ocb[j], ocb_lambda[j], f_min);
-                    selectedConfigs.add(paramConfig);
+            // Select new configurations
+            for (ParameterConfiguration paramConfig: selectConfigurations(numConfigsToGenerate, f_min)) {
+                if (api.exists(parameters.getIdExperiment(), paramConfig) != 0) {
+                    pacc.log("c WARNING selected configuration already exists. Skipping");
+                    continue;
                 }
-            } else {
-                // EI
-                Arrays.sort(thetaPred, new Comparator<ThetaPrediction>() {
-                    @Override
-                    public int compare(final ThetaPrediction pred1, final ThetaPrediction pred2) {
-                        return -Double.compare(pred1.ei, pred2.ei);
-                    }
-                });
-                
-                for (int i = 0; i < numConfigsToGenerate; i++) {
-                    ThetaPrediction theta = thetaPred[i];
-                    ParameterConfiguration paramConfig = randomParamConfigs[theta.thetaIdx];
-                    pacc.log("c EI: Selected configuration " + api.getCanonicalName(parameters.getIdExperiment(), paramConfig) + " with predicted performance: " + theta.mu + " and sigma " + Math.sqrt(theta.var) + " and EI: " + theta.ei);
-                    paramConfig = optimizeLocally(paramConfig, theta.ei, 0.0, f_min);
-                    selectedConfigs.add(paramConfig);
-                }
-            }
-            
-            for (ParameterConfiguration paramConfig: selectedConfigs) {
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
                 if (createIBSConfigs) {
                     newConfigs.add(createIBSConfig(idSC, paramConfig));
@@ -364,6 +328,7 @@ public class SMBO extends SearchMethods {
                 }
             }
             
+            // Add random configurations too?
             /*for (int i = 0; i < numConfigsToGenerate; i++) {
                 ParameterConfiguration paramConfig = pspace.getRandomConfiguration(rng);
                 int iter = 0;
@@ -373,7 +338,7 @@ public class SMBO extends SearchMethods {
                 newConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
             }*/
 
-            Collections.shuffle(newConfigs);
+            Collections.shuffle(newConfigs, rng);
             generatedConfigs.addAll(newConfigs);
             configurationQueue.addAll(newConfigs);
             
@@ -383,6 +348,167 @@ public class SMBO extends SearchMethods {
             }
             return retConfigs;
         }
+    }
+    
+    private ThetaPrediction[] getThetaPredictions(List<ParameterConfiguration> configs) {
+        double[][] thetas = new double[configs.size()][];
+        ThetaPrediction[] thetaPred = new ThetaPrediction[configs.size()];
+        int ix = 0;
+        for (ParameterConfiguration config: configs) {
+            thetas[ix] = paramConfigToTuple(config);
+            thetaPred[ix] = new ThetaPrediction();
+            thetaPred[ix].paramConfig = config;
+            thetaPred[ix].theta = thetas[ix];
+            ix++;
+        }
+        double[][] preds = model.predict(thetas);
+        for (int i = 0; i < configs.size(); i++) {
+            thetaPred[i].mu = preds[i][0];
+            thetaPred[i].sigma = Math.sqrt(preds[i][1]);
+        }
+        return thetaPred;
+    }
+
+    private List<ParameterConfiguration> selectConfigurations(int numConfigsToGenerate, final double f_min) throws Exception {
+        ExponentialDistribution expDist = new ExponentialDistribution(ocbExpMu);
+        final double[] ocb_lambda = expDist.sample(numConfigsToGenerate);
+        
+        // Get predictions for the current configurations
+        long start = System.currentTimeMillis();
+        List<ParameterConfiguration> listGeneratedConfigs = new LinkedList<ParameterConfiguration>();
+        for (SolverConfiguration config: generatedConfigs) listGeneratedConfigs.add(config.getParameterConfiguration());
+        final ThetaPrediction[] generatedThetaPred = getThetaPredictions(listGeneratedConfigs); 
+        pacc.log("c Predicting " + generatedConfigs.size() + " current configurations took " + (System.currentTimeMillis() - start) + " ms");
+        
+        // Get predictions for random configurations
+        start = System.currentTimeMillis();
+        // Generate random configurations in parallel
+        final List<ParameterConfiguration> randomConfigurations = new LinkedList<ParameterConfiguration>();
+        ExecutorService exec = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+        try {
+            for (int chunk = 0; chunk < Runtime.getRuntime().availableProcessors(); chunk++) {
+                exec.submit(new Runnable() {
+                    @Override
+                    public void run() {
+                        for (int i = 0; i < numRandomTheta / Runtime.getRuntime().availableProcessors(); i++) {
+                            ParameterConfiguration randomConfig = pspace.getRandomConfiguration(rng);
+                            synchronized (randomConfigurations) {
+                                randomConfigurations.add(randomConfig);
+                            }
+                        }
+                    }
+                });
+            }
+        } finally {
+            exec.shutdown();
+        }
+        exec.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
+
+        pacc.log("c Generating " + randomConfigurations.size() + " random configurations took " + (System.currentTimeMillis() - start) + " ms");
+        start = System.currentTimeMillis();
+        final ThetaPrediction[] randomThetaPred = getThetaPredictions(randomConfigurations);
+        pacc.log("c Predicting " + numRandomTheta + " random configurations took " + (System.currentTimeMillis() - start) + " ms");
+        
+        // Optimize criteria
+        start = System.currentTimeMillis();
+        final List<ParameterConfiguration> selectedConfigs = new LinkedList<ParameterConfiguration>();
+        if ("ocb".equals(selectionCriterion)) {
+            ExecutorService execOptimize = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+            try {
+                // Optimize ocb for different lambdas in parallel
+                for (int o = 0; o < numConfigsToGenerate; o++) {
+                    final int j = o;
+                    final String threadInfo = "[ix: " + j + ", lambda: " + ocb_lambda[j] + "]";
+                    
+                    execOptimize.submit(new Runnable() {
+                    @Override
+                    public void run() {
+                        pacc.log("c "+threadInfo+" starting ocb optimization");
+                        ThetaCrit[] thetaCrit = new ThetaCrit[generatedThetaPred.length];
+                        for (int i = 0; i < generatedThetaPred.length; i++) {
+                            thetaCrit[i] = new ThetaCrit();
+                            thetaCrit[i].pred = generatedThetaPred[i];
+                            thetaCrit[i].value = -generatedThetaPred[i].mu + ocb_lambda[j] * generatedThetaPred[i].sigma; 
+                        }
+                        pacc.log("c "+threadInfo+" calculated ocb of current configurations");
+                        Arrays.sort(thetaCrit);
+                        pacc.log("c "+threadInfo+" sorted ocb of current configurations");
+                        
+                        ThetaCrit[] randomThetaCrit = new ThetaCrit[numRandomTheta];
+                        double bestRandomValue = Double.NEGATIVE_INFINITY;
+                        for (int i = 0; i < numRandomTheta; i++) {
+                            randomThetaCrit[i] = new ThetaCrit();
+                            randomThetaCrit[i].pred = randomThetaPred[i];
+                            randomThetaCrit[i].value = -randomThetaPred[i].mu + ocb_lambda[j] * randomThetaPred[i].sigma;
+                            if (randomThetaCrit[i].value > bestRandomValue) bestRandomValue = randomThetaCrit[i].value;
+                        }
+                        pacc.log("c "+threadInfo+" Best random configuration has ocb " + bestRandomValue);
+                        
+                        final int numLS = 10;
+                        
+                        ThetaCrit[] allThetaCrit = new ThetaCrit[numRandomTheta + Math.min(numLS, generatedThetaPred.length)];
+                        // Optimize the top-numLS configurations using local search
+                        for (int i = 0; i < Math.min(numLS, generatedThetaPred.length); i++) {
+                            ParameterConfiguration paramConfig = thetaCrit[i].pred.paramConfig;
+                            pacc.log("c "+threadInfo+" Starting local search from current configuration with ocb " + thetaCrit[i].value);
+                            try {
+                                paramConfig = optimizeLocally(paramConfig, thetaCrit[i].value, ocb_lambda[j], f_min);
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+                            thetaCrit[i].pred = new ThetaPrediction();
+                            thetaCrit[i].pred.theta = paramConfigToTuple(paramConfig);
+                            thetaCrit[i].pred.paramConfig = paramConfig;
+                            double[][] newPred = model.predict(new double[][] { thetaCrit[i].pred.theta });
+                            thetaCrit[i].pred.mu = newPred[0][0];
+                            thetaCrit[i].pred.sigma = Math.sqrt(newPred[0][1]);
+                            thetaCrit[i].value = -thetaCrit[i].pred.mu + ocb_lambda[j] * thetaCrit[i].pred.sigma;
+                            pacc.log("c "+threadInfo+" LS optimized configuration to ocb " + thetaCrit[i].value);
+                            allThetaCrit[i] = thetaCrit[i];
+                        }
+                        
+                        // Now combine the top numLS configurations with the random configurations
+                        for (int i = 0; i < numRandomTheta; i++) {
+                            allThetaCrit[Math.min(numLS, generatedThetaPred.length) + i] = randomThetaCrit[i];
+                        }
+        
+                        // Sort again
+                        Arrays.sort(allThetaCrit);
+        
+                        // and use one of the final best ones for this ocb_lambda value
+                        int numBest = 1;
+                        double valBest = allThetaCrit[0].value;
+                        while (numBest < allThetaCrit.length && allThetaCrit[numBest].value == valBest) {
+                           numBest++;
+                        }
+                        
+                        pacc.log("c "+threadInfo+" OCB maximization found " + numBest + " configurations with same ocb. Choosing at random.");
+                        int ix = rng.nextInt(numBest);
+                        ThetaCrit selectedThetaCrit = allThetaCrit[ix];
+                        synchronized (selectedConfigs) {
+                            while (selectedConfigs.contains(selectedThetaCrit.pred.paramConfig) && ix < allThetaCrit.length) {
+                                pacc.log("c " + threadInfo + " Selected configuration already in the list. Trying next one");
+                                selectedThetaCrit = allThetaCrit[ix++];
+                            }
+                            statTotalOptimizations++;
+                            if (selectedThetaCrit.value == bestRandomValue) {
+                                statNumBestRandom++;
+                            }
+                            selectedConfigs.add(selectedThetaCrit.pred.paramConfig);
+                        }
+                        pacc.log("c "+threadInfo+" OCB maximization selected configuration with ocb " + selectedThetaCrit.value + " -- Configuration: " + selectedThetaCrit.pred.paramConfig);
+                    }
+                    });
+                }
+            } finally {
+                execOptimize.shutdown();
+            }
+            execOptimize.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
+        } else {
+            // EI
+        }
+        pacc.log("c Optimizing ocb criteria to select " + numConfigsToGenerate +  " configurations took " + (System.currentTimeMillis() - start) + " ms");
+        return selectedConfigs;
     }
     
     private SolverConfiguration createIBSConfig(int idSC, ParameterConfiguration paramConfig) {
@@ -434,6 +560,7 @@ public class SMBO extends SearchMethods {
     private ParameterConfiguration optimizeLocally(ParameterConfiguration paramConfig, double startCriterionValue, double ocb_lambda, double f_min) throws Exception {
         ParameterConfiguration incumbent = paramConfig;
         int localSearchSteps = 0;
+        final double eps = 1e-5;
         double incCriterionValue = startCriterionValue;
         while (localSearchSteps++ < maxLocalSearchSteps) {
             List<ParameterConfiguration> nbrs = pspace.getGaussianNeighbourhood(incumbent, rng, lsStddev, lsSamples, true);
@@ -442,7 +569,7 @@ public class SMBO extends SearchMethods {
             double[][] nbrsThetaPred = model.predict(nbrsTheta);
             
             int bestIx = -1;
-            double bestIxValue = startCriterionValue;
+            double bestIxValue = incCriterionValue;
 
             for (int i = 0; i < nbrs.size(); i++) {
                 double sigma = Math.sqrt(nbrsThetaPred[i][1]);
@@ -455,7 +582,8 @@ public class SMBO extends SearchMethods {
                     criterionValue = calcExpectedImprovement(mu, sigma, f_min);
                 }
                 
-                if (criterionValue > bestIxValue) {
+                if (criterionValue > bestIxValue + eps) {
+                    // check if this neighbour significantly (more than eps) improves the criterion
                     bestIx = i;
                     bestIxValue = criterionValue;
                     incCriterionValue = criterionValue;
@@ -466,7 +594,6 @@ public class SMBO extends SearchMethods {
             
             incumbent = nbrs.get(bestIx);
         }
-        pacc.log("Local search improved configuration to " + api.getCanonicalName(parameters.getIdExperiment(), incumbent) + " with criterion value: " + incCriterionValue);
         return incumbent;
     }
     
@@ -507,8 +634,6 @@ public class SMBO extends SearchMethods {
                 jIx++;
             }
         }
-        
-        System.out.println("maxy: " + maxy);
 
         model.learnModel(theta, instanceFeatures, configurableParameters.size(), instanceFeatureNames.size(), theta_inst_idxs, y, censored);
     }
@@ -547,6 +672,8 @@ public class SMBO extends SearchMethods {
             featureFolder = val;
         if ((val = parameters.getSearchMethodParameters().get("SMBO_featureCacheFolder")) != null)
             featureCacheFolder = val;
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_initialDesignFromDefault")) != null)
+            initialDesignFromDefault = Integer.valueOf(val) == 1;
     }
 
     @Override
@@ -566,13 +693,17 @@ public class SMBO extends SearchMethods {
         p.add("SMBO_EIg = "+this.EIg+ " % (global search parameter g in the expected improvement criterion, integer in {1,2,3}, 1=original criterion, 3=more global search behaviour)");
         p.add("SMBO_queueSize = "+this.queueSize+ " % (How many configurations to generate at a time using SMBO. Also the maxmimum number of configurations returned to racing at a time.)");
         p.add("SMBO_createIBSConfigs = "+this.createIBSConfigs+ " % (Create IBS configs)");
+        p.add("SMBO_featureFolder = "+this.featureFolder == null ? "n/a" : this.featureFolder+ " % (Instance features folder)");
+        p.add("SMBO_featureCacheFolder = "+this.featureCacheFolder == null ? "n/a" : this.featureCacheFolder+ " % (Instance features cache folder)");
+        p.add("SMBO_initialDesignFromDefault = "+this.initialDesignFromDefault+ " % (Create a initial design by evaluating the neighbourhoods of the default configurations)");
         p.add("% -----------------------\n");
         return p;
     }
 
     @Override
     public void searchFinished() {
-        pacc.log("Calculating variable importance measures from OOB samples:");
+        pacc.log("c Out of " + statTotalOptimizations + " criterion optimizations, " + statNumBestRandom + " where due to a random config");
+        pacc.log("c Calculating variable importance measures from OOB samples:");
         double[] VI = model.calculateVI();
         for (int i = 0; i < configurableParameters.size(); i++) {
             pacc.log(configurableParameters.get(i).getName() + ": " + VI[i]);
@@ -700,10 +831,20 @@ public class SMBO extends SearchMethods {
         }
         return pc;
     }
-
+    
+    class ThetaCrit implements Comparable<ThetaCrit> {
+        ThetaPrediction pred;
+        double value;
+        
+        @Override
+        public int compareTo(ThetaCrit o) {
+            return -Double.compare(this.value, o.value);
+        }
+    }
+    
     class ThetaPrediction {
-        double mu, var, ei;
-        int thetaIdx;
-        double[] ocb;
+        ParameterConfiguration paramConfig;
+        double[] theta;
+        double mu, sigma;
     }
 }

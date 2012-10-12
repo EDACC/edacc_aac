@@ -1,5 +1,6 @@
 package edacc.configurator.aac.course;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -15,6 +16,7 @@ import org.rosuda.JRI.Rengine;
 import edacc.model.Instance;
 import edacc.model.InstanceDAO;
 import edacc.model.InstanceHasProperty;
+import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.math.ClusterSilhouette;
 
@@ -36,12 +38,12 @@ import edacc.configurator.math.ClusterSilhouette;
 public class StratifiedClusterCourse {
     private List<InstanceIdSeed> course;
 
-    public StratifiedClusterCourse(Rengine rengine, List<Instance> instances, List<String> instanceFeatureNames, List<String> instanceSizeFeatureNames, int maxExpansionFactor, Random rng) throws Exception {
+    public StratifiedClusterCourse(Rengine rengine, List<Instance> instances, List<String> instanceFeatureNames, List<String> instanceSizeFeatureNames, int maxExpansionFactor, Random rng, String featureFolder, String featureCacheFolder) throws Exception {
         if (instances.size() == 0) throw new IllegalArgumentException("List of instances has to contain at least one instance.");
         if (maxExpansionFactor <= 0) throw new IllegalArgumentException("maxExpansionFactor has to be >= 1.");
         this.course = new ArrayList<InstanceIdSeed>(maxExpansionFactor * instances.size());
         
-        if (instanceFeatureNames == null || instanceFeatureNames.size() == 0) {
+        if ((instanceFeatureNames == null || instanceFeatureNames.size() == 0) && featureFolder == null) {
             // no features given, shuffle instances
             List<Instance> shuffledInstances = new LinkedList<Instance>(instances);
             Collections.shuffle(shuffledInstances);
@@ -52,24 +54,44 @@ public class StratifiedClusterCourse {
             }
             return;
         }
+        
+        Collections.shuffle(instances, rng);
+       
+        if (instanceFeatureNames == null) instanceFeatureNames = new LinkedList<String>();
+        if (instanceSizeFeatureNames == null) instanceSizeFeatureNames = new LinkedList<String>();
+        
+        if (featureFolder != null) {
+            for (String feature: AAC.getFeatureNames(new File(featureFolder))) instanceFeatureNames.add(feature);
+        } else {
+            // TODO: Load from configuration?
+            //instanceFeatureNames.add("POSNEG-RATIO-CLAUSE-mean");
+        }
 
         double[][] instanceFeatures = new double[instances.size()][instanceFeatureNames.size()];
         final double[][] instanceSizeFeatures = new double[instances.size()][instanceSizeFeatureNames.size()];
         for (Instance instance: instances) {
             Map<String, Float> featureValueByName = new HashMap<String, Float>();
             Map<String, Float> sizeFeatureValueByName = new HashMap<String, Float>();
-            for (InstanceHasProperty ihp: instance.getPropertyValues().values()) {
-                if (instanceFeatureNames.contains(ihp.getProperty().getName())) {
-                    try {
-                        featureValueByName.put(ihp.getProperty().getName(), Float.valueOf(ihp.getValue()));
-                    } catch (Exception e) {
-                        throw new RuntimeException("All instance features have to be numeric (convertible to a Java Float).");
-                    }
-                } else if (instanceSizeFeatureNames.contains(ihp.getProperty().getName())) {
-                    try {
-                        sizeFeatureValueByName.put(ihp.getProperty().getName(), Float.valueOf(ihp.getValue()));
-                    } catch (Exception e) {
-                        throw new RuntimeException("All instance features have to be numeric (convertible to a Java Float).");
+            
+            if (featureFolder != null) {
+                float[] featureValues = AAC.calculateFeatures(instance.getId(), new File(featureFolder), new File(featureCacheFolder));
+                for (int i = 0; i < featureValues.length; i++) {
+                    featureValueByName.put(instanceFeatureNames.get(i), featureValues[i]);
+                }
+            } else {
+                for (InstanceHasProperty ihp: instance.getPropertyValues().values()) {
+                    if (instanceFeatureNames.contains(ihp.getProperty().getName())) {
+                        try {
+                            featureValueByName.put(ihp.getProperty().getName(), Float.valueOf(ihp.getValue()));
+                        } catch (Exception e) {
+                            throw new RuntimeException("All instance features have to be numeric (convertible to a Java Float).");
+                        }
+                    } else if (instanceSizeFeatureNames.contains(ihp.getProperty().getName())) {
+                        try {
+                            sizeFeatureValueByName.put(ihp.getProperty().getName(), Float.valueOf(ihp.getValue()));
+                        } catch (Exception e) {
+                            throw new RuntimeException("All instance features have to be numeric (convertible to a Java Float).");
+                        }
                     }
                 }
             }
@@ -116,8 +138,24 @@ public class StratifiedClusterCourse {
         
         
         ClusterSilhouette sc = new ClusterSilhouette(rengine, cleanedFeatures.length, cleanedFeatures[0].length, cleanedFeatures);
-        int k = sc.findNumberOfClusters((int)Math.sqrt(instances.size())); // TODO rule of thumb: #instance clusters = sqrt(#instances / 2)
-        Object[] clustering = kMeans(cleanedFeatures, k, rng);
+        int k = sc.findNumberOfClusters((int)Math.sqrt(instances.size()));
+        int[] classigns = sc.clusterData(k);
+        int[] count_by_cluster = new int[k];
+        for (int i = 0; i < instances.size(); i++) {
+            classigns[i] -= 1; // relabel clusters from 1 through k to 0 through k - 1
+            count_by_cluster[classigns[i]]++;
+        }
+        int[][] S = new int[k][];
+        for (int c = 0; c < k; c++) {
+            S[c] = new int[count_by_cluster[c]];
+        }
+        
+        count_by_cluster = new int[k];
+        for (int i = 0; i < instances.size(); i++) {
+            S[classigns[i]][count_by_cluster[classigns[i]]++] = i;
+        }
+        
+        /*Object[] clustering = kMeans(cleanedFeatures, k, rng);
         double C[][] = (double[][])clustering[0];
         int S[][] = (int[][])clustering[1];
         
@@ -139,7 +177,7 @@ public class StratifiedClusterCourse {
                 }
             });
             for (int i = 0; i < sorted.length; i++) S[c][i] = sorted[i];
-        }
+        }*/
         
         // build course
         for (int e = 0; e < maxExpansionFactor; e++) {

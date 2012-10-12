@@ -933,7 +933,7 @@ public class AAC {
 	 * Logs <code>message</code> to standard output.
 	 * @param message the message
 	 */
-	public void log(String message) {
+	public synchronized void log(String message) {
 		if (System.currentTimeMillis() - lastStats > 120*1000) {
 			lastStats = System.currentTimeMillis();
 			log("Walltime: " + getWallTime() + ",CPUTime: " + cumulatedCPUTime + ",NumSC: " + statNumSolverConfigs + ",NumJobs: " + statNumJobs);
@@ -1040,4 +1040,17 @@ public class AAC {
         in.close();
         return properties.getProperty("Features").split(",");
 	}
+	
+	   
+    public void validateIncumbent(SolverConfiguration incumbent) throws Exception {
+        if (parameters.getIdExperimentEvaluation() == -1) return;
+        
+        String validationName = String.valueOf(parameters.getIdExperiment()) + "," + incumbent.getIdSolverConfiguration() + "," + 
+                String.valueOf(cumulatedCPUTime) + "," + String.valueOf(getWallTime()) + "," +
+                String.valueOf(incumbent.getCost()) + "," + String.valueOf(incumbent.getNumFinishedJobs());
+        
+        int idSC = api.createSolverConfig(parameters.getIdExperimentEvaluation(), incumbent.getParameterConfiguration(), validationName);
+        
+        log("c Added incumbent to validation experiment " + parameters.getIdExperimentEvaluation() + " with name: " + validationName);
+    }
 }

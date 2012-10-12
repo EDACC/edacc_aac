@@ -47,6 +47,7 @@ public class ClusterSilhouette {
         rengine.eval("data <- matrix(data, nrow=" + r + ", ncol=" + c + ", byrow=T)");
         rengine.eval("data_dist = dist(data)");
         rengine.eval("hc = hclust(data_dist)");
-        return rengine.eval("cutree(hc, " + k + ") - 1").asIntArray();
+        rengine.eval("cl = cutree(hc, " + k + ")");
+        return rengine.eval("cl").asIntArray();
     }
 }
