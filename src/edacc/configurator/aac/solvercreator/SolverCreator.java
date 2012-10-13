@@ -65,7 +65,6 @@ public class SolverCreator {
 			properties.load(in);
 			in.close();
 		} else {
-
 			InputStream in = Clustering.class.getResourceAsStream("settings.properties");
 			if (in != null) {
 				// starting within eclipse
@@ -254,7 +253,7 @@ public class SolverCreator {
 
 			// create clustering
 			C = new Clustering(instanceIds, featureMapping);
-			CostFunction f = new PARX(Cost.resultTime, true, 0, 1);
+			CostFunction f = new PARX(Cost.cost, true, 0, 1);
 			
 			// load experiment results
 			HashMap<Pair<Integer, Integer>, List<ExperimentResult>> results = new HashMap<Pair<Integer, Integer>, List<ExperimentResult>>();
@@ -692,7 +691,7 @@ public class SolverCreator {
 	            bw.write("FeaturesBin = " + properties.getProperty("FeaturesRunCommand") + "\n");
 	            bw.write("FeaturesParameters = " + properties.getProperty("FeaturesParameters") + "\n");
 	            for (edacc.model.SolverBinaries binary : binaries) {
-	            	bw.write("SolverBin_" + binary.getId() + " = ./" + binary.getRunPath() + "\n");
+	            	bw.write("SolverBin_" + binary.getId() + " = " + (binary.getRunCommand() == "" ? "" : binary.getRunCommand() + " ") + "./" + binary.getRunPath() + "\n");
 	            }
 	            bw.write("Data = ./data\n");
 	            bw.close();
@@ -701,7 +700,7 @@ public class SolverCreator {
 	            System.out.println("Creating start script..");
 	            fw = new FileWriter(new File(solverFolder, "start.sh").getAbsoluteFile());
 	            bw = new BufferedWriter(fw);
-	            bw.write("#!/bin/bash\njava -Xmx1024M -jar SolverLauncher.jar $1 $2 $3\n");
+	            bw.write("#!/bin/bash\njava -Xmx1024M -jar SolverLauncher.jar $@\n");
 	            bw.close();
 	            fw.close();
 			} else {

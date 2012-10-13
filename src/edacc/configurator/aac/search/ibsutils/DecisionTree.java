@@ -573,7 +573,8 @@ public class DecisionTree {
 		return new SearchResult(configs, parameters, instanceIds);
 	}*/
 	
-	private SearchResult getDomainOrNull(Node node, double stddev, Domain[] domains, List<Integer> parameter_indexes) {
+	private List<SearchResult> getDomainOrNull(Node node, double stddev, Domain[] domains, List<Integer> parameter_indexes) {
+		List<SearchResult> res = new LinkedList<SearchResult>();
 		System.out.println("[DecisionTree] getDomainOrNull " + parameter_indexes.size());
 		if (node.left == null && node.right == null && node.nullNode == null) {
 			if (node.results.size() <= max_results || node.stddev > stddev) {
@@ -595,10 +596,9 @@ public class DecisionTree {
 				for (int p_index: parameter_indexes) {
 					sortedParams.add(params.get(p_index));
 				}
-				
-				return new SearchResult(configs, parameters, instanceIds, sortedParams, node.stddev);
+				res.add(new SearchResult(configs, parameters, instanceIds, sortedParams, node.stddev));
 			}
-			return null;
+			return res;
 		}
 		
 		SearchResult result = null;
@@ -613,11 +613,11 @@ public class DecisionTree {
 				parameter_indexes.add(p_index);
 			}
 			
-			result = getDomainOrNull(node.left, stddev, domains, parameter_indexes);
+			res.addAll(getDomainOrNull(node.left, stddev, domains, parameter_indexes));
 			
-			if (result != null && result.stddev >= stddev) {
+			/*if (result != null && result.stddev >= stddev) {
 				return result;
-			}
+			}*/
 			// backtracking
 			if (node.left.domain != null) {
 				domains[p_index] = tmpDomain;
@@ -636,11 +636,11 @@ public class DecisionTree {
 				parameter_indexes.add(p_index);
 			}
 			
-			result = getDomainOrNull(node.right, stddev, domains, parameter_indexes);
+			res.addAll(getDomainOrNull(node.right, stddev, domains, parameter_indexes));
 			
-			if (result != null && result.stddev >= stddev) {
+			/*if (result != null && result.stddev >= stddev) {
 				return result;
-			}
+			}*/
 			// backtracking
 			if (node.right.domain != null) {
 				domains[p_index] = tmpDomain;
@@ -648,18 +648,18 @@ public class DecisionTree {
 			}			
 		}
 		if (node.nullNode != null) {
-			result = getDomainOrNull(node.nullNode, stddev, domains, parameter_indexes);
-			if (result != null && result.stddev >= stddev) {
+			res.addAll(getDomainOrNull(node.nullNode, stddev, domains, parameter_indexes));
+			/*if (result != null && result.stddev >= stddev) {
 				return result;
-			}
+			}*/
 		}
-		if (result == null || result.stddev < stddev) {
+		/*if (result == null || result.stddev < stddev) {
 			return null;
-		}
-		return result;
+		}*/
+		return res;
 	}
 	
-	public QueryResult query(double beta) {
+	public List<QueryResult> query(double beta) {
 		Domain[] domains = new Domain[params.size() + instanceProperties.size() + 1];
 		int d_index = 0;
 		attributes = new ArrayList<Attribute>();
@@ -674,11 +674,15 @@ public class DecisionTree {
 		attributes.add(new Attribute(new SampleValueType("instanceId"), instanceIdDomain, d_index));
 		domains[d_index++] = instanceIdDomain;
 		
-		SearchResult sr = getDomainOrNull(root, beta, domains, new LinkedList<Integer>());
-		if (sr == null) {
-			return null;
+		List<QueryResult> res = new LinkedList<QueryResult>();
+		List<SearchResult> sr = getDomainOrNull(root, beta, domains, new LinkedList<Integer>());
+		for (SearchResult s : sr) {
+			res.add(new QueryResult (s.configs, s.parameters, s.instanceIds, s.parametersSorted, s.stddev));
 		}
-		return new QueryResult (sr.configs, sr.parameters, sr.instanceIds, sr.parametersSorted, sr.stddev);
+		/*if (sr == null) {
+			return null;
+		}*/
+		return res;
 	}
 	
 	public class QueryResult {

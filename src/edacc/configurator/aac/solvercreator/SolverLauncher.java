@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Properties;
@@ -14,9 +15,21 @@ import edacc.util.Pair;
 
 public class SolverLauncher {	
 	public static void main(String[] args) throws Exception {
-		if (args.length != 3) {
-			System.out.println("algorithm instance seed");
-			return;
+		if (args.length < 3) {
+			System.out.println("algorithm instance seed [tempdir=<tempdir>]");
+			System.exit(1);
+		}
+		String tempdir = null;
+		for (int i = 3; i < args.length; i++) {
+			String[] values = args[i].split("=");
+			System.out.println(Arrays.toString(values));
+			if (values.length != 2) {
+				System.out.println("algorithm instance seed [tempdir=<tempdir>]");
+				System.exit(1);
+			}
+			if (values[0].equals("tempdir")) {
+				tempdir = values[1];
+			}
 		}
 		
 		// load properties
@@ -108,8 +121,17 @@ public class SolverLauncher {
 		String solver_bin = properties.getProperty("SolverBin_" + sbid);
 		
 		params = params.replaceAll("<instance>", args[1].replaceAll("\\\\", "\\\\\\\\")).replaceAll("<seed>", args[2]);
-		System.out.println("c Parameters: " + params);
 		
+		if (params.contains("<tempdir>")) {
+			if (tempdir == null) {
+				System.out.println("no tempdir specified in parameter line.");
+				System.exit(1);
+			} else {
+				params = params.replaceAll("<tempdir>", tempdir.replaceAll("\\\\", "\\\\\\\\"));
+			}
+		}
+		System.out.println("c Parameters: " + params);
+
 		p = Runtime.getRuntime().exec(solver_bin + " " + params, null, new File("binary_" + sbid));
 		br = new BufferedReader(new InputStreamReader(p.getInputStream()));
 		String line;
