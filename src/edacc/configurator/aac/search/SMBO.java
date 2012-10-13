@@ -63,6 +63,7 @@ public class SMBO extends SearchMethods {
     private Map<Integer, Integer> instanceFeaturesIx = new HashMap<Integer, Integer>();
     private double[][] instanceFeatures;
     private List<SolverConfiguration> configurationQueue = new LinkedList<SolverConfiguration>();
+    private List<SolverConfiguration> initialDesignConfigs = new LinkedList<SolverConfiguration>();
     
     private final int maxSamples = 100000;
     private SamplingSequence sequence;
@@ -105,6 +106,7 @@ public class SMBO extends SearchMethods {
         parseSMBOParameters();
         
         pspace = api.loadParameterGraphFromDB(parameters.getIdExperiment());
+        ParameterGraph.calculateChecksums = false;
         
         if (featureFolder != null) {
             for (String feature: AAC.getFeatureNames(new File(featureFolder))) instanceFeatureNames.add(feature);
@@ -212,6 +214,7 @@ public class SMBO extends SearchMethods {
         sequenceValues = sequence.getSequence(configurableParameters.size(), maxSamples);
         
         generatedConfigs.addAll(firstSCs);
+        initialDesignConfigs.addAll(firstSCs);
         pacc.log("c Starting out with " + firstSCs.size() + " default configs");
         if (initialDesignFromDefault && firstSCs.size() > 0) {
             List<ParameterConfiguration> defaultMutations = new LinkedList<ParameterConfiguration>();
@@ -234,6 +237,7 @@ public class SMBO extends SearchMethods {
                 }
                 generatedConfigs.add(cfg);
                 configurationQueue.add(cfg);
+                initialDesignConfigs.add(cfg);
             }
         }
     }
@@ -256,6 +260,7 @@ public class SMBO extends SearchMethods {
                 rssConfigs.add(new SolverConfiguration(idSC, pc, parameters.getStatistics()));
             }
             generatedConfigs.addAll(rssConfigs);
+            initialDesignConfigs.addAll(rssConfigs);
             return rssConfigs;
         }
         
@@ -275,10 +280,20 @@ public class SMBO extends SearchMethods {
             pacc.log("c Returning " + newConfigs.size() + " configurations from the queue.");
             return newConfigs;
         } else {
+            boolean allInitialDone = true;
+            for (SolverConfiguration config: initialDesignConfigs) {
+                if (config.getNumFinishedJobs() != config.getJobCount()) {
+                    allInitialDone = false;
+                }
+            }
+            if (!allInitialDone) {
+                pacc.log("c Waiting until initial design is evaluated");
+                return new LinkedList<SolverConfiguration>();
+            }
             // refill queue
             int numConfigsToGenerate = queueSize;
             pacc.log("c Generating " + numConfigsToGenerate + " configurations to refill the queue.");
-            
+
             // Update the model
             int numJobs = 0;
             for (SolverConfiguration config: generatedConfigs) {
@@ -337,7 +352,7 @@ public class SMBO extends SearchMethods {
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
                 newConfigs.add(new SolverConfiguration(idSC, paramConfig, parameters.getStatistics()));
             }*/
-
+            pacc.log("Adding " + newConfigs.size() + " configurations to the queue");
             Collections.shuffle(newConfigs, rng);
             generatedConfigs.addAll(newConfigs);
             configurationQueue.addAll(newConfigs);
@@ -346,6 +361,7 @@ public class SMBO extends SearchMethods {
             for (int i = 0; i < Math.min(configurationQueue.size(), num); i++) {
                 retConfigs.add(configurationQueue.remove(0));
             }
+
             return retConfigs;
         }
     }
@@ -423,16 +439,16 @@ public class SMBO extends SearchMethods {
                     execOptimize.submit(new Runnable() {
                     @Override
                     public void run() {
-                        pacc.log("c "+threadInfo+" starting ocb optimization");
+                        //pacc.log("c "+threadInfo+" starting ocb optimization");
                         ThetaCrit[] thetaCrit = new ThetaCrit[generatedThetaPred.length];
                         for (int i = 0; i < generatedThetaPred.length; i++) {
                             thetaCrit[i] = new ThetaCrit();
                             thetaCrit[i].pred = generatedThetaPred[i];
                             thetaCrit[i].value = -generatedThetaPred[i].mu + ocb_lambda[j] * generatedThetaPred[i].sigma; 
                         }
-                        pacc.log("c "+threadInfo+" calculated ocb of current configurations");
+                        //pacc.log("c "+threadInfo+" calculated ocb of current configurations");
                         Arrays.sort(thetaCrit);
-                        pacc.log("c "+threadInfo+" sorted ocb of current configurations");
+                        //pacc.log("c "+threadInfo+" sorted ocb of current configurations");
                         
                         ThetaCrit[] randomThetaCrit = new ThetaCrit[numRandomTheta];
                         double bestRandomValue = Double.NEGATIVE_INFINITY;
@@ -442,15 +458,15 @@ public class SMBO extends SearchMethods {
                             randomThetaCrit[i].value = -randomThetaPred[i].mu + ocb_lambda[j] * randomThetaPred[i].sigma;
                             if (randomThetaCrit[i].value > bestRandomValue) bestRandomValue = randomThetaCrit[i].value;
                         }
-                        pacc.log("c "+threadInfo+" Best random configuration has ocb " + bestRandomValue);
+                        //pacc.log("c "+threadInfo+" Best random configuration has ocb " + bestRandomValue);
                         
                         final int numLS = 10;
-                        
+                        long lsStart = System.currentTimeMillis();
                         ThetaCrit[] allThetaCrit = new ThetaCrit[numRandomTheta + Math.min(numLS, generatedThetaPred.length)];
                         // Optimize the top-numLS configurations using local search
                         for (int i = 0; i < Math.min(numLS, generatedThetaPred.length); i++) {
                             ParameterConfiguration paramConfig = thetaCrit[i].pred.paramConfig;
-                            pacc.log("c "+threadInfo+" Starting local search from current configuration with ocb " + thetaCrit[i].value);
+                            //pacc.log("c "+threadInfo+" Starting local search from current configuration with ocb " + thetaCrit[i].value);
                             try {
                                 paramConfig = optimizeLocally(paramConfig, thetaCrit[i].value, ocb_lambda[j], f_min);
                             } catch (Exception e) {
@@ -463,10 +479,10 @@ public class SMBO extends SearchMethods {
                             thetaCrit[i].pred.mu = newPred[0][0];
                             thetaCrit[i].pred.sigma = Math.sqrt(newPred[0][1]);
                             thetaCrit[i].value = -thetaCrit[i].pred.mu + ocb_lambda[j] * thetaCrit[i].pred.sigma;
-                            pacc.log("c "+threadInfo+" LS optimized configuration to ocb " + thetaCrit[i].value);
+                            //pacc.log("c "+threadInfo+" LS optimized configuration to ocb " + thetaCrit[i].value);
                             allThetaCrit[i] = thetaCrit[i];
                         }
-                        
+                        pacc.log("c "+threadInfo+" LS optimization took " + (System.currentTimeMillis() - lsStart) + " ms");
                         // Now combine the top numLS configurations with the random configurations
                         for (int i = 0; i < numRandomTheta; i++) {
                             allThetaCrit[Math.min(numLS, generatedThetaPred.length) + i] = randomThetaCrit[i];
@@ -482,21 +498,23 @@ public class SMBO extends SearchMethods {
                            numBest++;
                         }
                         
-                        pacc.log("c "+threadInfo+" OCB maximization found " + numBest + " configurations with same ocb. Choosing at random.");
+                        pacc.log("c "+threadInfo+" OCB maximization found " + numBest + " configurations with same ocb. Choosing top 1 starting from randomly chosen best.");
+                        int numChosen = 0;
                         int ix = rng.nextInt(numBest);
-                        ThetaCrit selectedThetaCrit = allThetaCrit[ix];
-                        synchronized (selectedConfigs) {
-                            while (selectedConfigs.contains(selectedThetaCrit.pred.paramConfig) && ix < allThetaCrit.length) {
-                                pacc.log("c " + threadInfo + " Selected configuration already in the list. Trying next one");
-                                selectedThetaCrit = allThetaCrit[ix++];
+                        for (int i = ix; i < allThetaCrit.length && numChosen < 1; i++) {
+                            ThetaCrit selectedThetaCrit = allThetaCrit[i];
+                            synchronized (selectedConfigs) {
+                                selectedThetaCrit.pred.paramConfig.updateChecksum();
+                                if (selectedConfigs.contains(selectedThetaCrit.pred.paramConfig)) continue;
+                                selectedConfigs.add(selectedThetaCrit.pred.paramConfig);
                             }
                             statTotalOptimizations++;
+                            numChosen++;
                             if (selectedThetaCrit.value == bestRandomValue) {
                                 statNumBestRandom++;
                             }
-                            selectedConfigs.add(selectedThetaCrit.pred.paramConfig);
+                            pacc.log("c "+threadInfo+" OCB maximization selected configuration with ocb " + selectedThetaCrit.value + " -- Configuration: " + selectedThetaCrit.pred.paramConfig);
                         }
-                        pacc.log("c "+threadInfo+" OCB maximization selected configuration with ocb " + selectedThetaCrit.value + " -- Configuration: " + selectedThetaCrit.pred.paramConfig);
                     }
                     });
                 }
@@ -507,6 +525,7 @@ public class SMBO extends SearchMethods {
         } else {
             // EI
         }
+        
         pacc.log("c Optimizing ocb criteria to select " + numConfigsToGenerate +  " configurations took " + (System.currentTimeMillis() - start) + " ms");
         return selectedConfigs;
     }
