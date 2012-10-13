@@ -64,6 +64,7 @@ public class SMBO extends SearchMethods {
     private double[][] instanceFeatures;
     private List<SolverConfiguration> configurationQueue = new LinkedList<SolverConfiguration>();
     private List<SolverConfiguration> initialDesignConfigs = new LinkedList<SolverConfiguration>();
+    private Set<ParameterConfiguration> allSelectedConfigs = new HashSet<ParameterConfiguration>();
     
     private final int maxSamples = 100000;
     private SamplingSequence sequence;
@@ -439,17 +440,6 @@ public class SMBO extends SearchMethods {
                     execOptimize.submit(new Runnable() {
                     @Override
                     public void run() {
-                        //pacc.log("c "+threadInfo+" starting ocb optimization");
-                        ThetaCrit[] thetaCrit = new ThetaCrit[generatedThetaPred.length];
-                        for (int i = 0; i < generatedThetaPred.length; i++) {
-                            thetaCrit[i] = new ThetaCrit();
-                            thetaCrit[i].pred = generatedThetaPred[i];
-                            thetaCrit[i].value = -generatedThetaPred[i].mu + ocb_lambda[j] * generatedThetaPred[i].sigma; 
-                        }
-                        //pacc.log("c "+threadInfo+" calculated ocb of current configurations");
-                        Arrays.sort(thetaCrit);
-                        //pacc.log("c "+threadInfo+" sorted ocb of current configurations");
-                        
                         ThetaCrit[] randomThetaCrit = new ThetaCrit[numRandomTheta];
                         double bestRandomValue = Double.NEGATIVE_INFINITY;
                         for (int i = 0; i < numRandomTheta; i++) {
@@ -458,9 +448,17 @@ public class SMBO extends SearchMethods {
                             randomThetaCrit[i].value = -randomThetaPred[i].mu + ocb_lambda[j] * randomThetaPred[i].sigma;
                             if (randomThetaCrit[i].value > bestRandomValue) bestRandomValue = randomThetaCrit[i].value;
                         }
-                        //pacc.log("c "+threadInfo+" Best random configuration has ocb " + bestRandomValue);
                         
-                        final int numLS = 10;
+
+                        ThetaCrit[] thetaCrit = new ThetaCrit[generatedThetaPred.length];
+                        for (int i = 0; i < generatedThetaPred.length; i++) {
+                            thetaCrit[i] = new ThetaCrit();
+                            thetaCrit[i].pred = generatedThetaPred[i];
+                            thetaCrit[i].value = -generatedThetaPred[i].mu + ocb_lambda[j] * generatedThetaPred[i].sigma; 
+                        }
+                        Arrays.sort(thetaCrit);
+
+                        final int numLS = 5;
                         long lsStart = System.currentTimeMillis();
                         ThetaCrit[] allThetaCrit = new ThetaCrit[numRandomTheta + Math.min(numLS, generatedThetaPred.length)];
                         // Optimize the top-numLS configurations using local search
@@ -501,12 +499,14 @@ public class SMBO extends SearchMethods {
                         pacc.log("c "+threadInfo+" OCB maximization found " + numBest + " configurations with same ocb. Choosing top 1 starting from randomly chosen best.");
                         int numChosen = 0;
                         int ix = rng.nextInt(numBest);
-                        for (int i = ix; i < allThetaCrit.length && numChosen < 1; i++) {
+                        for (int i = ix; i < allThetaCrit.length && numChosen < 3; i++) {
                             ThetaCrit selectedThetaCrit = allThetaCrit[i];
                             synchronized (selectedConfigs) {
-                                selectedThetaCrit.pred.paramConfig.updateChecksum();
-                                if (selectedConfigs.contains(selectedThetaCrit.pred.paramConfig)) continue;
-                                selectedConfigs.add(selectedThetaCrit.pred.paramConfig);
+                                ParameterConfiguration paramConfig = selectedThetaCrit.pred.paramConfig;
+                                paramConfig.updateChecksum();
+                                if (allSelectedConfigs.contains(paramConfig)) continue;
+                                selectedConfigs.add(paramConfig);
+                                allSelectedConfigs.add(paramConfig);
                             }
                             statTotalOptimizations++;
                             numChosen++;
@@ -583,6 +583,7 @@ public class SMBO extends SearchMethods {
         double incCriterionValue = startCriterionValue;
         while (localSearchSteps++ < maxLocalSearchSteps) {
             List<ParameterConfiguration> nbrs = pspace.getGaussianNeighbourhood(incumbent, rng, lsStddev, lsSamples, true);
+            Collections.shuffle(nbrs, rng);
             double[][] nbrsTheta = new double[nbrs.size()][];
             for (int i = 0; i < nbrs.size(); i++) nbrsTheta[i] = paramConfigToTuple(nbrs.get(i));
             double[][] nbrsThetaPred = model.predict(nbrsTheta);
