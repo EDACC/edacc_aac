@@ -58,7 +58,7 @@ public class SMBO extends SearchMethods {
     private ParameterGraph pspace;
     private Set<SolverConfiguration> generatedConfigs = new HashSet<SolverConfiguration>();
     private List<Parameter> configurableParameters = new ArrayList<Parameter>();
-    private List<String> instanceFeatureNames = new LinkedList<String>();
+    private List<String> instanceFeatureNames = new ArrayList<String>();
     private List<Instance> instances;
     private Map<Integer, Integer> instanceFeaturesIx = new HashMap<Integer, Integer>();
     private double[][] instanceFeatures;
@@ -73,8 +73,10 @@ public class SMBO extends SearchMethods {
     private CensoredRandomForest model;
     
     private CostFunction par1CostFunc;
-    
     private int randomSeqNum = 0;
+    private boolean canUseFastMethods = false;
+    private int statNumBestRandom = 0;
+    private int statTotalOptimizations = 0;
     
     // Configurable parameters
     private boolean logModel = true;
@@ -92,13 +94,14 @@ public class SMBO extends SearchMethods {
     private int queueSize = 40; // how many configurations to generate at a time and put into a queue
     private boolean createIBSConfigs = false;
     private boolean initialDesignFromDefault = true;
+    private int numTopLS = 10;
+    private int numTopSel = 3;
 
     private String samplingPath = "";
     private String featureFolder = null;
     private String featureCacheFolder = null;
     
-    private int statNumBestRandom = 0;
-    private int statTotalOptimizations = 0;
+
 
 
     public SMBO(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
@@ -197,6 +200,15 @@ public class SMBO extends SearchMethods {
         int[][] augmentedCondParents = new int[condParents.length + instanceFeatureNames.size()][];
         for (int i = 0; i < condParents.length; i++) augmentedCondParents[i] = condParents[i];
         condParents = augmentedCondParents;
+        
+        canUseFastMethods = true;
+        for (int i = 0; i < condParents.length; i++) {
+            if (condParents[i] != null) canUseFastMethods = false;
+        }
+        
+        if (canUseFastMethods) {
+            pacc.log("c All parameters unconditional.");
+        }
 
         /*for (int i = 0; i < condParents.length; i++) {
             System.out.print("Conditional parents of " + configurableParameters.get(i) + ": ");
@@ -215,6 +227,10 @@ public class SMBO extends SearchMethods {
         sequenceValues = sequence.getSequence(configurableParameters.size(), maxSamples);
         
         generatedConfigs.addAll(firstSCs);
+        for (SolverConfiguration defaultConfig: firstSCs) {
+            defaultConfig.getParameterConfiguration().updateChecksum();
+            allSelectedConfigs.add(defaultConfig.getParameterConfiguration());
+        }
         initialDesignConfigs.addAll(firstSCs);
         pacc.log("c Starting out with " + firstSCs.size() + " default configs");
         if (initialDesignFromDefault && firstSCs.size() > 0) {
@@ -239,6 +255,8 @@ public class SMBO extends SearchMethods {
                 generatedConfigs.add(cfg);
                 configurationQueue.add(cfg);
                 initialDesignConfigs.add(cfg);
+                paramConfig.updateChecksum();
+                allSelectedConfigs.add(paramConfig);
             }
         }
     }
@@ -272,16 +290,8 @@ public class SMBO extends SearchMethods {
             newConfigs.addAll(pacc.racing.getBestSolverConfigurations(num));
         }
         
-        // return any queued configurations first
-        if (!configurationQueue.isEmpty()) {
-            for (int i = 0; i < Math.min(configurationQueue.size(), num); i++) {
-                newConfigs.add(configurationQueue.get(0));
-                configurationQueue.remove(0);
-            }
-            pacc.log("c Returning " + newConfigs.size() + " configurations from the queue.");
-            return newConfigs;
-        } else {
-            boolean allInitialDone = true;
+        if (configurationQueue.size() < queueSize) {
+            /*boolean allInitialDone = true;
             for (SolverConfiguration config: initialDesignConfigs) {
                 if (config.getNumFinishedJobs() != config.getJobCount()) {
                     allInitialDone = false;
@@ -290,10 +300,11 @@ public class SMBO extends SearchMethods {
             if (!allInitialDone) {
                 pacc.log("c Waiting until initial design is evaluated");
                 return new LinkedList<SolverConfiguration>();
-            }
+            }*/
             // refill queue
             int numConfigsToGenerate = queueSize;
             pacc.log("c Generating " + numConfigsToGenerate + " configurations to refill the queue.");
+            pacc.log("c wall time: " + pacc.getWallTime() + "s, job CPU time: " + pacc.getCumulatedCPUTime() + "s");
 
             // Update the model
             int numJobs = 0;
@@ -334,6 +345,14 @@ public class SMBO extends SearchMethods {
             for (ParameterConfiguration paramConfig: selectConfigurations(numConfigsToGenerate, f_min)) {
                 if (api.exists(parameters.getIdExperiment(), paramConfig) != 0) {
                     pacc.log("c WARNING selected configuration already exists. Skipping");
+                    int idSC = api.exists(parameters.getIdExperiment(), paramConfig);
+                    ParameterConfiguration existing = api.getParameterConfiguration(parameters.getIdExperiment(), idSC);
+                    pacc.log("c Existing config: " + existing);
+                    pacc.log("c Selected config: " + paramConfig);
+                    pacc.log("c " + paramConfig.hashCode() + " " + existing.hashCode());
+                    pacc.log("c allSelectedConfigs contains " + allSelectedConfigs.contains(paramConfig));
+                    pacc.log("c equals " + paramConfig.equals(existing));
+                    pacc.log("c key sets equal " + paramConfig.getParameter_instances().keySet().equals(existing.getParameter_instances().keySet()));
                     continue;
                 }
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, api.getCanonicalName(parameters.getIdExperiment(), paramConfig));
@@ -357,14 +376,16 @@ public class SMBO extends SearchMethods {
             Collections.shuffle(newConfigs, rng);
             generatedConfigs.addAll(newConfigs);
             configurationQueue.addAll(newConfigs);
-            
-            List<SolverConfiguration> retConfigs = new LinkedList<SolverConfiguration>();
-            for (int i = 0; i < Math.min(configurationQueue.size(), num); i++) {
-                retConfigs.add(configurationQueue.remove(0));
-            }
-
-            return retConfigs;
         }
+        
+        pacc.log("c Racing requested " + num + " configurations. " + configurationQueue.size() + " queued.");
+        int curQueued = configurationQueue.size();
+        List<SolverConfiguration> retConfigs = new LinkedList<SolverConfiguration>();
+        for (int i = 0; i < Math.min(curQueued, num); i++) {
+            retConfigs.add(configurationQueue.remove(0));
+        }
+
+        return retConfigs;
     }
     
     private ThetaPrediction[] getThetaPredictions(List<ParameterConfiguration> configs) {
@@ -392,7 +413,7 @@ public class SMBO extends SearchMethods {
         
         // Get predictions for the current configurations
         long start = System.currentTimeMillis();
-        List<ParameterConfiguration> listGeneratedConfigs = new LinkedList<ParameterConfiguration>();
+        List<ParameterConfiguration> listGeneratedConfigs = new ArrayList<ParameterConfiguration>(generatedConfigs.size());
         for (SolverConfiguration config: generatedConfigs) listGeneratedConfigs.add(config.getParameterConfiguration());
         final ThetaPrediction[] generatedThetaPred = getThetaPredictions(listGeneratedConfigs); 
         pacc.log("c Predicting " + generatedConfigs.size() + " current configurations took " + (System.currentTimeMillis() - start) + " ms");
@@ -400,7 +421,7 @@ public class SMBO extends SearchMethods {
         // Get predictions for random configurations
         start = System.currentTimeMillis();
         // Generate random configurations in parallel
-        final List<ParameterConfiguration> randomConfigurations = new LinkedList<ParameterConfiguration>();
+        final List<ParameterConfiguration> randomConfigurations = new ArrayList<ParameterConfiguration>(numRandomTheta);
         ExecutorService exec = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
         try {
             for (int chunk = 0; chunk < Runtime.getRuntime().availableProcessors(); chunk++) {
@@ -408,7 +429,7 @@ public class SMBO extends SearchMethods {
                     @Override
                     public void run() {
                         for (int i = 0; i < numRandomTheta / Runtime.getRuntime().availableProcessors(); i++) {
-                            ParameterConfiguration randomConfig = pspace.getRandomConfiguration(rng);
+                            ParameterConfiguration randomConfig = canUseFastMethods ? pspace.getRandomConfigurationFast(rng) : pspace.getRandomConfiguration(rng);
                             synchronized (randomConfigurations) {
                                 randomConfigurations.add(randomConfig);
                             }
@@ -458,7 +479,7 @@ public class SMBO extends SearchMethods {
                         }
                         Arrays.sort(thetaCrit);
 
-                        final int numLS = 5;
+                        final int numLS = numTopLS;
                         long lsStart = System.currentTimeMillis();
                         ThetaCrit[] allThetaCrit = new ThetaCrit[numRandomTheta + Math.min(numLS, generatedThetaPred.length)];
                         // Optimize the top-numLS configurations using local search
@@ -496,14 +517,14 @@ public class SMBO extends SearchMethods {
                            numBest++;
                         }
                         
-                        pacc.log("c "+threadInfo+" OCB maximization found " + numBest + " configurations with same ocb. Choosing top 1 starting from randomly chosen best.");
+                        pacc.log("c "+threadInfo+" OCB maximization found " + numBest + " configurations with same ocb. Choosing top 3 starting from randomly chosen best.");
                         int numChosen = 0;
                         int ix = rng.nextInt(numBest);
-                        for (int i = ix; i < allThetaCrit.length && numChosen < 3; i++) {
+                        for (int i = ix; i < allThetaCrit.length && numChosen < numTopSel; i++) {
                             ThetaCrit selectedThetaCrit = allThetaCrit[i];
+                            ParameterConfiguration paramConfig = selectedThetaCrit.pred.paramConfig;
+                            paramConfig.updateChecksum();
                             synchronized (selectedConfigs) {
-                                ParameterConfiguration paramConfig = selectedThetaCrit.pred.paramConfig;
-                                paramConfig.updateChecksum();
                                 if (allSelectedConfigs.contains(paramConfig)) continue;
                                 selectedConfigs.add(paramConfig);
                                 allSelectedConfigs.add(paramConfig);
@@ -513,7 +534,7 @@ public class SMBO extends SearchMethods {
                             if (selectedThetaCrit.value == bestRandomValue) {
                                 statNumBestRandom++;
                             }
-                            pacc.log("c "+threadInfo+" OCB maximization selected configuration with ocb " + selectedThetaCrit.value + " -- Configuration: " + selectedThetaCrit.pred.paramConfig);
+                            //pacc.log("c "+threadInfo+" OCB maximization selected configuration with ocb " + selectedThetaCrit.value + " -- Configuration: " + selectedThetaCrit.pred.paramConfig);
                         }
                     }
                     });
@@ -524,6 +545,7 @@ public class SMBO extends SearchMethods {
             execOptimize.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
         } else {
             // EI
+            throw new RuntimeException("EI not implemented yet");
         }
         
         pacc.log("c Optimizing ocb criteria to select " + numConfigsToGenerate +  " configurations took " + (System.currentTimeMillis() - start) + " ms");
@@ -582,7 +604,7 @@ public class SMBO extends SearchMethods {
         final double eps = 1e-5;
         double incCriterionValue = startCriterionValue;
         while (localSearchSteps++ < maxLocalSearchSteps) {
-            List<ParameterConfiguration> nbrs = pspace.getGaussianNeighbourhood(incumbent, rng, lsStddev, lsSamples, true);
+            List<ParameterConfiguration> nbrs = canUseFastMethods ? pspace.getGaussianNeighbourhoodFast(incumbent, rng, lsStddev, lsSamples, true) : pspace.getGaussianNeighbourhood(incumbent, rng, lsStddev, lsSamples, true);
             Collections.shuffle(nbrs, rng);
             double[][] nbrsTheta = new double[nbrs.size()][];
             for (int i = 0; i < nbrs.size(); i++) nbrsTheta[i] = paramConfigToTuple(nbrs.get(i));
@@ -694,6 +716,10 @@ public class SMBO extends SearchMethods {
             featureCacheFolder = val;
         if ((val = parameters.getSearchMethodParameters().get("SMBO_initialDesignFromDefault")) != null)
             initialDesignFromDefault = Integer.valueOf(val) == 1;
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_numTopLS")) != null)
+            numTopLS = Integer.valueOf(val);
+        if ((val = parameters.getSearchMethodParameters().get("SMBO_numTopSel")) != null)
+            numTopSel = Integer.valueOf(val);
     }
 
     @Override
@@ -716,6 +742,8 @@ public class SMBO extends SearchMethods {
         p.add("SMBO_featureFolder = "+this.featureFolder == null ? "n/a" : this.featureFolder+ " % (Instance features folder)");
         p.add("SMBO_featureCacheFolder = "+this.featureCacheFolder == null ? "n/a" : this.featureCacheFolder+ " % (Instance features cache folder)");
         p.add("SMBO_initialDesignFromDefault = "+this.initialDesignFromDefault+ " % (Create a initial design by evaluating the neighbourhoods of the default configurations)");
+        p.add("SMBO_numTopLS = "+this.numTopLS+ " % (How many local search optimisations should be started)");
+        p.add("SMBO_numTopSel = "+this.numTopSel+ " % (How many configurations with best criterion value to choose)");
         p.add("% -----------------------\n");
         return p;
     }
