@@ -54,6 +54,8 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 	private float clusteringThreshold = 0.9f;
 	private int maxRacingClusters = 8;
 	
+	private Double maxCost = null;
+	
 	private int maxParcoursExpansionFactor;
 	private boolean clusteringChanged = true;
 	private HashMap<Integer, List<Integer>> cachedClustering = null;
@@ -84,6 +86,8 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 			incumbentWinnerInstances = Integer.parseInt(val);
 		if ((val = parameters.getRacingMethodParameters().get("ClusterRacing_maxRacingClusters")) != null)
 			maxRacingClusters = Integer.parseInt(val);
+		if ((val = parameters.getRacingMethodParameters().get("ClusterRacing_maxCost")) != null) 
+			maxCost = Double.parseDouble(val);
 		
 		scs = new HashMap<Integer, SolverConfigurationMetaData>();
 		seeds = new HashMap<Integer, List<Integer>>();
@@ -498,9 +502,11 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		float median_sum = 0.f;
 		float sum = 0.f;
 		for (ExperimentResult er : list) {
+			// TODO: cost + resultTime + etc.
 			if (er.getResultCode().isCorrect()) {
-				sum += er.getResultTime();
+				sum += er.getCost();
 			} else {
+				//TODO: cost
 				sum += er.getCPUTimeLimit();
 			}
 			median_sum += instanceMedianTimeCorrect.get(er.getInstanceId());
@@ -693,7 +699,15 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 			results = new LinkedList<ExperimentResult>();
 			for (ExperimentResult er : jobs) {
 				if (er.getResultCode().isCorrect()) {
-					results.add(er);
+					if (maxCost != null) {
+						List<ExperimentResult> tmp = new LinkedList<ExperimentResult>();
+						tmp.add(er);
+						if (par1.calculateCost(tmp) <= maxCost) {
+							results.add(er);
+						}
+					} else {
+						results.add(er);
+					}
 				}
 			}
 		} else {
@@ -741,10 +755,13 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		for (ExperimentResult er : sc.getJobs()) {
 			if (instanceId == er.getInstanceId()) {
 				list.add(er);
-				solved |= er.getResultCode().isCorrect();
+				solved |= (er.getResultCode().isCorrect());
 			}
 		}
 		double cost = (solved ? par1.calculateCost(list) : Double.POSITIVE_INFINITY);
+		if (maxCost != null && cost > maxCost) {
+			cost = Double.POSITIVE_INFINITY;
+		}
 		clustering.update(sc.getIdSolverConfiguration(), instanceId, cost);
 		clusteringChanged = true;
 	}

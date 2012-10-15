@@ -274,7 +274,7 @@ public class SolverCreator {
 				if (!r.isEmpty()) {
 					boolean inf = true;
 					for (ExperimentResult res : r) {
-						if (res.getResultCode().isCorrect()) {
+						if (res.getResultCode().isCorrect() && res.getCost() < 10e8) {
 							inf = false;
 							break;
 						}
@@ -569,7 +569,7 @@ public class SolverCreator {
 		
 		if (Boolean.parseBoolean(properties.getProperty("BuildRandomForest"))) {
 			System.out.println("Generating random forest..");
-			RandomForest forest = new RandomForest(C_orig, C, new Random(), Integer.parseInt(properties.getProperty("RandomForestTreeCount")), 384);
+			RandomForest forest = new RandomForest(C_orig, C, new Random(), Integer.parseInt(properties.getProperty("RandomForestTreeCount")), 1000);
 			data.add(forest);
 			System.out.println("done.");
 		}

@@ -546,13 +546,15 @@ public class DecisionTree {
 		Set<Integer> instanceIds;
 		List<Parameter> parametersSorted;
 		double stddev;
+		double cost;
 		
-		public SearchResult(Set<ParameterConfiguration> configs, List<Pair<Parameter, Domain>> parameters, Set<Integer> instanceIds, List<Parameter> parametersSorted, double stddev) {
+		public SearchResult(Set<ParameterConfiguration> configs, List<Pair<Parameter, Domain>> parameters, Set<Integer> instanceIds, List<Parameter> parametersSorted, double stddev, double cost) {
 			this.configs = configs;
 			this.parameters = parameters;
 			this.instanceIds = instanceIds;
 			this.parametersSorted = parametersSorted;
 			this.stddev = stddev;
+			this.cost = cost;
 		}
 	}
 	
@@ -588,20 +590,22 @@ public class DecisionTree {
 					instanceIds.add(i);
 				}
 				Set<ParameterConfiguration> configs = new HashSet<ParameterConfiguration>();
+				List<ExperimentResult> tmp = new LinkedList<ExperimentResult>();
 				for (Sample s : node.results) {
 					configs.add(s.config);
+					tmp.addAll(s.results);
 				}
 				
 				List<Parameter> sortedParams = new LinkedList<Parameter>();
 				for (int p_index: parameter_indexes) {
 					sortedParams.add(params.get(p_index));
 				}
-				res.add(new SearchResult(configs, parameters, instanceIds, sortedParams, node.stddev));
+				
+				res.add(new SearchResult(configs, parameters, instanceIds, sortedParams, node.stddev, func.calculateCost(tmp)));
 			}
 			return res;
 		}
 		
-		SearchResult result = null;
 		if (node.left != null) {
 			// save old domain for backtracking
 			Domain tmpDomain = null;
@@ -677,7 +681,8 @@ public class DecisionTree {
 		List<QueryResult> res = new LinkedList<QueryResult>();
 		List<SearchResult> sr = getDomainOrNull(root, beta, domains, new LinkedList<Integer>());
 		for (SearchResult s : sr) {
-			res.add(new QueryResult (s.configs, s.parameters, s.instanceIds, s.parametersSorted, s.stddev));
+			
+			res.add(new QueryResult (s.configs, s.parameters, s.instanceIds, s.parametersSorted, s.stddev, s.cost));
 		}
 		/*if (sr == null) {
 			return null;
@@ -691,13 +696,15 @@ public class DecisionTree {
 		public Set<Integer> instanceIds;
 		public List<Parameter> parametersSorted;
 		public double stddev;
+		public double cost;
 		
-		public QueryResult(Set<ParameterConfiguration> configs, List<Pair<Parameter, Domain>> parameterDomains, Set<Integer> instanceIds, List<Parameter> parametersSorted, double stddev) {
+		public QueryResult(Set<ParameterConfiguration> configs, List<Pair<Parameter, Domain>> parameterDomains, Set<Integer> instanceIds, List<Parameter> parametersSorted, double stddev, double cost) {
 			this.configs = configs;
 			this.parameterDomains = parameterDomains;
 			this.instanceIds = instanceIds;
 			this.parametersSorted = parametersSorted;
 			this.stddev = stddev;
+			this.cost = cost;
 		}
 	}
 
