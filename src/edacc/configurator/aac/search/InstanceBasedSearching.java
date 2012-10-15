@@ -28,13 +28,14 @@ import edacc.util.Pair;
 public class InstanceBasedSearching extends SearchMethods implements JobListener {
 
 	double stddev = 2.5;
-	
+	Double maxCost = null;
 	
 	HashMap<Integer, SolverConfiguration> solverConfigs;
 	Set<Integer> solvedInstances;
 	List<Parameter> configurableParameters;
 	ParameterGraph graph;
 	List<Integer> instanceIds = new LinkedList<Integer>(); 
+	List<ParameterConfiguration> defaultMutations;
 	int numConfigsModel, numConfigsRandom;
 	
 	public InstanceBasedSearching(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
@@ -46,6 +47,9 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 		if ((val = parameters.getSearchMethodParameters().get("InstanceBasedSearching_stddev")) != null) {
 			stddev = Double.parseDouble(val);
 		}
+		if ((val = parameters.getSearchMethodParameters().get("InstanceBasedSearching_maxCost")) != null) {
+			maxCost = Double.parseDouble(val);
+		}
 		
 		solvedInstances = new HashSet<Integer>();
 		graph = api.loadParameterGraphFromDB(parameters.getIdExperiment());
@@ -53,10 +57,12 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 		configurableParameters = api.getConfigurableParameters(parameters.getIdExperiment());
 		solverConfigs = new HashMap<Integer, SolverConfiguration>();
 		
+		defaultMutations = new LinkedList<ParameterConfiguration>();
 		for (SolverConfiguration sc : firstSCs) {
 			solverConfigs.put(sc.getIdSolverConfiguration(), sc);
+			defaultMutations.addAll(graph.getGaussianNeighbourhood(sc.getParameterConfiguration(), rng, 0.2f, 1, true));
 		}
-		
+		pacc.log("[IBS] Cached " + defaultMutations.size() + " default mutations.");
 		jobsFinished(ExperimentResultDAO.getAllByExperimentId(parameters.getIdExperiment()));
 	}
 	
@@ -105,11 +111,22 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 			num--;
 			if (numConfigsRandom == 0 || (numConfigsModel / (float) numConfigsRandom > 9.f) || (clustering == null && instanceIds.isEmpty())) {
 				// create a random config
-				ParameterConfiguration paramconfig = graph.getRandomConfiguration(rng);
-				int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), paramconfig, "random config");
+				ParameterConfiguration paramconfig = null;
+				String name = null;
+				if (!defaultMutations.isEmpty() && rng.nextFloat() < 0.5f) {
+					int rand = rng.nextInt(defaultMutations.size());
+					paramconfig = defaultMutations.get(rand);
+					defaultMutations.remove(rand);
+					name = "default mutation";
+					pacc.log("[IBS] Using a default mutation");
+				} else {
+					paramconfig = graph.getRandomConfiguration(rng);
+					name = "random config";
+					pacc.log("[IBS] Generating a random configuration");
+				}
+				int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), paramconfig, name);
 				SolverConfiguration sc = new SolverConfiguration(idSolverConfig, paramconfig, parameters.getStatistics());
-				sc.setNameSearch("random config");
-				pacc.log("[IBS] Generated a random configuration");
+				sc.setNameSearch(name);
 				res.add(sc);
 				numConfigsRandom++;
 			} else {
@@ -167,6 +184,7 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 						tree = new DecisionTree(rng, parameters.getStatistics().getCostFunction(), stddev, 4, trainData, configurableParameters, new LinkedList<String>(), false);
 					} catch (Exception ex) {
 						// only time out results?
+						ex.printStackTrace();
 						continue;
 					}
 					if (clustering == null) {
@@ -182,14 +200,26 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 					}
 				}
 				if (q.isEmpty()) {
-					ParameterConfiguration paramconfig = graph.getRandomConfiguration(rng);
-					int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), paramconfig, "random config");
+					ParameterConfiguration paramconfig = null;
+					String name = null;
+					if (!defaultMutations.isEmpty() && rng.nextFloat() < 0.5f) {
+						int rnd = rng.nextInt(defaultMutations.size());
+						paramconfig = defaultMutations.get(rnd);
+						defaultMutations.remove(rnd);
+						name = "default mutation";
+						pacc.log("[IBS] Using a default mutation");
+					} else {
+						paramconfig = graph.getRandomConfiguration(rng);
+						name = "random config";
+						pacc.log("[IBS] Generating a random configuration");
+					}
+					int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), paramconfig, name);
 					SolverConfiguration sc = new SolverConfiguration(idSolverConfig, paramconfig, parameters.getStatistics());
 					if (!resultsRemoved) {
-						sc.setNameSearch("random config (query result was empty)");
+						sc.setNameSearch(name + " (query result was empty)");
 						pacc.log("[IBS] Generated a random configuration (query result was null)");
 					} else {
-						sc.setNameSearch("random config (no possible randomizable parameters)");
+						sc.setNameSearch(name + " (no possible randomizable parameters)");
 						pacc.log("[IBS] Generated a random configuration (no possible randomizable parameters)");
 					}
 					res.add(sc);
@@ -198,11 +228,23 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 				}
 				pacc.log("[IBS] Query: " + q.size() + " results.");
 				List<ParameterConfiguration> possibleBaseConfigs = new LinkedList<ParameterConfiguration>();
-				DecisionTree.QueryResult result = q.get(rng.nextInt(q.size()));
+				DecisionTree.QueryResult result = null; 
+				// TODO: maximize cost?
+				double cost = Double.POSITIVE_INFINITY;
+				for (DecisionTree.QueryResult r : q) {
+					if (r.cost < cost) {
+						result = r;
+						cost = r.cost;
+					}
+				}
 				possibleBaseConfigs.addAll(result.configs);
 				
-				pacc.log("[IBS] Number of split parameters: " + result.parametersSorted.size());
-				while (result.parametersSorted.size() > 2) {
+				pacc.log("[IBS] Cost " + cost + "; Number of split parameters: " + result.parametersSorted.size());
+				int numParams = result.parametersSorted.size() / 2;
+				if (numParams < 1) {
+					numParams = 1;
+				}
+				while (result.parametersSorted.size() > numParams) {
 					result.parametersSorted.remove(result.parametersSorted.size()-1);
 				}
 				
@@ -256,7 +298,15 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 	public void jobsFinished(List<ExperimentResult> _results) {
 		for (ExperimentResult result : _results) {
 			if (result.getResultCode().isCorrect()) {
-				solvedInstances.add(result.getInstanceId());
+				if (maxCost != null) {
+					List<ExperimentResult> tmp = new LinkedList<ExperimentResult>();
+					tmp.add(result);
+					if (parameters.getStatistics().getCostFunction().calculateCost(tmp) <= maxCost) {
+						solvedInstances.add(result.getInstanceId());
+					}
+				} else {
+					solvedInstances.add(result.getInstanceId());
+				}
 			}
 		}
 	}

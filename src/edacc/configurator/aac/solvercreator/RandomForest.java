@@ -55,7 +55,7 @@ public class RandomForest implements Serializable {
 					tmp_c.put(e.getKey(), tmp);
 				}
 			}
-			DecisionTree tree = new DecisionTree(tmp_c, DecisionTree.ImpurityMeasure.GINIINDEX, clustering_original, clustering, 6, rng, 0.f);
+			DecisionTree tree = new DecisionTree(tmp_c, DecisionTree.ImpurityMeasure.GINIINDEX, clustering_original, clustering, 12, rng, 0.f);
 			tree.cleanup();
 			//if (tree.performance > 0.8f) {
 				forest.add(tree);
