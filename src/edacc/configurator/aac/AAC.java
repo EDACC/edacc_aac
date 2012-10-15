@@ -49,6 +49,7 @@ import edacc.parameterspace.ParameterConfiguration;
 import edacc.parameterspace.graph.ParameterGraph;
 import edacc.util.Pair;
 
+
 public class AAC {
 	// private static final boolean useCapping = false;
 
@@ -804,6 +805,16 @@ public class AAC {
 		log("c Jobs generated: " + statNumJobs);
 		log("c Number of comparision performed with the racing method: " + racing.getNumCompCalls());
 		log("c Total runtime of the execution system (CPU time): " + cumulatedCPUTime);
+        try {
+            java.lang.management.OperatingSystemMXBean o = java.lang.management.ManagementFactory.getOperatingSystemMXBean();
+            if (o instanceof com.sun.management.OperatingSystemMXBean) {
+                com.sun.management.OperatingSystemMXBean osMxBean = (com.sun.management.OperatingSystemMXBean) o;
+                double aacCPUtime = osMxBean.getProcessCpuTime() / 1e9;
+                log("c AAC CPU time: " + aacCPUtime + " sec");
+            }
+        } catch (Exception e) {
+            log("c Could not get AAC CPU time: " + e);
+        }
 		log("c Best Configurations found: ");
 
 		for (SolverConfiguration bestSC : racing.getBestSolverConfigurations(null)) {
@@ -836,8 +847,7 @@ public class AAC {
 					ex.printStackTrace();
 				}
 			}
-		}
-
+		}        
 		log("c halt.");
 		api.disconnect();
 	}
