@@ -355,6 +355,33 @@ public class AAC {
 		return generated;
 	}
 	
+	   /**
+     * adds random num new runs/jobs from the solver configuration "from" to the
+     * solver configuration "toAdd"
+     * 
+     * @throws Exception
+     */
+    public int addRandomJobAggressive(int num, SolverConfiguration toAdd, SolverConfiguration from, int priority) throws Exception {
+        toAdd.updateJobsStatus(api);
+        from.updateJobsStatus(api);
+        // compute a list with num jobs that "from" has computed and "toadd" has
+        // not in its job list
+        List<InstanceIdSeed> instanceIdSeedList = toAdd.getInstanceIdSeedAggressive(from, num, rngRacing);
+        int generated = 0;
+        DatabaseConnector.getInstance().getConn().setAutoCommit(false);
+        try {
+            for (InstanceIdSeed is : instanceIdSeedList) {
+                statNumJobs++;
+                int idJob = api.launchJob(parameters.getIdExperiment(), toAdd.getIdSolverConfiguration(), is.instanceId, BigInteger.valueOf(is.seed), parameters.getJobCPUTimeLimit(), priority);
+                toAdd.putJob(api.getJob(idJob));
+                generated++;
+            }
+        } finally {
+            DatabaseConnector.getInstance().getConn().setAutoCommit(true);
+        }
+        return generated;
+    }
+	
 	/**
 	 * Generates and launches a new job for the solver configuration <code>to</code>.
 	 * @param to

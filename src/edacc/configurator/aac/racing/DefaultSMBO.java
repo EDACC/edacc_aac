@@ -19,6 +19,7 @@ public class DefaultSMBO extends RacingMethods {
 	private int numSCs = 0;
 	private int curThreshold = 0;
 	private int increaseIncumbentRunsEvery = 32;
+	private boolean aggressiveJobSelection = false;
 	
 	HashSet<Integer> stopEvalSolverConfigIds = new HashSet<Integer>();
 	Set<SolverConfiguration> challengers = new HashSet<SolverConfiguration>();
@@ -29,8 +30,16 @@ public class DefaultSMBO extends RacingMethods {
 		num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse().getInitialLength();
 	
 		String val;
-        if ((val = parameters.getSearchMethodParameters().get("DefaultSMBO")) != null)
+        if ((val = parameters.getRacingMethodParameters().get("DefaultSMBO_increaseIncumbentRunsEvery")) != null)
             increaseIncumbentRunsEvery = Integer.valueOf(val);
+        if ((val = parameters.getRacingMethodParameters().get("DefaultSMBO_aggressiveJobSelection")) != null)
+            aggressiveJobSelection = Integer.valueOf(val) == 1;
+        
+        if (aggressiveJobSelection) {
+            pacc.log("c Using aggressive job selection.");
+        }
+        
+        curThreshold = increaseIncumbentRunsEvery;
 		
 		if (!firstSCs.isEmpty()) {
 			initBestSC(firstSCs.get(0));
@@ -100,7 +109,12 @@ public class DefaultSMBO extends RacingMethods {
 					// statistics.getCostFunction());
 					// listNewSC.remove(i);
 				} else {
-					int generated = pacc.addRandomJob(sc.getJobCount(), sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
+				    int generated = 0;
+				    if (aggressiveJobSelection) {
+				        generated = pacc.addRandomJobAggressive(sc.getJobCount(), sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
+				    } else {
+				        generated = pacc.addRandomJob(sc.getJobCount(), sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
+				    }
 					pacc.log("c Generated " + generated + " jobs for solver config id " + sc.getIdSolverConfiguration());
 					pacc.addSolverConfigurationToListNewSC(sc);
 				}
@@ -131,7 +145,12 @@ public class DefaultSMBO extends RacingMethods {
 			// add 1 random job from the best configuration with the
 			// priority corresponding to the level
 			// lower levels -> higher priorities
-			pacc.addRandomJob(parameters.getMinRuns(), sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
+		    if (aggressiveJobSelection) {
+		        pacc.log("c Using aggressive job selection");
+		        pacc.addRandomJobAggressive(parameters.getMinRuns(), sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
+		    } else {
+		        pacc.addRandomJob(parameters.getMinRuns(), sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
+		    }
 			pacc.addSolverConfigurationToListNewSC(sc);
 		}
 		

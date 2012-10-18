@@ -1,6 +1,9 @@
 package edacc.configurator.aac;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -396,6 +399,72 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 		}
 
 	}
+	
+	   /**
+     * Returns a list of <code>InstanceIdSeed</code> where each entry satisfies: <br/>
+     * * this solver configuration has computed/computes/will compute the
+     * instance-seed-pair<br/>
+     * * the <code>other</code> solver configuration did not compute/is not
+     * currently computing/will not compute the instance-seed-pair<br/>
+     * * the list contains max. <code>num</code> items<br/>
+     * at the last <code>updateJobs()</code> call.<br/>
+     * If the list contains less than <code>num</code> items, then there aren't
+     * more instance-seed-pairs which would satisfy the first two assertions.
+     * 
+     * @param other
+     * @param num
+     * @return
+     */
+    public List<InstanceIdSeed> getInstanceIdSeedAggressive(SolverConfiguration other, int num, Random rng) {
+        LinkedList<InstanceIdSeed> allUnpenalized = new LinkedList<InstanceIdSeed>();
+        LinkedList<InstanceIdSeed> allPenalized = new LinkedList<InstanceIdSeed>();
+        HashSet<InstanceIdSeed> ownInstanceIdSeed = new HashSet<InstanceIdSeed>();
+        List<ExperimentResult> otherFinishedJobs = other.getFinishedJobs();
+        Collections.sort(otherFinishedJobs, new Comparator<ExperimentResult>() {
+            @Override
+            public int compare(ExperimentResult o1, ExperimentResult o2) {
+                double y1 = statFunc.getCostFunction().singleCost(o1);
+                double y2 = statFunc.getCostFunction().singleCost(o2);
+                return statFunc.isMinimize() ? Double.compare(y1, y2) : Double.compare(y2, y1);
+            }
+        });
+        for (ExperimentResult j : jobs) {
+            ownInstanceIdSeed.add(new InstanceIdSeed(j.getInstanceId(), j.getSeed()));
+        }
+        for (ExperimentResult j : otherFinishedJobs) {
+            InstanceIdSeed tmp = new InstanceIdSeed(j.getInstanceId(), j.getSeed());
+            if (!ownInstanceIdSeed.contains(tmp)) {
+                if (statFunc.getCostFunction().isSingleCostPenalized(j)) {
+                    allPenalized.add(tmp);
+                } else {
+                    allUnpenalized.add(tmp);
+                }
+            }
+        }
+
+        if (allUnpenalized.size() + allPenalized.size() <= num) {
+            List<InstanceIdSeed> all = new LinkedList<InstanceIdSeed>();
+            all.addAll(allUnpenalized);
+            all.addAll(allPenalized);
+            return all;
+        } else {
+            LinkedList<InstanceIdSeed> res = new LinkedList<InstanceIdSeed>();
+            // first take unpenalized jobs
+            while (res.size() < num && !allUnpenalized.isEmpty()) {
+                int index = rng.nextInt(allUnpenalized.size());
+                res.add(allUnpenalized.get(index));
+                allUnpenalized.remove(index);
+            }
+            // then penalized jobs if necessary
+            while (res.size() < num) {
+                int index = rng.nextInt(allPenalized.size());
+                res.add(allPenalized.get(index));
+                allPenalized.remove(index);
+            }
+            return res;
+        }
+
+    }
 
 	public Float getTotalRuntime() {
 		return totalRuntime;
