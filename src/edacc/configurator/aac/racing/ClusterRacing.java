@@ -472,7 +472,9 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		pacc.log("[ClusterRacing] Solver Configuration " + data.sc.getIdSolverConfiguration() + " wants unsolved jobs, has " + numPoints + " points.");
 		List<Integer> possibleInstances = new LinkedList<Integer>();
 		if (numPoints > unsolvedInstancesMinPoints) {
-			if (data.unsolved.isEmpty()) {
+			Set<Integer> unsolvedInstances = clustering.getNotUsedInstances();
+			// data.unsolved
+			if (unsolvedInstances.isEmpty()) {
 				// TODO: cache next info!
 				HashSet<Integer> hasInstanceRuns = new HashSet<Integer>();
 				for (ExperimentResult er : data.sc.getJobs()) {
@@ -525,15 +527,15 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 					pacc.addSolverConfigurationToListNewSC(data.sc);
 				}
 			} else {
-				possibleInstances.addAll(data.unsolved);
+				possibleInstances.addAll(unsolvedInstances);
 			}
 		} else {
-			HashSet<Integer> currentUnsolved = clustering.getNotUsedInstances();
+			/*HashSet<Integer> currentUnsolved = clustering.getNotUsedInstances();
 			for (Integer iid : data.unsolved) {
 				if (!currentUnsolved.contains(iid)) {
 					possibleInstances.add(iid);
 				}
-			}
+			}*/
 		}
 		
 		int numInstances = incumbentWinnerInstances;
