@@ -144,12 +144,12 @@ public class Clustering implements Serializable {
 				double max = 0.f;
 				for (double[] tmp : C.values()) {
 				    double t = tmp[column];
-					if (!Double.isInfinite(tmp[column])) {
+					if (!(Double.isInfinite(tmp[column]) || Double.isNaN(tmp[column]))) {
 					//	tmp[column] = (float) Math.log(tmp[column]);
 						if (tmp[column] < 0.f) tmp[column] = 0.f;
 					}
 					
-					if (!Double.isInfinite(tmp[column])) {
+					if (!(Double.isInfinite(tmp[column]) || Double.isNaN(tmp[column]))) {
 						sum += tmp[column];
 						scs++;
 						if (tmp[column] > max) {
@@ -165,12 +165,12 @@ public class Clustering implements Serializable {
 					double[] tmp_m = M.get(tmp_scid);
 					
 					double t = tmp_c[column];
-					if (!Double.isInfinite(tmp_c[column])) {
+					if (!(Double.isInfinite(tmp_c[column]) || Double.isNaN(tmp_c[column]))) {
 					//	tmp_c[column] = (float) Math.log(tmp_c[column]);
 						if (tmp_c[column] < 0.f) tmp_c[column] = 0.f;
 					}
 					
-					if (Double.isInfinite(tmp_c[column])) {
+					if ((Double.isInfinite(tmp_c[column]) || Double.isNaN(tmp_c[column]))) {
 						tmp_m[column] = 0.f;
 					} else {
 						// TODO: eps
@@ -296,10 +296,10 @@ public class Clustering implements Serializable {
 				f[i] = 0.f;
 			}
 			M.put(scid, f);
-			// initial C row is infinity for all instances
+			// initial C row is NaN for all instances
 			f = new double[n];
 			for (int i = 0; i < n; i++) {
-				f[i] = Double.POSITIVE_INFINITY;
+				f[i] = Double.NaN;
 			}
 			C.put(scid, f);
 			
@@ -470,15 +470,28 @@ public class Clustering implements Serializable {
 		HashMap<Integer, List<Integer>> res = new HashMap<Integer, List<Integer>>();
 		for (int instanceid : I.keySet()) {
 		    double max = 0.f;
-			int scid = -1;
+			List<Integer> scids = new LinkedList<Integer>();
 			for (int tmp_scid : solverConfigs) {
 			    double[] m = M.get(tmp_scid);
-				if (m[I.get(instanceid)] > max) {
+			    if (Math.abs(m[I.get(instanceid)] - max) < 0.000001 && max > 0.000001) {
+			    	scids.add(tmp_scid);
+			    } else if (m[I.get(instanceid)] > max) {
 					max = m[I.get(instanceid)];
-					scid = tmp_scid;
+					scids.clear();
+					scids.add(tmp_scid);
 				}
 			}
-			if (scid != -1) {
+			if (!(scids.isEmpty())) {
+				int scid = -1;
+				double weight = 0.f;
+				for (int id : scids) {
+					double tmp = this.getWeight(id);
+					if (tmp > weight) {
+						weight = tmp;
+						scid = id;
+					}
+				}
+				
 				List<Integer> instanceids = res.get(scid);
 				if (instanceids == null) {
 					instanceids = new LinkedList<Integer>();
@@ -533,6 +546,7 @@ public class Clustering implements Serializable {
 	
 	private double getCumulatedWeight() {
 		// TODO: cache cumulated weight, not really a problem.
+		updateData();
 	    double sum = 0.f;
 		for (double[] m : M.values()) {
 			for (int i = 0; i < n; i++) {
@@ -542,13 +556,40 @@ public class Clustering implements Serializable {
 		return sum;
 	}
 	
+	public double getCost(HashMap<Integer, List<Integer>> clustering) {
+		double res = 0.;
+		for (Entry<Integer, List<Integer>> e : clustering.entrySet()) {
+			for (int iid : e.getValue()) {
+				double cost = getCost(e.getKey(), iid);
+				if (!(Double.isInfinite(cost) || Double.isNaN(cost))) {
+					res += cost;
+				}
+			}
+		}
+		return res;
+	}
+	
 	private double getAbsoluteWeight(int scid) {
 	    double[] m = M.get(scid);
 	    double res = 0.f;
+	    int num = 0;
 		for (int i = 0; i < n; i++) {
-			res += m[i];
+			/*boolean max = true;
+			for (double[] tmp : M.values()) {
+				if (tmp[i] > m[i]) {
+					max = false;
+					break;
+				}
+			}*/
+			if (!Double.isNaN(C.get(scid)[i])) {
+				res += m[i];
+				num++;
+			}
+			/*if (max) {
+				res += 1.;
+			}*/
 		}
-		return res;
+		return res / (double) num;
 	}
 	
 	public boolean contains(int scid) {
@@ -569,7 +610,7 @@ public class Clustering implements Serializable {
 	 */
 	public double getWeight(int scid) {
 		updateData();
-		return getAbsoluteWeight(scid) / getCumulatedWeight();
+		return getAbsoluteWeight(scid); // / getCumulatedWeight();
 	}
 	
 	/**
@@ -625,6 +666,9 @@ public class Clustering implements Serializable {
 		}
 		double res = Double.POSITIVE_INFINITY;
 		for (double[] values : C.values()) {
+			if (Double.isNaN(values[col])) {
+				continue;
+			}
 			if (values[col] < res) {
 				res = values[col];
 			}

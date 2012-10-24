@@ -66,7 +66,7 @@ public class RandomForest implements Serializable {
 		int timeouts = 0;
 		for (int iid: validationInstances) {
 			int clazz = getSolverConfig(clustering_original.F.get(iid));
-			if (Double.isInfinite(clustering_original.getCost(clazz, iid))) {
+			if (Double.isInfinite(clustering_original.getCost(clazz, iid)) || Double.isNaN(clustering_original.getCost(clazz, iid))) {
 				timeouts++;
 			} else {
 				perf += clustering_original.getCost(clazz, iid);

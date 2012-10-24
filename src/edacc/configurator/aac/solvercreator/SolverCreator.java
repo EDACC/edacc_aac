@@ -2,6 +2,8 @@ package edacc.configurator.aac.solvercreator;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
@@ -14,6 +16,8 @@ import java.io.InputStreamReader;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
+import java.io.SequenceInputStream;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -33,13 +37,19 @@ import edacc.api.costfunctions.CostFunction;
 import edacc.api.costfunctions.PARX;
 import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.solvercreator.Clustering.HierarchicalClusterMethod;
+import edacc.manageDB.FileInputStreamList;
+import edacc.manageDB.Util;
 import edacc.model.ExperimentResult;
 import edacc.model.ExperimentResultDAO;
 import edacc.model.Instance;
 import edacc.model.InstanceDAO;
 import edacc.model.InstanceHasProperty;
+import edacc.model.Solver;
+import edacc.model.SolverBinaries;
+import edacc.model.SolverBinariesDAO;
 import edacc.model.SolverConfiguration;
 import edacc.model.SolverConfigurationDAO;
+import edacc.model.SolverDAO;
 import edacc.model.Experiment.Cost;
 import edacc.util.Pair;
 
@@ -499,7 +509,7 @@ public class SolverCreator {
 					double mincost = Float.POSITIVE_INFINITY;
 					int thescid = -1;
 					for (int scid: clustering.keySet()) {
-						if (!Double.isInfinite(C.getCost(scid, iid)) && C.getCost(scid, iid) < mincost) {
+						if (!(Double.isInfinite(C.getCost(scid, iid)) || Double.isNaN(C.getCost(scid, iid))) && C.getCost(scid, iid) < mincost) {
 							thescid = scid;
 							mincost = C.getCost(scid, iid);
 						}
@@ -703,6 +713,37 @@ public class SolverCreator {
 	            bw.write("#!/bin/bash\njava -Xmx1024M -jar SolverLauncher.jar $@\n");
 	            bw.close();
 	            fw.close();
+	            String solverName = properties.getProperty("SolverName");
+	            if (solverName != null && !"".equals(solverName)) {
+	            	Solver s = null;
+	            	for (Solver tmp : SolverDAO.getAll()) {
+	            		if (solverName.equals(tmp.getName())) {
+	            			s = tmp;
+	            			break;
+	            		}
+					}
+					if (s != null) {
+						System.out.println("Saving solver to database..");
+						SolverBinaries binary = new SolverBinaries(s.getId());
+						List<File> binaryFiles = getFilesOfDirectory(solverFolder);
+						File[] fileArrayOrig = binaryFiles.toArray(new File[0]);
+						Arrays.sort(fileArrayOrig);
+						File[] fileArray = Arrays.copyOf(fileArrayOrig, fileArrayOrig.length);
+						transformFileArray(fileArray, solverFolder);
+						binary.setBinaryArchive(fileArray);
+						binary.setRootDir(solverFolder.getCanonicalPath());
+						binary.setBinaryName("" + expid);
+						binary.setRunCommand("");
+						binary.setRunPath("/start.sh");
+						binary.setVersion("");
+						
+						FileInputStreamList is = new FileInputStreamList(fileArrayOrig);
+			            SequenceInputStream seq = new SequenceInputStream(is);
+			            binary.setMd5(Util.calculateMD5(seq));
+						SolverBinariesDAO.save(binary);
+						System.out.println("Saved.");
+					}
+	            }
 			} else {
 				System.err.println("Could not create directory: " + folder);
 			}
@@ -720,7 +761,7 @@ public class SolverCreator {
 		for (Entry<Integer, List<Integer>> e : clustering.entrySet()) {
 			for (int iid : e.getValue()) {
 				double cost = C.getCost(e.getKey(), iid);
-				if (Double.isInfinite(cost)) {
+				if (Double.isInfinite(cost) || Double.isNaN(cost)) {
 					// impossible..
 				} else {
 					res += cost;
@@ -833,6 +874,28 @@ public class SolverCreator {
 				}
 			}
 		}
+	}
+	
+	public static void transformFileArray(File[] array, File baseDirectory) throws IOException {
+		for (int i = 0; i < array.length; i++) {
+			String tmp = array[i].getCanonicalPath().replace(baseDirectory.getCanonicalPath(), "");
+			if (tmp.startsWith("/") || tmp.startsWith("\\")) {
+				tmp = tmp.substring(1, tmp.length());
+			}
+			array[i] = new File(tmp);
+		}
+	}
+	
+	public static List<File> getFilesOfDirectory(File directory) {
+		List<File> res = new LinkedList<File>();
+		for (File f : directory.listFiles()) {
+			if (f.isDirectory()) {
+				res.addAll(getFilesOfDirectory(f));
+			} else {
+				res.add(f);
+			}
+		}
+		return res;
 	}
 	
 	public static void serialize(String file, List<Object> data) throws FileNotFoundException, IOException {

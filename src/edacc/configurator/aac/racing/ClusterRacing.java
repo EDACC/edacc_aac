@@ -20,11 +20,13 @@ import edacc.configurator.aac.SolverConfiguration;
 import edacc.configurator.aac.search.ibsutils.SolverConfigurationIBS;
 import edacc.configurator.aac.solvercreator.Clustering;
 import edacc.model.Experiment;
+import edacc.model.ExperimentDAO;
 import edacc.model.ExperimentResult;
 import edacc.model.ExperimentResultDAO;
 import edacc.model.Instance;
 import edacc.model.InstanceDAO;
 import edacc.model.StatusCode;
+import edacc.model.Experiment.Cost;
 
 public class ClusterRacing extends RacingMethods implements JobListener {
 
@@ -39,11 +41,12 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 	private HashMap<Integer, Integer> incumbentPoints;
 	
 	
-	private PARX par1 = new PARX(Experiment.Cost.cost, true, 0, 1);
-	private Median median = new Median(Experiment.Cost.cost, true);
+	private PARX par1;
+	private Median median;
 	private int unsolvedInstancesMaxJobs = 10;
 	private int unsolvedInstancesMinPoints = 10;
-	private int incumbentWinnerInstances = 3;
+	private int incumbentWinnerInstances = 1;
+	private int initialRandomJobs = 3;
 	
 	private boolean useAdaptiveInstanceTimeouts = true;
 	private int instanceTimeoutsExpId = -1;
@@ -60,6 +63,8 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 	private boolean clusteringChanged = true;
 	private HashMap<Integer, List<Integer>> cachedClustering = null;
 	
+	boolean initialRunsFinished = false;
+	List<SolverConfiguration> solverConfigurationsToInitialize = new LinkedList<SolverConfiguration>();
 	public ClusterRacing(AAC pacc, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
 		super(pacc, rng, api, parameters, firstSCs, referenceSCs);
 		pacc.addJobListener(this);
@@ -88,6 +93,20 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 			maxRacingClusters = Integer.parseInt(val);
 		if ((val = parameters.getRacingMethodParameters().get("ClusterRacing_maxCost")) != null) 
 			maxCost = Double.parseDouble(val);
+		if ((val = parameters.getRacingMethodParameters().get("ClusterRacing_initialRandomJobs")) != null) 
+			initialRandomJobs = Integer.parseInt(val);
+		
+        if (ExperimentDAO.getById(parameters.getIdExperiment()).getDefaultCost().equals(Cost.resultTime)) {
+            par1 = new PARX(Experiment.Cost.resultTime, true, 1.0f);
+            median = new Median(Experiment.Cost.resultTime, true);
+        } else if (ExperimentDAO.getById(parameters.getIdExperiment()).getDefaultCost().equals(Cost.wallTime)) {
+            par1 = new PARX(Experiment.Cost.wallTime, true, 1.0f);
+            median = new Median(Experiment.Cost.wallTime, true);
+        } else {
+            par1 = new PARX(Experiment.Cost.cost, true, 1.0f);
+            median = new Median(Experiment.Cost.cost, true);
+        }
+		
 		
 		scs = new HashMap<Integer, SolverConfigurationMetaData>();
 		seeds = new HashMap<Integer, List<Integer>>();
@@ -282,6 +301,20 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 
 	@Override
 	public int computeOptimalExpansion(int coreCount, int jobs, int listNewSCSize) {
+		if (!initialRunsFinished) {
+			pacc.log("[ClusterRacing] initial not finished");
+			initialRunsFinished = true;
+			for (SolverConfigurationMetaData data : scs.values()) {
+				if (data.sc.getJobCount() != data.sc.getFinishedJobs().size()) {
+					initialRunsFinished = false;
+					break;
+				}
+			}
+			if (!initialRunsFinished) {
+				pacc.log("[ClusterRacing] Waiting for initial runs to finish..");
+				return initialRandomJobs;
+			}
+		}
 		int res = 0;
 		if (coreCount < parameters.getMinCPUCount() || coreCount > parameters.getMaxCPUCount()) {
 			pacc.log("w Warning: Current core count is " + coreCount);
@@ -289,7 +322,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		
 		int min_sc = (Math.max(Math.round(2.f * coreCount), 8) - jobs) / (parameters.getMinRuns() * maxParcoursExpansionFactor);
 		if (min_sc > 0) {
-			res = (Math.max(Math.round(3.f * coreCount), 8) - jobs) / (parameters.getMinRuns() * maxParcoursExpansionFactor);
+			res = (Math.max(Math.round(2.5f * coreCount), 8) - jobs) / (parameters.getMinRuns() * maxParcoursExpansionFactor);
 		}
 		if (res == 0 && coreCount - jobs > 0) {
 			res = 1;
@@ -297,6 +330,10 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 
 		if (listNewSCSize == 0 && res == 0) {
 			res = 1;
+		}
+		
+		if (res > 10) {
+			res = 10;
 		}
 		return res;
 	}
@@ -352,22 +389,35 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		HashMap<Integer, List<Integer>> c = getClustering(); // clustering.getClusteringHierarchical(Clustering.HierarchicalClusterMethod.AVERAGE_LINKAGE, 10);
 		
 		List<Integer> possibleInstanceIds = new LinkedList<Integer>();
-		for (int iid : unsolved) {
-			if (instanceJobs.get(iid) == null || instanceJobs.get(iid).size() < unsolvedInstancesMaxJobs) {
-				possibleInstanceIds.add(iid);
+		if (initialRandomJobs > 0) {
+			for (int iid : unsolved) {
+				if (instanceJobs.get(iid) == null || instanceJobs.get(iid).size() < unsolvedInstancesMaxJobs) {
+					possibleInstanceIds.add(iid);
+				}
 			}
 		}
 		
 		pacc.log("[ClusterRacing] Initialize Solver Configuration, possible instance ids: " + possibleInstanceIds.size() + " clustering size: " + c.size());
-		
-		for (int i = 0; i < parameters.getMinRuns() - sc.getJobCount() && !possibleInstanceIds.isEmpty(); i++) {
-			int rand = rng.nextInt(possibleInstanceIds.size());
-			int instanceid = possibleInstanceIds.get(rand);
-			addRuns(sc, instanceid, 0);
-			unsolved.remove(instanceid);
-			possibleInstanceIds.remove(rand);
+		if (!possibleInstanceIds.isEmpty()) {
+			for (int i = 0; i < parameters.getMinRuns() - sc.getJobCount() && !possibleInstanceIds.isEmpty(); i++) {
+				int rand = rng.nextInt(possibleInstanceIds.size());
+				int instanceid = possibleInstanceIds.get(rand);
+				addRuns(sc, instanceid, 0);
+				unsolved.remove(instanceid);
+				possibleInstanceIds.remove(rand);
+				initialRandomJobs--;
+			}
+		} else if (c.isEmpty()) {
+			solverConfigurationsToInitialize.add(sc);
+			return ;
+		} else if (!solverConfigurationsToInitialize.isEmpty()) {
+			List<SolverConfiguration> list = new LinkedList<SolverConfiguration>();
+			list.addAll(solverConfigurationsToInitialize);
+			solverConfigurationsToInitialize.clear();
+			for (SolverConfiguration tmp : list) {
+				initializeSolverConfiguration(tmp);
+			}
 		}
-		
 		if (c.size() > maxRacingClusters) {
 			pacc.log("[ClusterRacing] Initialize Solver Configuration: too many clusters " + c.size() + ", removing some.");
 			List<Integer> scids = new LinkedList<Integer>();
@@ -502,6 +552,9 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		float median_sum = 0.f;
 		float sum = 0.f;
 		for (ExperimentResult er : list) {
+			if (!instanceMedianTimeCorrect.containsKey(er.getInstanceId())) {
+				continue;
+			}
 			// TODO: cost + resultTime + etc.
 			if (er.getResultCode().isCorrect()) {
 				sum += er.getCost();
@@ -511,6 +564,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 			}
 			median_sum += instanceMedianTimeCorrect.get(er.getInstanceId());
 		}
+		pacc.log("[ClusterRacing] Median_sum = " + median_sum + " sum = " + sum);
 		if (sum < median_sum) {
 			return -1;
 		} else if (sum > median_sum) {
@@ -522,7 +576,8 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 	
 	private boolean race(SolverConfiguration incumbent, SolverConfigurationMetaData data) throws Exception {
 		pacc.log("[ClusterRacing] Race - incumbent: " + incumbent.getIdSolverConfiguration() + ", competitor: " + data.sc.getIdSolverConfiguration());
-		List<Integer> instanceIds = data.c.get(incumbent.getIdSolverConfiguration());
+		List<Integer> instanceIds = new LinkedList<Integer>();
+		instanceIds.addAll(data.c.get(incumbent.getIdSolverConfiguration()));
 		
 		HashMap<Integer, List<ExperimentResult>> myJobs = new HashMap<Integer, List<ExperimentResult>>();
 		
@@ -556,9 +611,16 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		}
 		
 		if (myJobsAll.isEmpty()) {
-			int instanceid = instanceIds.get(rng.nextInt(instanceIds.size()));
-			addRuns(data.sc, instanceid, Integer.MAX_VALUE - data.sc.getIdSolverConfiguration());
-			pacc.log("[ClusterRacing] This is the first race iteration! Competitor gets random job (" + instanceid + ")");
+			pacc.log("[ClusterRacing] This is the first race iteration! Num instance ids: " + instanceIds.size());
+			//for (int i = 0; i < 4; i++) {
+				int rand = rng.nextInt(instanceIds.size());
+				int instanceid = instanceIds.get(rand);
+			//	instanceIds.remove(rand);
+				addRuns(data.sc, instanceid, Integer.MAX_VALUE - data.sc.getIdSolverConfiguration());
+				pacc.log("Competitor gets random job (" + instanceid + ")");
+			//	if (instanceIds.isEmpty())
+			//		break;
+			//}
 		} else {
 			List<Integer> instances = new LinkedList<Integer>();
 			for (Entry<Integer, List<ExperimentResult>> e : myJobs.entrySet()) {
@@ -593,6 +655,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 					} else if (comp > 0 && icount >= 2) {
 						// TODO: icount adaptive?
 						updatePoints(incumbent.getIdSolverConfiguration(), 1);
+						addUnsolvedJobs(scs.get(incumbent.getIdSolverConfiguration()));
 					}
 					
 					addUnsolvedJobs(data);
@@ -769,6 +832,10 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 
 	@Override
 	public void jobsFinished(List<ExperimentResult> results) throws Exception {
+		pacc.log("[ClusterRacing] " + results.size() + " jobs finished!");
+		if (results.isEmpty()) {
+			return ;
+		}
 		for (ExperimentResult result: results) {
 			if (!removedSCIds.contains(result.getSolverConfigId())) {
 				updateModel(scs.get(result.getSolverConfigId()).sc, result.getInstanceId());
@@ -878,4 +945,8 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		}
 	}
 
+	
+	public double getPerformance() {
+		return clustering.getCost(clustering.getClustering(false));
+	}
 }

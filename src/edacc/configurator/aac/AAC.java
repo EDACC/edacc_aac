@@ -718,11 +718,11 @@ public class AAC {
 				listNewSC.remove(sc.getIdSolverConfiguration());
 			}
 			
-			// notify racing method
-			racing.solverConfigurationsFinished(finishedSCs);
-			
 			// notify job listeners
 			notifyJobListeners(finishedJobs);
+			
+			// notify racing method
+			racing.solverConfigurationsFinished(finishedSCs);
 			
 			// update solver configuration names
 			for (SolverConfiguration sc : solverConfigs) {

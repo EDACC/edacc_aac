@@ -92,7 +92,7 @@ public class DecisionTree implements Serializable {
 				for (int instanceid : entry.getValue()) {
 					int clazz = this.query(features.get(instanceid)).getFirst();
 					System.out.println(instanceid + ".. " + clustering_original.getCost(clazz, instanceid) + " : " + clustering_original.getMinimumCost(instanceid));
-					if (Double.isInfinite(clustering_original.getCost(clazz, instanceid))) {
+					if (Double.isInfinite(clustering_original.getCost(clazz, instanceid)) || Double.isNaN(clustering_original.getCost(clazz, instanceid))) {
 						timeouts++;
 					} else {
 						perf += clustering_original.getCost(clazz, instanceid);
