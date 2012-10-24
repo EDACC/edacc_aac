@@ -572,7 +572,7 @@ public class Clustering implements Serializable {
 	private double getAbsoluteWeight(int scid) {
 	    double[] m = M.get(scid);
 	    double res = 0.f;
-	    int num = 0;
+	    //int num = 0;
 		for (int i = 0; i < n; i++) {
 			/*boolean max = true;
 			for (double[] tmp : M.values()) {
@@ -581,15 +581,17 @@ public class Clustering implements Serializable {
 					break;
 				}
 			}*/
-			if (!Double.isNaN(C.get(scid)[i])) {
+			//double cost = C.get(scid)[i];
+			//if (!Double.isNaN(cost) && !Double.isInfinite(cost)) {
 				res += m[i];
-				num++;
-			}
+			//	num++;
+			//}
 			/*if (max) {
 				res += 1.;
 			}*/
 		}
-		return res / (double) num;
+		return res;
+		//return res / (double) num;
 	}
 	
 	public boolean contains(int scid) {

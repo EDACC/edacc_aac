@@ -44,6 +44,10 @@ import edacc.model.ExperimentResultDAO;
 import edacc.model.Instance;
 import edacc.model.InstanceDAO;
 import edacc.model.InstanceHasProperty;
+import edacc.model.Parameter;
+import edacc.model.ParameterDAO;
+import edacc.model.ParameterInstance;
+import edacc.model.ParameterInstanceDAO;
 import edacc.model.Solver;
 import edacc.model.SolverBinaries;
 import edacc.model.SolverBinariesDAO;
@@ -58,7 +62,7 @@ public class SolverCreator {
 		API api = new APIImpl();
 		
 		if (args.length < 1) {
-			System.out.println("Usage: SolverCreator.jar <settings.properties file>");
+			System.out.println("Usage: SolverCreator.jar <settings.properties file> [[[key=value] key=value] ...]");
 			return;
 		}
 		
@@ -89,6 +93,17 @@ public class SolverCreator {
 			}
 
 		}
+		for (int i = 1; i < args.length; i++) {
+			String[] keyvalue = args[i].split("=");
+			if (keyvalue.length != 2) {
+				System.out.println("Usage: SolverCreator.jar <settings.properties file> [[[key=value] key=value] ...]");
+				return;
+			}
+			properties.setProperty(keyvalue[0], keyvalue[1]);
+		}
+		
+		System.out.println("Config:");
+		System.out.println(properties.toString());
 		
 		// feature specific settings
 		final String featureDirectory = properties.getProperty("FeatureDirectory");
@@ -284,7 +299,7 @@ public class SolverCreator {
 				if (!r.isEmpty()) {
 					boolean inf = true;
 					for (ExperimentResult res : r) {
-						if (res.getResultCode().isCorrect() && res.getCost() < 10e8) {
+						if (res.getResultCode().isCorrect() && res.getCost() < 1e8) {
 							inf = false;
 							break;
 						}
@@ -579,7 +594,7 @@ public class SolverCreator {
 		
 		if (Boolean.parseBoolean(properties.getProperty("BuildRandomForest"))) {
 			System.out.println("Generating random forest..");
-			RandomForest forest = new RandomForest(C_orig, C, new Random(), Integer.parseInt(properties.getProperty("RandomForestTreeCount")), 1000);
+			RandomForest forest = new RandomForest(C_orig, C, new Random(), Integer.parseInt(properties.getProperty("RandomForestTreeCount")), 200, clustering_threshold);
 			data.add(forest);
 			System.out.println("done.");
 		}
@@ -742,6 +757,23 @@ public class SolverCreator {
 			            binary.setMd5(Util.calculateMD5(seq));
 						SolverBinariesDAO.save(binary);
 						System.out.println("Saved.");
+						
+						Integer evalExpId = Integer.parseInt(properties.getProperty("EvaluationExperimentId"));
+						if (evalExpId != null && evalExpId != -1) {
+							String nameSuffix = properties.getProperty("EvaluationConfigNameSuffix");
+							String name = ""+expid + (nameSuffix != null ? nameSuffix : "");
+							SolverConfiguration sc = SolverConfigurationDAO.createSolverConfiguration(binary, evalExpId, 0, name, "");
+							
+							List<ParameterInstance> pis = new LinkedList<ParameterInstance>();
+							for (Parameter p : ParameterDAO.getParameterFromSolverId(s.getId())) {
+								ParameterInstance pi = new ParameterInstance();
+								pi.setSolverConfiguration(sc);
+								pi.setParameter_id(p.getId());
+								pi.setValue(p.getDefaultValue());
+								pis.add(pi);
+							}
+							ParameterInstanceDAO.saveBulk(pis);
+						}
 					}
 	            }
 			} else {
