@@ -44,4 +44,8 @@ public class StatisticFunction {
 	public CostFunction getCostFunction() {
 		return func;
 	}
+	
+	public boolean isMinimize() {
+	    return minimize;
+	}
 }

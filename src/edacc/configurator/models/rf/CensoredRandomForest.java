@@ -199,11 +199,13 @@ public class CensoredRandomForest {
                     }
                 //});
             //}
-            //System.gc();
+            
         //} finally {
         //    exec.shutdown();
         //}
         //exec.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
+            
+        System.gc();
     }
     
     public double[][] predict(double[][] theta_inst) {
