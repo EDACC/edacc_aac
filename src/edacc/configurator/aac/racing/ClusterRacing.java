@@ -538,6 +538,10 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 			}*/
 		}
 		
+		for (ExperimentResult er : data.sc.getJobs()) {
+			possibleInstances.remove(new Integer(er.getInstanceId()));
+		}
+		
 		int numInstances = incumbentWinnerInstances;
 		
 		while (numInstances > 0 && !possibleInstances.isEmpty()) {
@@ -633,7 +637,10 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 			pacc.log("[ClusterRacing] Inc (" + incumbent.getIdSolverConfiguration() + ") Cost: " + parameters.getStatistics().getCostFunction().calculateCost(hisJobsAll) + " - Competitor (" + data.sc.getIdSolverConfiguration() + ") Cost: " + parameters.getStatistics().getCostFunction().calculateCost(myJobsAll));
 			pacc.log("[ClusterRacing] Instances: " + instances);
 			boolean removeScFromRace = false;
-			if (compareToMedian(myJobsAll) <= 0) {
+			//int comp = compareToMedian(myJobsAll);
+			int comp = parameters.getStatistics().compare(hisJobsAll, myJobsAll);
+			
+			if (comp <= 0) {
 				// race goes on..
 				pacc.log("=> better than incumbent.. trying to find more instances..");
 				
@@ -651,7 +658,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 				if (possibleInstances.isEmpty()) {
 					pacc.log("[ClusterRacing] No more instances for " + data.sc.getIdSolverConfiguration() + " vs " + incumbent.getIdSolverConfiguration());
 					
-					int comp = parameters.getStatistics().compare(hisJobsAll, myJobsAll);
+					//comp = parameters.getStatistics().compare(hisJobsAll, myJobsAll);
 					if (comp < 0) {
 						updatePoints(incumbent.getIdSolverConfiguration(), -1);
 					} else if (comp > 0 && icount >= 2) {
