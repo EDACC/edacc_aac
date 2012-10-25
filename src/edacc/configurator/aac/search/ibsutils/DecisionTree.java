@@ -347,6 +347,14 @@ public class DecisionTree {
 
 				@Override
 				public int compare(Pair<Comparable, Sample> o1, Pair<Comparable, Sample> o2) {
+					if (o1.getFirst() instanceof Long && o2.getFirst() instanceof Integer) {
+						Long l = new Long((Integer) o2.getFirst());
+						return o1.getFirst().compareTo(l);
+					}
+					if (o2.getFirst() instanceof Long && o1.getFirst() instanceof Integer) {
+						Long l = new Long((Integer) o1.getFirst());
+						return l.compareTo((Long) o2.getFirst());
+					}
 					return o1.getFirst().compareTo(o2.getFirst());
 				}
 
@@ -473,7 +481,12 @@ public class DecisionTree {
 	//	node.param = sp.param;
 		Domain attributeDomain = domains[sa.attr.index];
 		if (attributeDomain instanceof IntegerDomain) {
-			Integer split = (Integer) sa.value;
+			Integer split = null;
+			if (sa.value instanceof Long) {
+				split = Integer.valueOf(String.valueOf((Long)sa.value));
+			} else {
+				split = (Integer) sa.value;
+			}
 			IntegerDomain iParamDomain = (IntegerDomain) attributeDomain;
 			IntegerDomain leftNodeDomain = new IntegerDomain(iParamDomain.getLow(), split);
 			IntegerDomain rightNodeDomain = new IntegerDomain(split, iParamDomain.getHigh());

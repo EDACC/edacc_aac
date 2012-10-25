@@ -288,6 +288,7 @@ public class Roar extends RacingMethods {
 					clusterHandler.addDataForClustering(bestSC);
 					pacc.updateSolverConfigName(sc, true);
 					bestSC = sc;
+					pacc.validateIncumbent(bestSC);
 					sc.setIncumbentNumber(incumbentNumber++);
 					log(pacc.getWallTime() + "," + sc.getCost() + ",n.A. ,"
 							+ sc.getIdSolverConfiguration() + ",n.A. ,"
@@ -383,6 +384,7 @@ public class Roar extends RacingMethods {
 					// best:
 					if (comp > 0) {
 						bestSC = sc;
+						pacc.validateIncumbent(bestSC);
 						sc.setIncumbentNumber(incumbentNumber++);
 						log(pacc.getWallTime() + "," + sc.getCost() + ",n.A. ,"
 								+ sc.getIdSolverConfiguration() + ",n.A. ,"

@@ -16,24 +16,26 @@ public class RandomForest implements Serializable {
 	private List<DecisionTree> forest;
 	private Random rng;
 	private double performance;
-	public RandomForest(Clustering clustering_original, Clustering clustering, Random rng, int treeCount, int n) {
+	public RandomForest(Clustering clustering_original, Clustering clustering, Random rng, int treeCount, int n, float clustering_threshold) {
 		forest = new LinkedList<DecisionTree>();
 		this.rng = rng;
 		
-		HashMap<Integer, List<Integer>> c = clustering.getClustering(false);
+		HashMap<Integer, List<Integer>> c = clustering.getClustering(false, clustering_threshold);
 		List<Integer> instances = new LinkedList<Integer>();
 		for (List<Integer> list : c.values()) {
 			instances.addAll(list);
 		}
 		
-		int num_valid_instances = Math.round(instances.size() * 0.2f);
+		/*int num_valid_instances = instances.size();// Math.round(instances.size() * 0.2f);
 		
 		List<Integer> validationInstances = new LinkedList<Integer>();
 		while (validationInstances.size() < num_valid_instances) {
 			int rand = rng.nextInt(instances.size());
 			validationInstances.add(instances.get(rand));
 			//instances.remove(rand);
-		}
+		}*/
+		List<Integer> validationInstances = new LinkedList<Integer>();
+		validationInstances.addAll(instances);
 		
 		while (forest.size() < treeCount) {
 			System.out.println("[RandomForest] Building tree " + (forest.size()+1) + " / " + treeCount);	
@@ -42,6 +44,7 @@ public class RandomForest implements Serializable {
 			for (int k = 0; k < n; k++) {
 				instance_set.add(instances.get(rng.nextInt(instances.size())));
 			}
+			//instance_set.addAll(instances);
 			
 			HashMap<Integer, List<Integer>> tmp_c = new HashMap<Integer, List<Integer>>();
 			for (Entry<Integer, List<Integer>> e : c.entrySet()) {
@@ -66,7 +69,7 @@ public class RandomForest implements Serializable {
 		int timeouts = 0;
 		for (int iid: validationInstances) {
 			int clazz = getSolverConfig(clustering_original.F.get(iid));
-			if (Double.isInfinite(clustering_original.getCost(clazz, iid))) {
+			if (Double.isInfinite(clustering_original.getCost(clazz, iid)) || Double.isNaN(clustering_original.getCost(clazz, iid))) {
 				timeouts++;
 			} else {
 				perf += clustering_original.getCost(clazz, iid);
