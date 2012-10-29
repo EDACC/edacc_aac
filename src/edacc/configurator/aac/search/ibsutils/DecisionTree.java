@@ -56,6 +56,8 @@ public class DecisionTree {
 	private Node root;
 	private Random rng;
 	
+	
+	
 	private List<Parameter> params;
 	private ArrayList<Attribute> attributes;
 	private ArrayList<Property> instanceProperties;
@@ -208,6 +210,13 @@ public class DecisionTree {
 		
 		root.results = sample;
 		root.stddev = stdDev(sample);
+		if (alpha == -1) {
+			alpha = root.stddev / 10.;
+			if (alpha < 0.001) {
+				alpha = 0.001;
+			}
+			System.out.println("[DEBUG] stddev = " + root.stddev);
+		}
 		
 		int domainsSize = params.size() + instanceProperties.size() + (useInstanceId ? 1 : 0);
 		Domain[] domains = new Domain[domainsSize];
@@ -677,6 +686,9 @@ public class DecisionTree {
 	}
 	
 	public List<QueryResult> query(double beta) {
+		if (beta == -1) {
+			beta = alpha;
+		}
 		Domain[] domains = new Domain[params.size() + instanceProperties.size() + 1];
 		int d_index = 0;
 		attributes = new ArrayList<Attribute>();

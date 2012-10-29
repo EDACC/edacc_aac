@@ -1,7 +1,5 @@
 package edacc.configurator.aac.racing;
 
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -554,7 +552,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		}
 	}
 	
-	private int compareToMedian(List<ExperimentResult> list) {
+	/*private int compareToMedian(List<ExperimentResult> list) {
 		float median_sum = 0.f;
 		float sum = 0.f;
 		for (ExperimentResult er : list) {
@@ -578,7 +576,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		} else {
 			return 0;
 		}
-	}
+	}*/
 	
 	private boolean race(SolverConfiguration incumbent, SolverConfigurationMetaData data) throws Exception {
 		pacc.log("[ClusterRacing] Race - incumbent: " + incumbent.getIdSolverConfiguration() + ", competitor: " + data.sc.getIdSolverConfiguration());
@@ -771,10 +769,8 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 			results = new LinkedList<ExperimentResult>();
 			for (ExperimentResult er : jobs) {
 				if (er.getResultCode().isCorrect()) {
-					if (maxCost != null) {
-						List<ExperimentResult> tmp = new LinkedList<ExperimentResult>();
-						tmp.add(er);
-						if (par1.calculateCost(tmp) <= maxCost) {
+					if (maxCost != null && maxCost > 0) {
+						if (par1.singleCost(er) <= maxCost) {
 							results.add(er);
 						}
 					} else {
@@ -831,7 +827,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 			}
 		}
 		double cost = (solved ? par1.calculateCost(list) : Double.POSITIVE_INFINITY);
-		if (maxCost != null && cost > maxCost) {
+		if (maxCost != null && maxCost > 0 && cost > maxCost) {
 			cost = Double.POSITIVE_INFINITY;
 		}
 		clustering.update(sc.getIdSolverConfiguration(), instanceId, cost);

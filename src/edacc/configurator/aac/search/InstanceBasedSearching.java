@@ -282,7 +282,7 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 						pacc.log("[IBS] Generating a decision tree for a cluster with " + iids.size() + " instances using " + trainData.size() + " parameter configurations.");
 					}
 					try {
-						tree = new DecisionTree(rng, parameters.getStatistics().getCostFunction(), stddev, 4, trainData, configurableParameters, new LinkedList<String>(), false);
+						tree = new DecisionTree(rng, parameters.getStatistics().getCostFunction(), -1, 4, trainData, configurableParameters, new LinkedList<String>(), false);
 					} catch (Exception ex) {
 						// only time out results?
 						ex.printStackTrace();
@@ -292,7 +292,7 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 						treeCache.put(instanceId, tree);
 					}
 				}
-				List<DecisionTree.QueryResult> q = tree.query(stddev);
+				List<DecisionTree.QueryResult> q = tree.query(-1);
 				boolean resultsRemoved = false;
 				for (int i = q.size()-1; i >= 0; i--) {
 					if (q.get(i).parametersSorted.isEmpty() || q.get(i).configs.isEmpty()) {
@@ -340,7 +340,7 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 					List<DecisionTree.QueryResult> possibleResults = new LinkedList<DecisionTree.QueryResult>();
 					// TODO: maximize cost?
 					double cost = Double.POSITIVE_INFINITY;
-					for (DecisionTree.QueryResult r : q) {
+					for (DecisionTree.QueryResult r : q) {						
 						if (Math.abs(r.cost - cost) < 0.000001) {
 							possibleResults.add(r);
 						} else if (r.cost < cost) {
@@ -430,7 +430,7 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 	public void jobsFinished(List<ExperimentResult> _results) {
 		for (ExperimentResult result : _results) {
 			if (result.getResultCode().isCorrect()) {
-				if (maxCost != null) {
+				if (maxCost != null && maxCost > 0) {
 					List<ExperimentResult> tmp = new LinkedList<ExperimentResult>();
 					tmp.add(result);
 					if (parameters.getStatistics().getCostFunction().calculateCost(tmp) <= maxCost) {
