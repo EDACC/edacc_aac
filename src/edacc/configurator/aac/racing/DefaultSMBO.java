@@ -6,10 +6,15 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
+import org.rosuda.JRI.Rengine;
+
 import edacc.api.API;
 import edacc.configurator.aac.AAC;
+import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
+import edacc.configurator.aac.course.StratifiedClusterCourse;
+import edacc.configurator.aac.util.RInterface;
 import edacc.model.ConfigurationScenarioDAO;
 
 public class DefaultSMBO extends RacingMethods {
@@ -18,7 +23,15 @@ public class DefaultSMBO extends RacingMethods {
 	int num_instances;
 	private int numSCs = 0;
 	private int curThreshold = 0;
+	
+	private List<InstanceIdSeed> completeCourse;
+	private Rengine rengine;
+	
 	private int increaseIncumbentRunsEvery = 32;
+    private String featureFolder = null;
+    private String featureCacheFolder = null;
+    private boolean useClusterCourse = false;
+	// when selecting jobs from the incumbent, prefer jobs that didn't time out
 	private boolean aggressiveJobSelection = false;
 	
 	HashSet<Integer> stopEvalSolverConfigIds = new HashSet<Integer>();
@@ -34,9 +47,25 @@ public class DefaultSMBO extends RacingMethods {
             increaseIncumbentRunsEvery = Integer.valueOf(val);
         if ((val = parameters.getRacingMethodParameters().get("DefaultSMBO_aggressiveJobSelection")) != null)
             aggressiveJobSelection = Integer.valueOf(val) == 1;
+        if ((val = parameters.getRacingMethodParameters().get("DefaultSMBO_featureFolder")) != null)
+            featureFolder = val;
+        if ((val = parameters.getRacingMethodParameters().get("DefaultSMBO_featureCacheFolder")) != null)
+            featureCacheFolder = val;
+        if ((val = parameters.getRacingMethodParameters().get("DefaultSMBO_useClusterCourse")) != null)
+            useClusterCourse = Integer.valueOf(val) == 1;
         
-        if (aggressiveJobSelection) {
-            pacc.log("c Using aggressive job selection.");
+        if (useClusterCourse) {
+            rengine = RInterface.getRengine();
+            if (rengine.eval("library(asbio)") == null) {
+                rengine.end();
+                throw new Exception("Did not find R library asbio (try running install.packages(\"asbio\")).");
+            }
+            if (rengine.eval("library(survival)") == null) {
+                rengine.end();
+                throw new Exception("Did not find R library survival (should come with R though).");
+            }
+            
+            this.completeCourse = new StratifiedClusterCourse(rengine, api.getExperimentInstances(parameters.getIdExperiment()), null, null, parameters.getMaxParcoursExpansionFactor(), rng, featureFolder, featureCacheFolder).getCourse();
         }
         
         curThreshold = increaseIncumbentRunsEvery;
@@ -54,7 +83,15 @@ public class DefaultSMBO extends RacingMethods {
 		int expansion = 0;
 		if (bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
 			expansion = Math.min(parameters.getMaxParcoursExpansionFactor() * num_instances - bestSC.getJobCount(), parameters.getInitialDefaultParcoursLength());
-			pacc.expandParcoursSC(bestSC, expansion);
+            if (useClusterCourse) {
+                for (int i = 0; i < expansion; i++) {
+                    pacc.addJob(bestSC, completeCourse.get(bestSC.getJobCount()).seed,
+                            completeCourse.get(bestSC.getJobCount()).instanceId, parameters.getMaxParcoursExpansionFactor()
+                                    * num_instances - bestSC.getJobCount());
+                }
+            } else {
+                pacc.expandParcoursSC(bestSC, expansion);
+            }
 		}
 		if (expansion > 0) {
 			pacc.log("c Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration() + " by " + expansion);
@@ -146,7 +183,6 @@ public class DefaultSMBO extends RacingMethods {
 			// priority corresponding to the level
 			// lower levels -> higher priorities
 		    if (aggressiveJobSelection) {
-		        pacc.log("c Using aggressive job selection");
 		        pacc.addRandomJobAggressive(parameters.getMinRuns(), sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
 		    } else {
 		        pacc.addRandomJob(parameters.getMinRuns(), sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
@@ -159,7 +195,13 @@ public class DefaultSMBO extends RacingMethods {
 		    numSCs += 1;
 	        if (numSCs > curThreshold && bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
 	            pacc.log("c Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration() + " by 1");
-	            pacc.expandParcoursSC(bestSC, 1);
+	            if (useClusterCourse) {
+                    pacc.addJob(bestSC, completeCourse.get(bestSC.getJobCount()).seed,
+                            completeCourse.get(bestSC.getJobCount()).instanceId, parameters.getMaxParcoursExpansionFactor()
+                                    * num_instances - bestSC.getJobCount());
+	            } else {
+	                pacc.expandParcoursSC(bestSC, 1);
+	            }
 	            pacc.addSolverConfigurationToListNewSC(bestSC);
 	            curThreshold += increaseIncumbentRunsEvery;
 	        }
@@ -171,12 +213,15 @@ public class DefaultSMBO extends RacingMethods {
 	@Override
 	public int computeOptimalExpansion(int coreCount, int jobs, int listNewSCSize) {
 		int res = 0;
-		/*if (coreCount < parameters.getMinCPUCount() || coreCount > parameters.getMaxCPUCount()) {
+		if (coreCount < parameters.getMinCPUCount() || coreCount > parameters.getMaxCPUCount()) {
 			pacc.log("w Warning: Current core count is " + coreCount);
 		}
-		if (Math.max(0, coreCount - challengers.size()) < 10) return 0;
-		return Math.max(0, coreCount - challengers.size());*/
-		
+		if (parameters.getJobCPUTimeLimit() > 10) {
+		    return Math.max(0, coreCount - jobs);
+		} else {
+		    return Math.max(0, 2 * coreCount - jobs);
+		}
+
 		/*if (challengers.size() > 0) {
 		    return 0;
 		}
@@ -185,14 +230,14 @@ public class DefaultSMBO extends RacingMethods {
 		    return coreCount;
 		}*/
 		
-		int min_sc = (Math.max(Math.round(4.f * coreCount), 8) - jobs) / parameters.getMinRuns();
+		/*int min_sc = (Math.max(Math.round(4.f * coreCount), 8) - jobs) / parameters.getMinRuns();
 		if (min_sc > 0) {
 			res = (Math.max(Math.round(6.f * coreCount), 8) - jobs) / parameters.getMinRuns();
 		}
 		if (listNewSCSize == 0 && res == 0) {
 			res = 1;
 		}
-		return res;
+		return res;*/
 	}
 
 	@Override
