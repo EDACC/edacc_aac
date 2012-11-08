@@ -368,6 +368,17 @@ public class Clustering implements Serializable {
 	}
 	
 	
+	public HashMap<Integer, List<Integer>> getClusteringByClusters(List<List<Integer>> clusters) {
+		HashMap<Integer, List<Integer>> res = new HashMap<Integer, List<Integer>>();
+		for (List<Integer> cluster: clusters) {
+			int scid = getBestConfigurationForCluster(cluster);
+			if (scid != -1) {
+				res.put(scid, cluster);
+			}
+		}
+		return res;
+	}
+	
 	public HashMap<Integer, List<Integer>> getClusteringGreedy(Random rng) {
 		updateData();
 		HashMap<Integer, List<Integer>> res = new HashMap<Integer, List<Integer>>();

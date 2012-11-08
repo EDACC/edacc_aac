@@ -1,5 +1,7 @@
 package edacc.configurator.aac.racing;
 
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -7,6 +9,7 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
+import java.util.Vector;
 
 import edacc.api.API;
 import edacc.api.costfunctions.Median;
@@ -22,7 +25,10 @@ import edacc.model.ExperimentDAO;
 import edacc.model.ExperimentResult;
 import edacc.model.ExperimentResultDAO;
 import edacc.model.Instance;
+import edacc.model.InstanceClass;
+import edacc.model.InstanceClassDAO;
 import edacc.model.InstanceDAO;
+import edacc.model.InstanceHasInstanceClassDAO;
 import edacc.model.StatusCode;
 import edacc.model.Experiment.Cost;
 
@@ -53,16 +59,21 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 	private int limitCPUTimeMaxCPUTime = 600;
 	
 	private float clusteringThreshold = 0.9f;
-	private int maxRacingClusters = 8;
+	private int maxRacingClusters = 12;
 	
 	private Double maxCost = null;
 	
 	private int maxParcoursExpansionFactor;
 	private boolean clusteringChanged = true;
 	private HashMap<Integer, List<Integer>> cachedClustering = null;
+	private boolean useInstanceClassClusters = true;
 	
 	boolean initialRunsFinished = false;
 	List<SolverConfiguration> solverConfigurationsToInitialize = new LinkedList<SolverConfiguration>();
+	
+	
+	List<List<Integer>> instanceClassClusters;
+	
 	public ClusterRacing(AAC pacc, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
 		super(pacc, rng, api, parameters, firstSCs, referenceSCs);
 		pacc.addJobListener(this);
@@ -105,7 +116,43 @@ public class ClusterRacing extends RacingMethods implements JobListener {
             median = new Median(Experiment.Cost.cost, true);
         }
 		
-		
+        if (useInstanceClassClusters) {
+        	instanceClassClusters = new LinkedList<List<Integer>>();
+        	HashMap<Integer, List<Integer>> tmp = new HashMap<Integer, List<Integer>>();
+        	for (Instance i : InstanceDAO.getAllByExperimentId(parameters.getIdExperiment())) {
+        		Vector<InstanceClass> v = InstanceHasInstanceClassDAO.getInstanceClassElements(i);
+        		for (InstanceClass ic : v) {
+        			List<Integer> c = tmp.get(ic.getId());
+        			if (c == null) {
+        				c = new LinkedList<Integer>();
+        				tmp.put(ic.getId(), c);
+        			}
+        			c.add(i.getId());
+        		}
+        	}
+        	instanceClassClusters.addAll(tmp.values());
+        	Collections.sort(instanceClassClusters, new Comparator<List<Integer>>() {
+
+				@Override
+				public int compare(List<Integer> arg0, List<Integer> arg1) {
+					return arg1.size() - arg0.size();
+				}
+        		
+        	});
+        	
+        	for (int i = 0; i < instanceClassClusters.size(); i++) {
+        		List<Integer> current = instanceClassClusters.get(i);
+        		for (int j = instanceClassClusters.size()-1; j > i; j--) {
+        			List<Integer> tmpC = instanceClassClusters.get(j);
+        			tmpC.removeAll(current);
+        			if (tmpC.isEmpty()) {
+        				instanceClassClusters.remove(j);
+        			}
+        		}
+        	}
+        	pacc.log("[ClusterRacing] Initial instance class clustering size: " + instanceClassClusters.size());
+        }
+        
 		scs = new HashMap<Integer, SolverConfigurationMetaData>();
 		seeds = new HashMap<Integer, List<Integer>>();
 		
@@ -219,6 +266,9 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 	public HashMap<Integer, List<Integer>> getClustering() {
 		if (clusteringChanged) {
 			cachedClustering = clustering.getClustering(false, clusteringThreshold);
+			if (useInstanceClassClusters && cachedClustering.size() > maxRacingClusters) {
+				cachedClustering = clustering.getClusteringByClusters(instanceClassClusters);
+			}
 			clusteringChanged = false;
 		}
 		HashMap<Integer, List<Integer>> res = new HashMap<Integer, List<Integer>>();
