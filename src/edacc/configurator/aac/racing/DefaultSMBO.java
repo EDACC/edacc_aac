@@ -196,9 +196,13 @@ public class DefaultSMBO extends RacingMethods {
 	        if (numSCs > curThreshold && bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
 	            pacc.log("c Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration() + " by 1");
 	            if (useClusterCourse) {
-                    pacc.addJob(bestSC, completeCourse.get(bestSC.getJobCount()).seed,
-                            completeCourse.get(bestSC.getJobCount()).instanceId, parameters.getMaxParcoursExpansionFactor()
-                                    * num_instances - bestSC.getJobCount());
+	                if (bestSC.getJobCount() < completeCourse.size()) {
+                        pacc.addJob(bestSC, completeCourse.get(bestSC.getJobCount()).seed,
+                                completeCourse.get(bestSC.getJobCount()).instanceId, parameters.getMaxParcoursExpansionFactor()
+                                        * num_instances - bestSC.getJobCount());
+	                } else {
+	                    pacc.log("c Incumbent reached maximum number of evaluations. No more jobs are generated for it.");
+	                }
 	            } else {
 	                pacc.expandParcoursSC(bestSC, 1);
 	            }
