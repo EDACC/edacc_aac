@@ -1,5 +1,6 @@
 package edacc.configurator.models.rf;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -11,6 +12,7 @@ import java.util.Random;
 import edacc.api.API;
 import edacc.api.costfunctions.CostFunction;
 import edacc.api.costfunctions.PARX;
+import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.configurator.aac.util.RInterface;
 import edacc.configurator.math.PCA;
@@ -30,7 +32,7 @@ import edacc.parameterspace.domain.OrdinalDomain;
 import edacc.parameterspace.domain.RealDomain;
 import edacc.parameterspace.graph.ParameterGraph;
 
-public class RandomForest {
+public class RandomForest implements java.io.Serializable {
     private CensoredRandomForest rf;
     private List<Parameter> configurableParameters = new ArrayList<Parameter>();
     private CostFunction par1CostFunc;
@@ -50,44 +52,114 @@ public class RandomForest {
      * @param wallClockLimit maximum wall time for any run in the experiment (if wall time is the target)
      * @throws Exception
      */
-    public RandomForest(API api, int idExperiment, boolean logModel, int nTrees, Random rng, int CPUTimeLimit, int wallClockLimit, List<String> additionalInstanceFeatureNames) throws Exception {
+    public RandomForest(API api, int idExperiment, boolean logModel, int nTrees, Random rng, int CPUTimeLimit, int wallClockLimit, List<String> additionalInstanceFeatureNames, String featureFolder, String featureCacheFolder, boolean pcaInstanceFeatures) throws Exception {
         this.logModel = logModel;
         ParameterGraph pspace = api.loadParameterGraphFromDB(idExperiment);
         
         this.instanceFeatureNames = new LinkedList<String>(additionalInstanceFeatureNames);
-        instanceFeatureNames.add("instance-index");
         
+        
+        if (featureFolder != null) {
+            for (String feature: AAC.getFeatureNames(new File(featureFolder))) instanceFeatureNames.add(feature);
+        } else {
+            // TODO: Load from configuration?
+            //instanceFeatureNames.add("POSNEG-RATIO-CLAUSE-mean");
+            instanceFeatureNames.add("instance-index");
+        }
+
         List<Instance> instances;
         // Load instance features
         instances = InstanceDAO.getAllByExperimentId(idExperiment);
         instanceFeatures = new double[instances.size()][instanceFeatureNames.size()];
         for (Instance instance: instances) {
             instanceFeaturesIx.put(instance.getId(), instances.indexOf(instance));
-            
             Map<String, Float> featureValueByName = new HashMap<String, Float>();
-            for (InstanceHasProperty ihp: instance.getPropertyValues().values()) {
-                if (!instanceFeatureNames.contains(ihp.getProperty().getName())) continue;
-                try {
-                    featureValueByName.put(ihp.getProperty().getName(), Float.valueOf(ihp.getValue()));
-                } catch (Exception e) {
-                    throw new Exception("All instance features have to be numeric (convertible to a Java Float).");
+            
+            if (featureFolder != null) {
+                float[] featureValues = AAC.calculateFeatures(instance.getId(), new File(featureFolder), new File(featureCacheFolder));
+                for (int i = 0; i < featureValues.length; i++) {
+                    featureValueByName.put(instanceFeatureNames.get(i), featureValues[i]);
+                }
+            } else {
+                for (InstanceHasProperty ihp: instance.getPropertyValues().values()) {
+                    if (!instanceFeatureNames.contains(ihp.getProperty().getName())) continue;
+                    try {
+                        featureValueByName.put(ihp.getProperty().getName(), Float.valueOf(ihp.getValue()));
+                    } catch (Exception e) {
+                        throw new Exception("All instance features have to be numeric (convertible to a Java Float).");
+                    }
                 }
             }
             
             featureValueByName.put("instance-index", Float.valueOf(instances.indexOf(instance)));
             
             for (String featureName: instanceFeatureNames) {
+                if (featureValueByName.get(featureName) == null) {
+                    System.out.println("Missing value for feature " + featureName);
+                }
                 instanceFeatures[instances.indexOf(instance)][instanceFeatureNames.indexOf(featureName)] = featureValueByName.get(featureName);
             }
         }
         
         // Project instance features into lower dimensional space using PCA
-        PCA pca = new PCA(RInterface.getRengine());
-        instanceFeatures = pca.transform(instanceFeatures.length, instanceFeatureNames.size(), instanceFeatures, 7);
+        if (pcaInstanceFeatures) {
+            PCA pca = new PCA(RInterface.getRengine());
+            instanceFeatures = pca.transform(instanceFeatures.length, instanceFeatureNames.size(), instanceFeatures, 7);
+            double[][] pcaFeatures = new double[instanceFeatures.length][Math.min(7, instanceFeatureNames.size())];
+            for (int i = 0; i < instanceFeatures.length; i++) {
+                for (int j = 0; j < Math.min(7, instanceFeatureNames.size()); j++) {
+                    //System.out.print(instanceFeatures[i][j] + " ");
+                    pcaFeatures[i][j] = instanceFeatures[i][j];
+                }
+                //System.out.println();
+            }
+            instanceFeatures = pcaFeatures;
+        } else {           
+            boolean[] skipFeature = new boolean[instanceFeatureNames.size()];
+            int numSkippedFeatures = 0;
+            
+            // scale features to [-1, 1]
+            for (int j = 0; j < instanceFeatureNames.size(); j++) {
+                double minValue = Double.POSITIVE_INFINITY;
+                double maxValue = Double.NEGATIVE_INFINITY;
+                for (int i = 0; i < instances.size(); i++) {
+                    minValue = Math.min(minValue, instanceFeatures[i][j]);
+                    maxValue = Math.max(maxValue, instanceFeatures[i][j]);
+                }
+                
+                if (maxValue == minValue) {
+                    skipFeature[j] = true;
+                    numSkippedFeatures++;
+                    continue;
+                }
+            }
+            
+            final double[][] cleanedFeatures = new double[instances.size()][instanceFeatureNames.size() - numSkippedFeatures];
+            for (int i = 0; i < instances.size(); i++) {
+                int fix = 0;
+                for (int j = 0; j < instanceFeatureNames.size(); j++) {
+                    if (skipFeature[j]) continue;
+                    cleanedFeatures[i][fix++] = instanceFeatures[i][j];
+                }
+            }
+            
+            List<String> cleanedInstanceFeatureNames = new LinkedList<String>();
+            for (int i = 0; i < instanceFeatureNames.size(); i++) {
+                if (!skipFeature[i]) cleanedInstanceFeatureNames.add(instanceFeatureNames.get(i));
+            }
+            
+            instanceFeatureNames = cleanedInstanceFeatureNames;
+            instanceFeatures = cleanedFeatures;
+        }
         
         int numFeatures = instanceFeatureNames.size();
-        instanceFeatureNames.clear();
-        for (int i = 0; i < Math.min(7, numFeatures); i++) instanceFeatureNames.add("PC" + (i+1)); // rename instance features to reflect PCA transformation
+        if (pcaInstanceFeatures) {
+            instanceFeatureNames.clear();
+            for (int i = 0; i < Math.min(7, numFeatures); i++) instanceFeatureNames.add("PC" + (i+1)); // rename instance features to reflect PCA transformation
+        } else {
+            System.out.println("Cleaned #features: " + instanceFeatureNames.size());
+            System.out.println(instanceFeatures.length + " " + instanceFeatures[0].length);
+        }
     
         
         // Load information about the parameter space
@@ -120,7 +192,7 @@ public class RandomForest {
         int[][] augmentedCondParents = new int[condParents.length + instanceFeatureNames.size()][];
         for (int i = 0; i < condParents.length; i++) augmentedCondParents[i] = condParents[i];
         condParents = augmentedCondParents;
-        
+
         rf = new CensoredRandomForest(nTrees, logModel ? 1 : 0, kappaMax, 1.0, catDomainSizes, rng, condParents, condParentVals);
     }
     
@@ -154,7 +226,7 @@ public class RandomForest {
                 y[jIx] = par1CostFunc.singleCost(run);
                 if (logModel) {
                     if (y[jIx] <= 0) {
-                        System.out.println("(!!!!!) WARNING log model with values <= 0.");
+                        //System.out.println("(!!!!!) WARNING log model with values <= 0.");
                         y[jIx] = 1e-15;
                     }
                     y[jIx] = Math.log10(y[jIx]);
@@ -175,7 +247,7 @@ public class RandomForest {
     public double[][] predict(List<ParameterConfiguration> configs) {
         double[][] thetas = new double[configs.size()][];
         int ix = 0;
-        for (ParameterConfiguration config: configs) thetas[ix] = paramConfigToTuple(config);
+        for (ParameterConfiguration config: configs) thetas[ix++] = paramConfigToTuple(config);
         return rf.predict(thetas);
     }
     
@@ -194,6 +266,17 @@ public class RandomForest {
         ix = 0;
         for (Instance i: instances) inst_idxs[ix++] = instanceFeaturesIx.get(i.getId()); 
         return rf.predictMarginal(thetas, inst_idxs);
+    }
+    
+    /**
+     * Predict the mean performance and prediction variance of the supplied list of parameter
+     * configurations, over the specified list of instances.
+     * @param configs
+     * @param instances
+     * @return see predict()
+     */
+    public double[][] predictDirect(double[][] thetaX) {
+        return rf.predictDirect(thetaX);
     }
     
     /**
@@ -223,17 +306,27 @@ public class RandomForest {
     }
     
     
-    private double[] paramConfigToTuple(ParameterConfiguration paramConfig) {
+    public double[] paramConfigToTuple(ParameterConfiguration paramConfig) {
         double[] theta = new double[configurableParameters.size()];
         for (Parameter p: configurableParameters) {
             int pIx = configurableParameters.indexOf(p);
             Object paramValue = paramConfig.getParameterValue(p);
-            if (paramValue == null) theta[pIx] = Double.NaN;
+            if (paramValue == null) {
+                theta[pIx] = Double.NaN;
+            }
             else {
                 if (p.getDomain() instanceof RealDomain) {
-                    theta[pIx] = (Double)paramValue;
+                    if (paramValue instanceof Float) {
+                        theta[pIx] = (Float)paramValue;
+                    } else if (paramValue instanceof Double) {
+                        theta[pIx] = (Double)paramValue;
+                    }
                 } else if (p.getDomain() instanceof IntegerDomain) {
-                    theta[pIx] = (Integer)paramValue;
+                    if (paramValue instanceof Integer) {
+                        theta[pIx] = (Integer)paramValue;
+                    } else if (paramValue instanceof Long) {
+                        theta[pIx] = (Long)paramValue;
+                    }
                 } else if (p.getDomain() instanceof CategoricalDomain) {
                     // map categorical parameters to integers 1 through domain.size, 0 = not set
                     Map<String, Integer> valueMap = new HashMap<String, Integer>();
@@ -256,16 +349,26 @@ public class RandomForest {
                     theta[pIx] = valueMap.get((String)paramValue);
                 } else if (p.getDomain() instanceof FlagDomain) {
                     // map flag parameters to {0, 1}
-                    if (FlagDomain.FLAGS.ON.equals(paramValue)) theta[pIx] = 1;
-                    else theta[pIx] = 0;
+                    if (FlagDomain.FLAGS.ON.equals(paramValue)) theta[pIx] = 2;
+                    else theta[pIx] = 1;
                 } else {
                     // TODO
                     theta[pIx] = paramValue.hashCode();
+                    throw new RuntimeException("unknown parameter domain");
                 }
+                if (Double.isNaN(theta[pIx])) throw new RuntimeException("Could not map parameter value " + paramValue + " of parameter " + p.getName());
             }
             
         }
         
         return theta;
+    }
+
+    public List<String> getInstanceFeatureNames() {
+        return instanceFeatureNames;
+    }
+    
+    public double[][] getInstanceFeatures() {
+        return instanceFeatures;
     }
 }

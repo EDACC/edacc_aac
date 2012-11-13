@@ -6,25 +6,22 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.math.MathException;
-
-import edacc.configurator.models.rf.fastrf.RandomForest;
-import edacc.configurator.models.rf.fastrf.RegtreeBuildParams;
-import edacc.configurator.models.rf.fastrf.RegtreeFit;
+import ca.ubc.cs.beta.models.fastrf.RandomForest;
+import ca.ubc.cs.beta.models.fastrf.RegtreeFit;
+import ca.ubc.cs.beta.models.fastrf.RegtreeBuildParams;
 import edacc.configurator.models.rf.fastrf.utils.Gaussian;
 import edacc.configurator.models.rf.fastrf.utils.Utils;
 
-public class CensoredRandomForest {
+public class CensoredRandomForest implements java.io.Serializable {
+    private static final long serialVersionUID = 3243815546509104702L;
+
     public RandomForest rf;
     
     private Random rng;
     private double kappaMax;
     private double cutoffPenaltyFactor;
-    private int[] catDomainSizes;
+   // private int[] catDomainSizes;
     private double[][] instanceFeatures;
     
     private double[][] rf_theta;
@@ -34,21 +31,43 @@ public class CensoredRandomForest {
 
     private final int numImputationIterations = 1;
     
-    private int[][] condParents = null;
-    private int[][][] condParentVals = null;
+    //private int[][] condParents = null;
+    //private int[][][] condParentVals = null;
+    private int[][] tree_oob_samples;
     
-    public CensoredRandomForest(int nTrees, int logModel, double kappaMax, double cutoffPenaltyFactor, int[] catDomainSizes, Random rng) {
-        rf = new RandomForest(nTrees, logModel);
+    final RegtreeBuildParams params = new RegtreeBuildParams();
+    
+    /*public CensoredRandomForest(int nTrees, int logModel, double kappaMax, double cutoffPenaltyFactor, int[] catDomainSizes, Random rng) {
         this.rng = rng;
         this.kappaMax = kappaMax;
         this.cutoffPenaltyFactor = cutoffPenaltyFactor;
         this.catDomainSizes = catDomainSizes;
-    }
+
+        params.ratioFeatures = 5.0 / 6.0;
+        params.catDomainSizes = catDomainSizes;
+        params.logModel = logModel;
+        params.storeResponses = true;
+        params.splitMin = 10;
+        rf = new RandomForest(nTrees, params);
+        
+    }*/
     
     public CensoredRandomForest(int nTrees, int logModel, double kappaMax, double cutoffPenaltyFactor, int[] catDomainSizes, Random rng, int[][] condParents, int[][][] condParentVals) {
-        this(nTrees, logModel, kappaMax, cutoffPenaltyFactor, catDomainSizes, rng);
-        this.condParents = condParents;
-        this.condParentVals = condParentVals;
+        this.rng = rng;
+        this.kappaMax = kappaMax;
+        this.cutoffPenaltyFactor = cutoffPenaltyFactor;
+        //this.catDomainSizes = catDomainSizes;
+        tree_oob_samples = new int[nTrees][];
+        
+        params.ratioFeatures = 5.0 / 6.0;
+        params.catDomainSizes = catDomainSizes;
+        params.logModel = logModel;
+        params.storeResponses = true;
+        params.splitMin = 10;
+        params.condParents = condParents;
+        params.condParentVals = condParentVals;
+        
+        rf = new RandomForest(nTrees, params);
     }
     
     public void learnModel(double[][] theta, double[][] instance_features, int nParams, int nFeatures,
@@ -77,7 +96,6 @@ public class CensoredRandomForest {
         }
         // learn model on uncensored data
         internalLearnModel(theta, instance_features, nVars, theta_inst_idxs_noncens, y_noncens, censored_noncens, rf.logModel);
-        
         if (numCensored > 0) {
             // censored subset of observations
             int[][] theta_inst_idxs_cens = new int[numCensored][2];
@@ -145,15 +163,7 @@ public class CensoredRandomForest {
     
     protected void internalLearnModel(final double[][] theta, final double[][] instance_features, final int nVars,
             final int[][] theta_inst_idxs, final double[] y, final boolean[] censored, final int logModel) throws Exception {
-        final RegtreeBuildParams params = new RegtreeBuildParams();
-        params.ratioFeatures = 5.0 / 6.0;
-        params.catDomainSizes = catDomainSizes;
-        params.logModel = logModel;
-        params.storeResponses = true;
-        params.splitMin = 10;
-        params.condParents = condParents;
-        params.condParentVals = condParentVals;
-        
+
         // Remember last RF build data
         rf_theta = theta;
         rf_theta_inst_idxs = theta_inst_idxs;
@@ -194,7 +204,8 @@ public class CensoredRandomForest {
                         }
                         
                         rf.Trees[i] = RegtreeFit.fit(theta, instance_features, tree_theta_inst_idxs, tree_y, params);
-                        rf.Trees[i].oob_samples = oob_samples;
+                        tree_oob_samples[i] = oob_samples;
+                        //rf.Trees[i].oob_samples = oob_samples;
                         
                     }
                 //});
@@ -224,12 +235,16 @@ public class CensoredRandomForest {
         return RandomForest.applyMarginal(this.rf, tree_used_idxs, theta_inst, instance_features);
     }
     
+    public double[][] predictDirect(double[][] thetaX) {
+        return RandomForest.apply(rf, thetaX);
+    }
+    
     public double[] calculateVI() {
         double[] RSS_t = new double[rf.numTrees];
         double[][] RSS_v_t = new double[rf_nVars][rf.numTrees];
         
         for (int t = 0; t < rf.numTrees; t++) {
-            int[] oob_samples = rf.Trees[t].oob_samples;
+            int[] oob_samples = tree_oob_samples[t];
             double[] oob_y = new double[oob_samples.length];
             double[][] X = new double[oob_samples.length][rf_nVars];
             for (int i = 0; i < oob_samples.length; i++) {
@@ -283,7 +298,7 @@ public class CensoredRandomForest {
         double[] RSS_t = new double[rf.numTrees];
         
         for (int t = 0; t < rf.numTrees; t++) {
-            int[] oob_samples = rf.Trees[t].oob_samples;
+            int[] oob_samples = tree_oob_samples[t];
             double[] oob_y = new double[oob_samples.length];
             double[][] X = new double[oob_samples.length][rf_nVars];
             for (int i = 0; i < oob_samples.length; i++) {
