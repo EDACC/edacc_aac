@@ -1,8 +1,10 @@
 package edacc.configurator.aac.racing;
 
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 
@@ -16,6 +18,8 @@ import edacc.configurator.aac.SolverConfiguration;
 import edacc.configurator.aac.course.StratifiedClusterCourse;
 import edacc.configurator.aac.util.RInterface;
 import edacc.model.ConfigurationScenarioDAO;
+import edacc.model.Instance;
+import edacc.model.InstanceDAO;
 
 public class DefaultSMBO extends RacingMethods {
 	SolverConfiguration bestSC;
@@ -65,7 +69,15 @@ public class DefaultSMBO extends RacingMethods {
                 throw new Exception("Did not find R library survival (should come with R though).");
             }
             
-            this.completeCourse = new StratifiedClusterCourse(rengine, api.getExperimentInstances(parameters.getIdExperiment()), null, null, parameters.getMaxParcoursExpansionFactor(), rng, featureFolder, featureCacheFolder).getCourse();
+            StratifiedClusterCourse course = new StratifiedClusterCourse(rengine, api.getExperimentInstances(parameters.getIdExperiment()), null, null, parameters.getMaxParcoursExpansionFactor(), rng, featureFolder, featureCacheFolder);
+            this.completeCourse = course.getCourse();
+            List<Instance> instances = InstanceDAO.getAllByExperimentId(parameters.getIdExperiment());
+            Map<Integer, Instance> instanceById = new HashMap<Integer, Instance>();
+            for (Instance i: instances) instanceById.put(i.getId(), i);
+            pacc.log("[DefaultSMBO] Clustered instances into " + course.getK() + " clusters. Complete course:");
+            for (InstanceIdSeed isp: completeCourse) {
+                pacc.log("[DefaultSMBO] " + instanceById.get(isp.instanceId) + ", " + isp.seed);
+            }
         }
         
         curThreshold = increaseIncumbentRunsEvery;

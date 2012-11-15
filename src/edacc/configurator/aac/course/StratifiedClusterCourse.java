@@ -37,6 +37,7 @@ import edacc.configurator.math.ClusterSilhouette;
  */
 public class StratifiedClusterCourse {
     private List<InstanceIdSeed> course;
+    private int k;
 
     public StratifiedClusterCourse(Rengine rengine, List<Instance> instances, List<String> instanceFeatureNames, List<String> instanceSizeFeatureNames, int maxExpansionFactor, Random rng, String featureFolder, String featureCacheFolder) throws Exception {
         if (instances.size() == 0) throw new IllegalArgumentException("List of instances has to contain at least one instance.");
@@ -139,6 +140,7 @@ public class StratifiedClusterCourse {
         
         ClusterSilhouette sc = new ClusterSilhouette(rengine, cleanedFeatures.length, cleanedFeatures[0].length, cleanedFeatures);
         int k = sc.findNumberOfClusters((int)Math.sqrt(instances.size()));
+        this.k = k;
         int[] classigns = sc.clusterData(k);
         int[] count_by_cluster = new int[k];
         for (int i = 0; i < instances.size(); i++) {
@@ -277,5 +279,9 @@ public class StratifiedClusterCourse {
         double dist = 0;
         for (int i = 0; i < x.length; i++) dist += (x[i] - y[i]) * (x[i] - y[i]);
         return dist;
+    }
+    
+    public int getK() {
+        return k;
     }
 }
