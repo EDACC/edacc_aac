@@ -95,7 +95,7 @@ public class RandomForest implements java.io.Serializable {
             
             for (String featureName: instanceFeatureNames) {
                 if (featureValueByName.get(featureName) == null) {
-                    System.out.println("Missing value for feature " + featureName);
+                    System.err.println("Missing value for feature " + featureName);
                 }
                 instanceFeatures[instances.indexOf(instance)][instanceFeatureNames.indexOf(featureName)] = featureValueByName.get(featureName);
             }
@@ -157,8 +157,8 @@ public class RandomForest implements java.io.Serializable {
             instanceFeatureNames.clear();
             for (int i = 0; i < Math.min(7, numFeatures); i++) instanceFeatureNames.add("PC" + (i+1)); // rename instance features to reflect PCA transformation
         } else {
-            System.out.println("Cleaned #features: " + instanceFeatureNames.size());
-            System.out.println(instanceFeatures.length + " " + instanceFeatures[0].length);
+            //System.out.println("Cleaned #features: " + instanceFeatureNames.size());
+            //System.out.println(instanceFeatures.length + " " + instanceFeatures[0].length);
         }
     
         
@@ -177,13 +177,13 @@ public class RandomForest implements java.io.Serializable {
         double kappaMax = 0;
         if (ExperimentDAO.getById(idExperiment).getDefaultCost().equals(Cost.resultTime)) {
             kappaMax = CPUTimeLimit;
-            par1CostFunc = new PARX(Experiment.Cost.resultTime, true, 1.0f);
+            par1CostFunc = new PARX(Experiment.Cost.resultTime, true, kappaMax, 1);
         } else if (ExperimentDAO.getById(idExperiment).getDefaultCost().equals(Cost.wallTime)) {
             kappaMax = wallClockLimit;
-            par1CostFunc = new PARX(Experiment.Cost.wallTime, true, 1.0f);
+            par1CostFunc = new PARX(Experiment.Cost.wallTime, true, kappaMax, 1);
         } else {
             kappaMax = ExperimentDAO.getById(idExperiment).getCostPenalty();
-            par1CostFunc = new PARX(Experiment.Cost.cost, true, 1.0f);
+            par1CostFunc = new PARX(Experiment.Cost.cost, true, kappaMax, 1);
         }
         
         Object[] cpRF = pspace.conditionalParentsForRF(configurableParameters);
@@ -222,11 +222,11 @@ public class RandomForest implements java.io.Serializable {
             for (ExperimentResult run: config.getFinishedJobs()) {
                 theta_inst_idxs[jIx][0] = solverConfigTheta.get(config);
                 theta_inst_idxs[jIx][1] = instanceFeaturesIx.get(run.getInstanceId());
-                censored[jIx] = !run.getResultCode().isCorrect();
+                censored[jIx] = par1CostFunc.isSingleCostPenalized(run);
                 y[jIx] = par1CostFunc.singleCost(run);
                 if (logModel) {
                     if (y[jIx] <= 0) {
-                        //System.out.println("(!!!!!) WARNING log model with values <= 0.");
+                        System.err.println("(!!!!!) WARNING log model with values <= 0.");
                         y[jIx] = 1e-15;
                     }
                     y[jIx] = Math.log10(y[jIx]);
@@ -269,8 +269,8 @@ public class RandomForest implements java.io.Serializable {
     }
     
     /**
-     * Predict the mean performance and prediction variance of the supplied list of parameter
-     * configurations, over the specified list of instances.
+     * Predict the mean performance and prediction variance of the list of
+     * joint theta-X-vectors thetaX
      * @param configs
      * @param instances
      * @return see predict()
@@ -295,6 +295,14 @@ public class RandomForest implements java.io.Serializable {
      */
     public double getOOBRSS() {
         return rf.calculateOobRSS();
+    }
+    
+    /**
+     * Calculate average validation error (average out-of-bag average residual sum of squares)
+     * @return
+     */
+    public double getOOBAvgBRSS() {
+        return rf.calculateAvgOobRSS();
     }
     
     /**

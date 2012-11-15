@@ -184,13 +184,13 @@ public class SMBO extends SearchMethods {
         double kappaMax = 0;
         if (ExperimentDAO.getById(parameters.getIdExperiment()).getDefaultCost().equals(Cost.resultTime)) {
             kappaMax = parameters.getJobCPUTimeLimit();
-            par1CostFunc = new PARX(Experiment.Cost.resultTime, true, 1.0f);
+            par1CostFunc = new PARX(Experiment.Cost.resultTime, true, kappaMax, 1);
         } else if (ExperimentDAO.getById(parameters.getIdExperiment()).getDefaultCost().equals(Cost.wallTime)) {
             kappaMax = parameters.getJobWallClockTimeLimit();
-            par1CostFunc = new PARX(Experiment.Cost.wallTime, true, 1.0f);
+            par1CostFunc = new PARX(Experiment.Cost.wallTime, true, kappaMax, 1);
         } else {
             kappaMax = ExperimentDAO.getById(parameters.getIdExperiment()).getCostPenalty();
-            par1CostFunc = new PARX(Experiment.Cost.cost, true, 1.0f);
+            par1CostFunc = new PARX(Experiment.Cost.cost, true, kappaMax, 1);
         }
 
         

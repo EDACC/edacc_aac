@@ -1009,7 +1009,7 @@ public class AAC {
 			featuresCacheFolder.mkdirs();
 			
 			if (cacheFile.exists()) {
-				System.out.println("Found cached features.");
+				//System.out.println("Found cached features.");
 				try {
 					BufferedReader br = new BufferedReader(new FileReader(cacheFile));
 					String[] featuresNames = br.readLine().split(",");

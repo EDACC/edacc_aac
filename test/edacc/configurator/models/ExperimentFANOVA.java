@@ -3,6 +3,7 @@ package edacc.configurator.models;
 import java.io.BufferedWriter;
 import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -63,7 +64,6 @@ public class ExperimentFANOVA {
         options.addOption("calculaterfvi", false, "Whether to calculate the random forest variable importance");
         options.addOption("averageparamperf", true, "Name of the parameter of which to estimate the average performance");
 
-        CommandLineParser parser = new PosixParser();
         String hostname = null;
         Integer port = 3306;
         String database = null;
@@ -75,12 +75,14 @@ public class ExperimentFANOVA {
         Integer mcSamples = 1000;
         String featureFolder = null;
         String featureCacheFolder = null;
-        Integer seed = 1;
+        Integer seed = 12345;
         String samplingPath = null;
         Integer nTrees = 40;
         Boolean calculateRFVI = false;
         String averageParamPerf = null;
         Integer nConfigsForAverage = 10000; // TODO
+        
+        CommandLineParser parser = new PosixParser();
         try {
             CommandLine cmd = parser.parse(options, args);
             
@@ -104,8 +106,8 @@ public class ExperimentFANOVA {
             System.out.println( "Parsing error: " + e.getMessage() + "\n");
             HelpFormatter formatter = new HelpFormatter();
             formatter.printHelp( "FANOVA", options );
+            return;
         }
-
 
         System.out.println("---- EDACC FANOVA-analysis of experiment results ----");
         API api = new APIImpl();
@@ -119,15 +121,17 @@ public class ExperimentFANOVA {
         System.out.println("Connection to database established.");
 
         ParameterGraph pspace = api.loadParameterGraphFromDB(idExperiment);
-        
+        Experiment experiment = ExperimentDAO.getById(idExperiment);
+        System.out.println("Experiment [" + idExperiment + "] " + experiment.getName());
+         
         // Make a par1 helper cost function
         CostFunction par1CostFunc;
         if (ExperimentDAO.getById(idExperiment).getDefaultCost().equals(Cost.resultTime)) {
-            par1CostFunc = new PARX(Experiment.Cost.resultTime, true, 1.0f);
+            par1CostFunc = new PARX(Experiment.Cost.resultTime, true, CPUlimit, 1);
         } else if (ExperimentDAO.getById(idExperiment).getDefaultCost().equals(Cost.wallTime)) {
-            par1CostFunc = new PARX(Experiment.Cost.wallTime, true, 1.0f);
+            par1CostFunc = new PARX(Experiment.Cost.wallTime, true, wallLimit, 1);
         } else {
-            par1CostFunc = new PARX(Experiment.Cost.cost, true, 1.0f);
+            par1CostFunc = new PARX(Experiment.Cost.cost, true, ExperimentDAO.getById(idExperiment).getCostPenalty(), 1);
         }
 
         System.out.println("Loading configurations ...");
@@ -150,28 +154,40 @@ public class ExperimentFANOVA {
         // ===== Learn the random forest =====
         System.out.println("Learning random forest from data ...");
         long start = System.currentTimeMillis();
-        RandomForest model = new RandomForest(api, idExperiment, true, nTrees, rng, CPUlimit, wallLimit, new LinkedList<String>(), featureFolder, featureCacheFolder, false);
+        RandomForest model = new RandomForest(api, idExperiment, false, nTrees, rng, CPUlimit, wallLimit, new LinkedList<String>(), featureFolder, featureCacheFolder, false);
         model.learnModel(solverConfigs);
         System.out.println("Learning the model took " + (System.currentTimeMillis() - start) / 1000.0f + " seconds");
+        System.out.println("RF model is based on " + model.getConfigurableParameters().size() + " parameters and " + model.getInstanceFeatureNames().size() + " instance features.");
+        //System.out.println("RF OOB-RSS: " + model.getOOBAvgBRSS());
         
         System.out.println("Calculating average performance for parameter " + averageParamPerf);
-        for (Parameter p: model.getConfigurableParameters()) {
-            if (p.getName().equals(averageParamPerf)) {
-                for (Object v: p.getDomain().getUniformDistributedValues(100)) {
-                    List<ParameterConfiguration> pconfigs = new LinkedList<ParameterConfiguration>();
-                    for (int i = 0; i < nConfigsForAverage; i++) {
-                        ParameterConfiguration config = pspace.getRandomConfiguration(rng); // TODO: base on quasi random sequences
-                        config.setParameterValue(p, v); // fix parameter p
-                        pconfigs.add(config);
+        List<ParameterConfiguration> pconfigs = new ArrayList<ParameterConfiguration>(nConfigsForAverage);
+        for (int i = 0; i < nConfigsForAverage; i++) {
+            ParameterConfiguration config = pspace.getRandomConfiguration(rng); // TODO: base on quasi random sequences
+            pconfigs.add(config);
+        }
+        
+        if (averageParamPerf != null) {
+            for (Parameter p: model.getConfigurableParameters()) {
+                if (p.getName().equals(averageParamPerf)) {
+                    for (Object v: p.getDomain().getUniformDistributedValues(100)) {
+                        Object[] old_vals = new Object[nConfigsForAverage];
+                        for (int i = 0; i < nConfigsForAverage; i++) {
+                            old_vals[i] = pconfigs.get(i).getParameterValue(p);
+                            pconfigs.get(i).setParameterValue(p, v);
+                        }
+                        double[][] preds = model.predict(pconfigs);
+                        double avg = 0;
+                        for (int i = 0; i < preds.length; i++) {
+                            avg += preds[i][0];
+                        }
+                        avg /= preds.length;
+                        
+                        System.out.println(v + ": " + avg);
+                        for (int i = 0; i < nConfigsForAverage; i++) {
+                            pconfigs.get(i).setParameterValue(p, old_vals[i]);
+                        }
                     }
-                    double[][] preds = model.predict(pconfigs);
-                    double avg = 0;
-                    for (int i = 0; i < preds.length; i++) {
-                        avg += preds[i][0];
-                    }
-                    avg /= preds.length;
-                    
-                    System.out.println(v + ": " + avg);
                 }
             }
         }
@@ -224,7 +240,7 @@ public class ExperimentFANOVA {
         rengine.eval("X2 <- data.frame(matrix(X2, nrow=" + mcSamples + ", ncol=" + d + ", byrow=T))");
         rengine.eval("set.seed(1)");
         System.out.println("Calculating monte-carlo sample positions...");
-        rengine.eval("x <- sobol(X1=X1, X2=X2, nboot=100, order=2)");
+        rengine.eval("x <- sobol2007(X1=X1, X2=X2, nboot=100)");
         double[][] MC_X = rengine.eval("as.matrix(x$X)").asDoubleMatrix();
         double[][] X = new double[MC_X.length][MC_X[0].length];
         
@@ -311,7 +327,7 @@ public class ExperimentFANOVA {
         writer.write(")\n");
         
         writer.write("set.seed(1)\n");
-        writer.write("x <- sobol(X1=X1, X2=X2, nboot=100, order=2)\n");
+        writer.write("x <- sobol2007(X1=X1, X2=X2, nboot=100)\n");
         writer.write("tell(x, y)\n");
         
         writer.write("topTotalEffects = x$T[with(x$T, order(-x$T[,1])),][1:7,]\n");
