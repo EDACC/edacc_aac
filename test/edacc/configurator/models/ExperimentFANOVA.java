@@ -63,7 +63,8 @@ public class ExperimentFANOVA {
         options.addOption("ntrees", true, "number of trees in the random forest model");
         options.addOption("calculaterfvi", false, "Whether to calculate the random forest variable importance");
         options.addOption("averageparamperf", true, "Name of the parameter of which to estimate the average performance");
-
+        options.addOption("secondorder", false, "Estimate first and second-order indices instead of first and total indices (Warning: requires a lot of model predictions)");
+        
         String hostname = null;
         Integer port = 3306;
         String database = null;
@@ -81,6 +82,7 @@ public class ExperimentFANOVA {
         Boolean calculateRFVI = false;
         String averageParamPerf = null;
         Integer nConfigsForAverage = 10000; // TODO
+        Boolean secondOrder = false;
         
         CommandLineParser parser = new PosixParser();
         try {
@@ -100,7 +102,8 @@ public class ExperimentFANOVA {
             if (cmd.hasOption("seed")) seed = Integer.valueOf(cmd.getOptionValue("seed"));
             if (cmd.hasOption("samplingpath")) samplingPath = cmd.getOptionValue("samplingpath");
             if (cmd.hasOption("ntrees")) nTrees = Integer.valueOf(cmd.getOptionValue("ntrees"));
-            if (cmd.hasOption("calculaterfvi")) calculateRFVI = cmd.hasOption("calculaterfvi");
+            calculateRFVI = cmd.hasOption("calculaterfvi");
+            secondOrder = cmd.hasOption("secondorder");
             if (cmd.hasOption("averageparamperf")) averageParamPerf = cmd.getOptionValue("averageparamperf"); 
         } catch (ParseException e) {
             System.out.println( "Parsing error: " + e.getMessage() + "\n");
@@ -240,7 +243,11 @@ public class ExperimentFANOVA {
         rengine.eval("X2 <- data.frame(matrix(X2, nrow=" + mcSamples + ", ncol=" + d + ", byrow=T))");
         rengine.eval("set.seed(1)");
         System.out.println("Calculating monte-carlo sample positions...");
-        rengine.eval("x <- sobol2007(X1=X1, X2=X2, nboot=100)");
+        if (secondOrder) {
+            rengine.eval("x <- sobol(X1=X1, X2=X2, nboot=100, order=2)");
+        } else {
+            rengine.eval("x <- sobol2007(X1=X1, X2=X2, nboot=100)");
+        }
         double[][] MC_X = rengine.eval("as.matrix(x$X)").asDoubleMatrix();
         double[][] X = new double[MC_X.length][MC_X[0].length];
         
@@ -327,10 +334,18 @@ public class ExperimentFANOVA {
         writer.write(")\n");
         
         writer.write("set.seed(1)\n");
-        writer.write("x <- sobol2007(X1=X1, X2=X2, nboot=100)\n");
+        if (secondOrder) {
+            writer.write("x <- sobol(X1=X1, X2=X2, nboot=100, order=2)\n");
+        } else {
+            writer.write("x <- sobol2007(X1=X1, X2=X2, nboot=100)\n");
+        }
         writer.write("tell(x, y)\n");
         
-        writer.write("topTotalEffects = x$T[with(x$T, order(-x$T[,1])),][1:7,]\n");
+        if (secondOrder) {
+            writer.write("topTotalEffects = x$S[with(x$S, order(-x$S[,1])),][1:10,]\n");
+        } else {
+            writer.write("topTotalEffects = x$T[with(x$T, order(-x$T[,1])),][1:10,]\n");
+        }
         writer.write("par(mar=c(4,12,1,1))\n");
         writer.write("barplot(topTotalEffects[,1], names.arg=rownames(topTotalEffects), horiz=T, las=2)\n");
         writer.close();
