@@ -42,18 +42,18 @@ public class CensoredRandomForestValidation {
     public static void main(String ... args) throws Exception {        
         API api = new APIImpl();
         
-        api.connect("horst", 3306, "db", "user", "pw");
-        int idExperiment = 29;
+        api.connect("edacc3", 3306, "daniel", "daniel", "edaccteam");
+        int idExperiment = 22;
         int CPUlimit = 10;
         int wallLimit = 10;
 
         CostFunction par1CostFunc;
         if (ExperimentDAO.getById(idExperiment).getDefaultCost().equals(Cost.resultTime)) {
-            par1CostFunc = new PARX(Experiment.Cost.resultTime, true, 1.0f);
+            par1CostFunc = new PARX(Experiment.Cost.resultTime, true, CPUlimit, 1);
         } else if (ExperimentDAO.getById(idExperiment).getDefaultCost().equals(Cost.wallTime)) {
-            par1CostFunc = new PARX(Experiment.Cost.wallTime, true, 1.0f);
+            par1CostFunc = new PARX(Experiment.Cost.wallTime, true, wallLimit, 1);
         } else {
-            par1CostFunc = new PARX(Experiment.Cost.cost, true, 1.0f);
+            par1CostFunc = new PARX(Experiment.Cost.cost, true, ExperimentDAO.getById(idExperiment).getCostPenalty(), 1);
         }
 
         Random rng = new edacc.util.MersenneTwister(123);

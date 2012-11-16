@@ -1,4 +1,4 @@
-package edacc.configurator.models;
+package edacc.analysis;
 
 import java.io.BufferedWriter;
 import java.io.FileOutputStream;
@@ -28,6 +28,7 @@ import edacc.configurator.aac.SolverConfiguration;
 import edacc.configurator.aac.StatisticFunction;
 import edacc.configurator.aac.util.RInterface;
 import edacc.configurator.math.SamplingSequence;
+import edacc.configurator.models.rf.CensoredRandomForest;
 import edacc.configurator.models.rf.RandomForest;
 import edacc.model.Experiment;
 import edacc.model.ExperimentDAO;
@@ -44,7 +45,7 @@ import edacc.parameterspace.domain.OrdinalDomain;
 import edacc.parameterspace.domain.RealDomain;
 import edacc.parameterspace.graph.ParameterGraph;
 
-public class ExperimentFANOVA {    
+public class FANOVA {    
     public static void main(String ... args) throws Exception {
         Options options = new Options();
         options.addOption("host", true, "DB hostname");
@@ -161,16 +162,18 @@ public class ExperimentFANOVA {
         model.learnModel(solverConfigs);
         System.out.println("Learning the model took " + (System.currentTimeMillis() - start) / 1000.0f + " seconds");
         System.out.println("RF model is based on " + model.getConfigurableParameters().size() + " parameters and " + model.getInstanceFeatureNames().size() + " instance features.");
-        //System.out.println("RF OOB-RSS: " + model.getOOBAvgBRSS());
-        
-        System.out.println("Calculating average performance for parameter " + averageParamPerf);
-        List<ParameterConfiguration> pconfigs = new ArrayList<ParameterConfiguration>(nConfigsForAverage);
-        for (int i = 0; i < nConfigsForAverage; i++) {
-            ParameterConfiguration config = pspace.getRandomConfiguration(rng); // TODO: base on quasi random sequences
-            pconfigs.add(config);
-        }
+        System.out.println("RF OOB-RSS: " + model.getOOBRSS());
         
         if (averageParamPerf != null) {
+            System.out.println("Calculating average performance for parameter " + averageParamPerf);
+            List<ParameterConfiguration> pconfigs = new ArrayList<ParameterConfiguration>(nConfigsForAverage);
+            SamplingSequence sequenceParam = new SamplingSequence(samplingPath);
+            double[][] sequenceValuesParams = sequenceParam.getSequence(model.getConfigurableParameters().size(), nConfigsForAverage);
+            for (int i = 0; i < nConfigsForAverage; i++) {
+                ParameterConfiguration config = mapRealTupleToParameters(pspace, rng, model.getConfigurableParameters(), sequenceValuesParams[i]);// pspace.getRandomConfiguration(rng); // TODO: base on quasi random sequences
+                pconfigs.add(config);
+            }
+
             for (Parameter p: model.getConfigurableParameters()) {
                 if (p.getName().equals(averageParamPerf)) {
                     for (Object v: p.getDomain().getUniformDistributedValues(100)) {

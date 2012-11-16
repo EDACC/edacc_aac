@@ -6,12 +6,16 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import ca.ubc.cs.beta.models.fastrf.RandomForest;
 import ca.ubc.cs.beta.models.fastrf.RegtreeFit;
 import ca.ubc.cs.beta.models.fastrf.RegtreeBuildParams;
 import edacc.configurator.models.rf.fastrf.utils.Gaussian;
 import edacc.configurator.models.rf.fastrf.utils.Utils;
+import edacc.parameterspace.ParameterConfiguration;
 
 public class CensoredRandomForest implements java.io.Serializable {
     private static final long serialVersionUID = 3243815546509104702L;
@@ -34,6 +38,9 @@ public class CensoredRandomForest implements java.io.Serializable {
     //private int[][] condParents = null;
     //private int[][][] condParentVals = null;
     private int[][] tree_oob_samples;
+    
+    public static boolean parallelizeInternally = false;
+    public static int parallelizationProcs = 1;
     
     final RegtreeBuildParams params = new RegtreeBuildParams();
     
@@ -225,7 +232,40 @@ public class CensoredRandomForest implements java.io.Serializable {
         return RandomForest.applyMarginal(this.rf, tree_used_idxs, theta_inst, instance_features);
     }
     
-    public double[][] predictDirect(double[][] thetaX) {
+    public double[][] predictDirect(final double[][] thetaX) {
+        if (parallelizeInternally) {
+            final int N = thetaX.length;
+            final int D = thetaX[0].length;
+            final int C = N / parallelizationProcs;
+            final double[][] res = new double[N][2];
+            ExecutorService exec = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+            try {
+                for (int j = 0; j < parallelizationProcs; j++) {
+                    final int ix = j * C;
+                    exec.submit(new Runnable() {
+                        @Override
+                        public void run() {
+                            System.out.println("Thread " + Thread.currentThread().getId() + " computes " + ix + " to " + Math.min(ix + C, N));
+                            double[][] myThetaX = new double[Math.min(ix + C, N) - ix + 1][];
+                            for (int i = ix; i < Math.min(ix + C, N); i++) {
+                                myThetaX[i - ix] = thetaX[ix];
+                            }
+                            double[][] myRes = RandomForest.apply(rf, myThetaX);
+                            for (int i = ix; i < Math.min(ix + C, N); i++) {
+                                res[i][0] = myRes[i - ix][0];
+                                res[i][0] = myRes[i - ix][1];
+                            }
+                        }
+                    });
+                }
+                exec.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                e.printStackTrace(); // TODO Auto-generated catch block
+            } finally {
+                exec.shutdown();
+            }  
+            return res;
+        }
         return RandomForest.apply(rf, thetaX);
     }
     
