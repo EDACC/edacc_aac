@@ -112,6 +112,12 @@ public class FANOVA {
             formatter.printHelp( "FANOVA", options );
             return;
         }
+        
+        Rengine rengine = RInterface.getRengine();
+        if (rengine.eval("library(sensitivity)") == null) {
+            rengine.end();
+            throw new Exception("Did not find R library 'sensitivity' (try running install.packages(\"sensitivity\")).");
+        }
 
         System.out.println("---- EDACC FANOVA-analysis of experiment results ----");
         API api = new APIImpl();
@@ -217,12 +223,6 @@ public class FANOVA {
         int d = model.getConfigurableParameters().size() + model.getInstanceFeatureNames().size();
         SamplingSequence sequence = new SamplingSequence(samplingPath);
         double[][] sequenceValues = sequence.getSequence(d, (2+d)*mcSamples * 2);
-        
-        Rengine rengine = RInterface.getRengine();
-        if (rengine.eval("library(sensitivity)") == null) {
-            rengine.end();
-            throw new Exception("Did not find R library sensitivity (try running install.packages(\"sensitivity\")).");
-        }
         
         System.out.println("Number of model input variables is: " + d);
         double[] linearizedData = new double[mcSamples * d];

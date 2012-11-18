@@ -34,7 +34,7 @@
         <jar destfile="${dist.dir}/${aac.dir}/${aac.jar}">
             <manifest>
                 <attribute name="Main-Class" value="edacc.configurator.aac.AAC"/>
-                <attribute name="Class-Path" value=". AAC_lib/EDACCAPI.jar AAC_lib/mysql-connector-java-5.1.13-bin.jar AAC_lib/SevenZip.jar AAC_lib/EDACC_model.jar AAC_lib/commons-math-2.2.jar AAC_lib/commons-math3-3.0.jar AAC_lib/JRI.jar AAC_lib/JRIEngine.jar AAC_lib/REngine.jar AAC_lib/junit.jar AAC_lib/org.hamcrest.core_1.1.0.v20090501071000.jar"/>
+                <attribute name="Class-Path" value=". AAC_lib/EDACCAPI.jar AAC_lib/mysql-connector-java-5.1.13-bin.jar AAC_lib/SevenZip.jar AAC_lib/EDACC_model.jar AAC_lib/commons-math-2.2.jar AAC_lib/commons-math3-3.0.jar AAC_lib/JRI.jar AAC_lib/JRIEngine.jar AAC_lib/REngine.jar AAC_lib/junit.jar AAC_lib/org.hamcrest.core_1.1.0.v20090501071000.jar AAC_lib/fastrf.jar"/>
             </manifest>
             <fileset dir="bin"/>
         </jar>
@@ -50,7 +50,7 @@
 		<jar destfile="${dist.dir}/${solvercreator.dir}/${solvercreator.jar}">
             <manifest>
                 <attribute name="Main-Class" value="edacc.configurator.aac.solvercreator.SolverCreator"/>
-                <attribute name="Class-Path" value=". AAC_lib/EDACCAPI.jar AAC_lib/mysql-connector-java-5.1.13-bin.jar AAC_lib/SevenZip.jar AAC_lib/EDACC_model.jar AAC_lib/commons-math-2.2.jar AAC_lib/commons-math3-3.0.jar AAC_lib/JRI.jar AAC_lib/JRIEngine.jar AAC_lib/REngine.jar AAC_lib/junit.jar AAC_lib/org.hamcrest.core_1.1.0.v20090501071000.jar"/>
+                <attribute name="Class-Path" value=". AAC_lib/EDACCAPI.jar AAC_lib/mysql-connector-java-5.1.13-bin.jar AAC_lib/SevenZip.jar AAC_lib/EDACC_model.jar AAC_lib/commons-math-2.2.jar AAC_lib/commons-math3-3.0.jar AAC_lib/JRI.jar AAC_lib/JRIEngine.jar AAC_lib/REngine.jar AAC_lib/junit.jar AAC_lib/org.hamcrest.core_1.1.0.v20090501071000.jar AAC_lib/fastrf.jar"/>
             </manifest>
             <fileset dir="bin"/>
         </jar>
@@ -67,7 +67,7 @@
 		<jar destfile="${dist.dir}/${solverlauncher.dir}/${solverlauncher.jar}">
             <manifest>
                 <attribute name="Main-Class" value="edacc.configurator.aac.solvercreator.SolverLauncher"/>
-                <attribute name="Class-Path" value=". AAC_lib/EDACCAPI.jar AAC_lib/mysql-connector-java-5.1.13-bin.jar AAC_lib/SevenZip.jar AAC_lib/EDACC_model.jar AAC_lib/commons-math-2.2.jar AAC_lib/commons-math3-3.0.jar AAC_lib/JRI.jar AAC_lib/JRIEngine.jar AAC_lib/REngine.jar AAC_lib/junit.jar AAC_lib/org.hamcrest.core_1.1.0.v20090501071000.jar"/>
+                <attribute name="Class-Path" value=". AAC_lib/EDACCAPI.jar AAC_lib/mysql-connector-java-5.1.13-bin.jar AAC_lib/SevenZip.jar AAC_lib/EDACC_model.jar AAC_lib/commons-math-2.2.jar AAC_lib/commons-math3-3.0.jar AAC_lib/JRI.jar AAC_lib/JRIEngine.jar AAC_lib/REngine.jar AAC_lib/junit.jar AAC_lib/org.hamcrest.core_1.1.0.v20090501071000.jar AAC_lib/fastrf.jar"/>
             </manifest>
             <fileset dir="bin"/>
         </jar>

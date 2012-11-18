@@ -15,7 +15,6 @@ import ca.ubc.cs.beta.models.fastrf.RegtreeFit;
 import ca.ubc.cs.beta.models.fastrf.RegtreeBuildParams;
 import edacc.configurator.models.rf.fastrf.utils.Gaussian;
 import edacc.configurator.models.rf.fastrf.utils.Utils;
-import edacc.parameterspace.ParameterConfiguration;
 
 public class CensoredRandomForest implements java.io.Serializable {
     private static final long serialVersionUID = 3243815546509104702L;
