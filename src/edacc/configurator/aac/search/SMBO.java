@@ -421,26 +421,27 @@ public class SMBO extends SearchMethods {
         // Get predictions for random configurations
         start = System.currentTimeMillis();
         // Generate random configurations in parallel
-        final List<ParameterConfiguration> randomConfigurations = new ArrayList<ParameterConfiguration>(numRandomTheta);
-        ExecutorService exec = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+        final List<ParameterConfiguration> randomConfigurations = Collections.synchronizedList(new LinkedList<ParameterConfiguration>());
+        final int availProcs = Runtime.getRuntime().availableProcessors();
+        pacc.log("Generating " + numRandomTheta + " random configurations using " + availProcs + " processors.");
+        ExecutorService exec = Executors.newFixedThreadPool(availProcs);
         try {
-            for (int chunk = 0; chunk < Runtime.getRuntime().availableProcessors(); chunk++) {
+            for (int chunk = 0; chunk < availProcs; chunk++) {
                 exec.submit(new Runnable() {
                     @Override
                     public void run() {
-                        for (int i = 0; i < numRandomTheta / Runtime.getRuntime().availableProcessors(); i++) {
+                        for (int u = 0; u < (numRandomTheta / availProcs); u++) {
                             ParameterConfiguration randomConfig = canUseFastMethods ? pspace.getRandomConfigurationFast(rng) : pspace.getRandomConfiguration(rng);
-                            synchronized (randomConfigurations) {
-                                randomConfigurations.add(randomConfig);
-                            }
+                            randomConfigurations.add(randomConfig);
+
                         }
                     }
                 });
             }
         } finally {
             exec.shutdown();
+            exec.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
         }
-        exec.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
 
         pacc.log("c Generating " + randomConfigurations.size() + " random configurations took " + (System.currentTimeMillis() - start) + " ms");
         start = System.currentTimeMillis();

@@ -18,8 +18,11 @@ import edacc.configurator.aac.SolverConfiguration;
 import edacc.configurator.aac.course.StratifiedClusterCourse;
 import edacc.configurator.aac.util.RInterface;
 import edacc.model.ConfigurationScenarioDAO;
+import edacc.model.ExperimentDAO;
+import edacc.model.ExperimentResult;
 import edacc.model.Instance;
 import edacc.model.InstanceDAO;
+import edacc.model.Experiment.Cost;
 
 public class DefaultSMBO extends RacingMethods {
 	SolverConfiguration bestSC;
@@ -37,6 +40,8 @@ public class DefaultSMBO extends RacingMethods {
     private boolean useClusterCourse = false;
 	// when selecting jobs from the incumbent, prefer jobs that didn't time out
 	private boolean aggressiveJobSelection = false;
+	private boolean adaptiveCapping = false;
+	private float slackFactor = 1.5f;
 	
 	HashSet<Integer> stopEvalSolverConfigIds = new HashSet<Integer>();
 	Set<SolverConfiguration> challengers = new HashSet<SolverConfiguration>();
@@ -57,6 +62,10 @@ public class DefaultSMBO extends RacingMethods {
             featureCacheFolder = val;
         if ((val = parameters.getRacingMethodParameters().get("DefaultSMBO_useClusterCourse")) != null)
             useClusterCourse = Integer.valueOf(val) == 1;
+        if ((val = parameters.getRacingMethodParameters().get("DefaultSMBO_adaptiveCapping")) != null)
+            adaptiveCapping = Integer.valueOf(val) == 1;
+        if ((val = parameters.getRacingMethodParameters().get("DefaultSMBO_slackFactor")) != null)
+            slackFactor = Float.valueOf(val);
         
         if (useClusterCourse) {
             rengine = RInterface.getRengine();
@@ -137,8 +146,10 @@ public class DefaultSMBO extends RacingMethods {
 	@Override
 	public void solverConfigurationsFinished(List<SolverConfiguration> scs) throws Exception {
 		for (SolverConfiguration sc : scs) {
-			if (sc == bestSC) 
-				continue;
+			if (sc == bestSC) {
+			    continue;
+			}
+
 			int comp = compareTo(sc, bestSC);
 			if (!stopEvalSolverConfigIds.contains(sc.getIdSolverConfiguration()) && comp >= 0) {
 				if (sc.getJobCount() == bestSC.getJobCount()) {
@@ -189,6 +200,26 @@ public class DefaultSMBO extends RacingMethods {
 			initBestSC(scs.get(0));
 			scs.remove(0);
 		}
+		
+        if (adaptiveCapping && ExperimentDAO.getById(parameters.getIdExperiment()).getDefaultCost().equals(Cost.resultTime)) {
+            for (Instance instance: api.getExperimentInstances(parameters.getIdExperiment())) {
+                double incumbentAvg = 0.0f;
+                int count = 0;
+                for (ExperimentResult run: bestSC.getFinishedJobs()) {
+                    if (run.getInstanceId() == instance.getId()) {
+                        incumbentAvg += parameters.getStatistics().getCostFunction().singleCost(run);
+                        count++;
+                    }
+                }
+
+                if (count > 0) {
+                    incumbentAvg /= count;
+                    int newLimit = Math.max(1, Math.min((int)Math.ceil(slackFactor * incumbentAvg), parameters.getJobCPUTimeLimit()));
+                    pacc.changeCPUTimeLimit(instance.getId(), newLimit, null, false, false);
+                }
+            }
+        }
+        
 		
 		for (SolverConfiguration sc : scs) {
 			// add 1 random job from the best configuration with the
@@ -259,6 +290,8 @@ public class DefaultSMBO extends RacingMethods {
 	@Override
 	public List<String> getParameters() {
 		List<String> p = new LinkedList<String>();
+        p.add("% --- Default_SMBO parameters ---");
+        p.add("DefaultSMBO_adaptiveCapping = " + (adaptiveCapping ? 1 : 0) + " % (Use adaptive capping mechanism)");
 		return p;
 	}
 

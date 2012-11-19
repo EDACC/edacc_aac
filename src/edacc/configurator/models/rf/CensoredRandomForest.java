@@ -155,7 +155,7 @@ public class CensoredRandomForest implements java.io.Serializable {
                     double a = Gaussian.normcdf(alpha[i]);
                     double b = Gaussian.normcdf((Double.POSITIVE_INFINITY - mu[i]) / sigma[i]);
                     double sample = mu[i] + sigma[i] * Math.sqrt(2) * (2 * (a + (b - a) * rng.nextDouble() - 1)); 
-                    single_y_hal[i] = Math.max(sample, maxValue);
+                    single_y_hal[i] = Math.max(sample, y_cens[i]);
                     //System.out.println("Predicted " + mu[i] + " sigma " + sigma[i] + " a " + a + " b " + b + " Imputed " + y_cens[i] + " to " + single_y_hal[i]);
                     //single_y_hal[i] = Math.max(mu[i] + sigma[i] * Gaussian.phi(alpha[i]) / (1-Gaussian.Phi(alpha[i])), maxValue);
                 }
