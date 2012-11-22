@@ -345,7 +345,7 @@ public class AAC {
 		try {
 			for (InstanceIdSeed is : instanceIdSeedList) {
 				statNumJobs++;
-				int idJob = api.launchJob(parameters.getIdExperiment(), toAdd.getIdSolverConfiguration(), is.instanceId, BigInteger.valueOf(is.seed), parameters.getJobCPUTimeLimit(), priority);
+				int idJob = api.launchJob(parameters.getIdExperiment(), toAdd.getIdSolverConfiguration(), is.instanceId, BigInteger.valueOf(is.seed), getCPUTimeLimit(is.instanceId), priority);
 				toAdd.putJob(api.getJob(idJob));
 				generated++;
 			}
@@ -372,7 +372,7 @@ public class AAC {
         try {
             for (InstanceIdSeed is : instanceIdSeedList) {
                 statNumJobs++;
-                int idJob = api.launchJob(parameters.getIdExperiment(), toAdd.getIdSolverConfiguration(), is.instanceId, BigInteger.valueOf(is.seed), parameters.getJobCPUTimeLimit(), priority);
+                int idJob = api.launchJob(parameters.getIdExperiment(), toAdd.getIdSolverConfiguration(), is.instanceId, BigInteger.valueOf(is.seed), getCPUTimeLimit(is.instanceId), priority);
                 toAdd.putJob(api.getJob(idJob));
                 generated++;
             }
