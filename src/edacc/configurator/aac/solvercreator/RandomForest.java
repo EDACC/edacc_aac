@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.Random;
 
+import edacc.configurator.aac.solvercreator.Clustering.HierarchicalClusterMethod;
+
 public class RandomForest implements Serializable {
 	/**
 	 * 
@@ -16,11 +18,11 @@ public class RandomForest implements Serializable {
 	private List<DecisionTree> forest;
 	private Random rng;
 	private double performance;
-	public RandomForest(Clustering clustering_original, Clustering clustering, Random rng, int treeCount, int n, float clustering_threshold) {
+	public RandomForest(Clustering clustering_original, HashMap<Integer, List<Integer>> c, Random rng, int treeCount, int n, float clustering_threshold) {
 		forest = new LinkedList<DecisionTree>();
 		this.rng = rng;
 		
-		HashMap<Integer, List<Integer>> c = clustering.getClustering(false, clustering_threshold);
+		//HashMap<Integer, List<Integer>> c =  //clustering.getClustering(false, false, clustering_threshold);
 		List<Integer> instances = new LinkedList<Integer>();
 		for (List<Integer> list : c.values()) {
 			instances.addAll(list);
@@ -58,7 +60,7 @@ public class RandomForest implements Serializable {
 					tmp_c.put(e.getKey(), tmp);
 				}
 			}
-			DecisionTree tree = new DecisionTree(tmp_c, DecisionTree.ImpurityMeasure.GINIINDEX, clustering_original, clustering, 12, rng, 0.f);
+			DecisionTree tree = new DecisionTree(tmp_c, DecisionTree.ImpurityMeasure.GINIINDEX, clustering_original, 12, rng, 0.f);
 			tree.cleanup();
 			//if (tree.performance > 0.8f) {
 				forest.add(tree);

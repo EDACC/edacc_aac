@@ -13,7 +13,10 @@ import java.util.Random;
 
 import edacc.util.Pair;
 
-public class SolverLauncher {	
+
+public class SolverLauncher {
+	private static final String version = "0.1";
+	
 	public static void main(String[] args) throws Exception {
 		if (args.length < 3) {
 			System.out.println("algorithm instance seed [tempdir=<tempdir>]");
@@ -22,7 +25,7 @@ public class SolverLauncher {
 		String tempdir = null;
 		for (int i = 3; i < args.length; i++) {
 			String[] values = args[i].split("=");
-			System.out.println(Arrays.toString(values));
+			//System.out.println(Arrays.toString(values));
 			if (values.length != 2) {
 				System.out.println("algorithm instance seed [tempdir=<tempdir>]");
 				System.exit(1);
@@ -31,7 +34,7 @@ public class SolverLauncher {
 				tempdir = values[1];
 			}
 		}
-		
+		System.out.println("c This is SolverLauncher v" + version);
 		// load properties
 		Properties properties = new Properties();
 		File f = new File("solverlauncher.properties");
@@ -92,6 +95,7 @@ public class SolverLauncher {
 			scid = res.getFirst();
 		} else if (args[0].equals("randomforest")) {
 			scid = forest.getSolverConfig(features);
+			
 		/*} else if (args[0].equals("regression")) {
 			float membership = -1.f;
 			int scid = -1;
@@ -117,6 +121,17 @@ public class SolverLauncher {
 			System.out.println("Error: could not determine solver binary id. Exiting.");
 			return;
 		}
+		
+		if (clustering != null) {
+			Integer csize = clustering.clusterSize.get(scid);
+			Double cost = clustering.clusterPerformance.get(scid);
+			if (csize != null && cost != null) {
+				System.out.println("c Information for selected config:");
+				System.out.println("c Cluster Size: " + csize);
+				System.out.println("c Cluster Cost: " + cost);
+			}
+		}
+		
 		String params = clustering.P.get(scid);
 		String solver_bin = properties.getProperty("SolverBin_" + sbid);
 		

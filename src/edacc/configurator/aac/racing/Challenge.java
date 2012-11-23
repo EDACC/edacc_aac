@@ -245,7 +245,7 @@ public class Challenge extends RacingMethods implements JobListener {
 				instanceIds.add(instancesSolvedList.get(rng.nextInt(instancesSolvedList.size())));
 			}
 		}*/
-		HashMap<Integer, List<Integer>> c = clustering.getClustering(false);
+		HashMap<Integer, List<Integer>> c = clustering.getClustering(false, false);
 		List<Integer> unsolved = new LinkedList<Integer>();
 		unsolved.addAll(clustering.getNotUsedInstances());
 		

@@ -5,7 +5,7 @@ import java.util.List;
 
 public class MinDist {
 	public static Integer getScId(Clustering C, float[] features) {
-		HashMap<Integer, List<Integer>> c = C.getClustering(true);
+		HashMap<Integer, List<Integer>> c = C.getClustering(true, false);
 		float[] normalize = new float[features.length];
 		for (int i = 0; i < normalize.length; i++) {
 			normalize[i] = 0.f;

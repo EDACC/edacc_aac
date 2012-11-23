@@ -30,8 +30,12 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 
 	double stddev = 2.5;
 	Double maxCost = null;
-	int numCachedConfigs = 40;
+	int numCachedConfigs = 75;
 	int minConfigs = 100;
+	
+	Integer IBSConfigsCPUTime = null;
+	
+	int regressionTree_maxTrainDataSize = -1;
 	
 	HashSet<ParameterConfiguration> existingParameterConfigurations;
 	HashMap<Integer, SolverConfiguration> solverConfigs;
@@ -60,6 +64,9 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 		}
 		if ((val = parameters.getSearchMethodParameters().get("InstanceBasedSearching_maxCost")) != null) {
 			maxCost = Double.parseDouble(val);
+		}
+		if ((val = parameters.getSearchMethodParameters().get("InstanceBasedSearching_IBSConfigsCPUTime")) != null) {
+			IBSConfigsCPUTime = Integer.parseInt(val);
 		}
 		numParams = api.getConfigurableParameters(parameters.getIdExperiment()).size();
 		
@@ -109,7 +116,7 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 		return res;
 	}
 	
-	private SolverConfiguration createSolverConfiguration(ParameterConfiguration config, String name) throws Exception {
+	private SolverConfiguration createSolverConfiguration(ParameterConfiguration config, String name, Set<Integer> iids) throws Exception {
 		SolverConfiguration sc = null;
 		if (existingParameterConfigurations.contains(config)) {
 			pacc.log("[IBS] Mutating config..");
@@ -123,7 +130,11 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 		}
 		if (!existingParameterConfigurations.contains(config)) {
 			int idSolverConfig = api.createSolverConfig(parameters.getIdExperiment(), config, name);
-			sc = new SolverConfiguration(idSolverConfig, config, parameters.getStatistics());
+			if (iids != null && (IBSConfigsCPUTime == null || pacc.getCumulatedCPUTime() > IBSConfigsCPUTime)) {
+				sc = new SolverConfigurationIBS(idSolverConfig, config, parameters.getStatistics(), iids);
+			} else {
+				sc = new SolverConfiguration(idSolverConfig, config, parameters.getStatistics());
+			}
 			sc.setNameSearch(name);
 			existingParameterConfigurations.add(config);
 		}
@@ -176,7 +187,7 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 			num--;
 			float factor = (defaultMutations.isEmpty() || existingParameterConfigurations.size() < minConfigs ? 9.f : 3.f);
 			
-			if (numConfigsRandom == 0 || (numConfigsModel / (float) numConfigsRandom > factor) || (clustering == null && instanceIds.isEmpty())) {
+			if (numConfigsRandom == 0 || (numConfigsModel / (float) numConfigsRandom > factor) || instanceIds.isEmpty()) {
 				// create a random config
 				ParameterConfiguration paramconfig = null;
 				String name = null;
@@ -191,7 +202,7 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 					name = "random config";
 					pacc.log("[IBS] Generating a random configuration");
 				}
-				SolverConfiguration sc = createSolverConfiguration(paramconfig, name);
+				SolverConfiguration sc = createSolverConfiguration(paramconfig, name, null);
 				if (sc != null) {
 					res.add(sc);
 				}
@@ -216,7 +227,7 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 								instanceIds.remove(new Integer(iid));
 							}
 							pacc.log("[IBS] Using a cached config.");
-							SolverConfiguration sc = createSolverConfiguration(p.getSecond().getFirst(), p.getSecond().getSecond());
+							SolverConfiguration sc = createSolverConfiguration(p.getSecond().getFirst(), p.getSecond().getSecond(), p.getFirst());
 							if (sc != null) {
 								res.add(sc);
 								numConfigsModel++;
@@ -249,13 +260,13 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 					for (int iid : cluster) {
 						tmp.add(iid);
 					}
-					int numInstances = (int) Math.round(Math.sqrt(iids.size()));
+					/*int numInstances = (int) Math.round(Math.sqrt(iids.size()));
 					if (numInstances < 1) {
 						numInstances = 1;
 					}
 					while (iids.size() > numInstances) {
 						tmp.remove(rng.nextInt(tmp.size()));
-					}
+					}*/
 					iids.addAll(tmp);
 					for (int iid : iids) {
 						instanceIds.remove(new Integer(iid));
@@ -282,6 +293,12 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 						pacc.log("[IBS] Generating a decision tree for a cluster with " + iids.size() + " instances using " + trainData.size() + " parameter configurations.");
 					}
 					try {
+						if (regressionTree_maxTrainDataSize != -1) {
+							while (trainData.size() > regressionTree_maxTrainDataSize) {
+								trainData.remove(rng.nextInt(trainData.size()));
+							}
+						}
+						
 						tree = new DecisionTree(rng, parameters.getStatistics().getCostFunction(), -1, 4, trainData, configurableParameters, new LinkedList<String>(), false);
 					} catch (Exception ex) {
 						// only time out results?
@@ -321,7 +338,7 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 						name = name + " (no possible randomizable parameters)";
 						pacc.log("[IBS] Generated a random configuration (no possible randomizable parameters)");
 					}
-					SolverConfiguration sc = createSolverConfiguration(paramconfig, name);
+					SolverConfiguration sc = createSolverConfiguration(paramconfig, name, null);
 					if (sc != null) {
 						res.add(sc);
 					}
@@ -340,15 +357,21 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 					List<DecisionTree.QueryResult> possibleResults = new LinkedList<DecisionTree.QueryResult>();
 					// TODO: maximize cost?
 					double cost = Double.POSITIVE_INFINITY;
-					for (DecisionTree.QueryResult r : q) {						
-						if (Math.abs(r.cost - cost) < 0.000001) {
-							possibleResults.add(r);
-						} else if (r.cost < cost) {
-							possibleResults.clear();
-							possibleResults.add(r);
-							cost = r.cost;
+					
+					//if (rng.nextDouble() < 0.2) {
+					//	System.out.println("[IBS] Using all results.");
+					//	possibleResults.addAll(q);
+					//} else {
+						for (DecisionTree.QueryResult r : q) {
+							if (Math.abs(r.cost - cost) < 0.000001) {
+								possibleResults.add(r);
+							} else if (r.cost < cost) {
+								possibleResults.clear();
+								possibleResults.add(r);
+								cost = r.cost;
+							}
 						}
-					}
+					//}
 					DecisionTree.QueryResult result = possibleResults.get(rng.nextInt(possibleResults.size()));
 
 					
@@ -367,9 +390,14 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 					pacc.log("[IBS] Cost " + cost + "; Number of split parameters: " + result.parametersSorted.size());
 
 					Set<String> randomizeParameterNames = new HashSet<String>();
+					int depth = 0;
 					for (Parameter p : result.parametersSorted) {
+						depth++;
 						randomizeParameterNames.add(p.getName());
-						if (randomizeParameterNames.size() >= result.parametersSorted.size() / 2) {
+						//if (randomizeParameterNames.size() >= result.parametersSorted.size() / 2) {
+						//	break;
+						//}
+						if (depth >= result.parametersSorted.size() / 2) {
 							break;
 						}
 					}
@@ -391,7 +419,7 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 						// parameters.getStatistics());
 						// }
 						pacc.log("[IBS] Generated a configuration using model of iid: " + instanceId);
-						SolverConfiguration sc = createSolverConfiguration(paramconfig, solverConfigName);
+						SolverConfiguration sc = createSolverConfiguration(paramconfig, solverConfigName, iids);
 						if (sc != null) {
 							res.add(sc);
 						}

@@ -211,11 +211,11 @@ public class DecisionTree {
 		root.results = sample;
 		root.stddev = stdDev(sample);
 		if (alpha == -1) {
-			alpha = root.stddev / 10.;
+			alpha = Math.sqrt(stdDev(sample)); //, 10000.)); // / 10.;
 			if (alpha < 0.001) {
 				alpha = 0.001;
 			}
-			System.out.println("[DEBUG] stddev = " + root.stddev);
+			System.out.println("[DEBUG] stddev = " + alpha);
 		}
 		
 		int domainsSize = params.size() + instanceProperties.size() + (useInstanceId ? 1 : 0);
@@ -309,23 +309,33 @@ public class DecisionTree {
 		}
 	}
 	
-	private double stdDev(List<Sample> data) {
+	private double stdDev(List<Sample> data, Double maxValue) {
 		if (data.size() <= 1)
 			return 0.;
+		
+		int k = 0;
+		
 		double res = 0.;
 		double m = 0.;
 		double costs[] = new double[data.size()];
 		for (int i = 0; i < data.size(); i++) {
-			costs[i] = data.get(i).cost;
-			m+=costs[i];
+			if (maxValue == null || data.get(i).cost < maxValue) {
+				costs[i] = data.get(i).cost;
+				m+=costs[i];
+				k++;
+			}
 		}
-		m /= data.size();
-		for (int i = 0; i < data.size(); i++) {
+		m /= k;
+		for (int i = 0; i < k; i++) {
 			res += (costs[i] - m) * (costs[i] - m);
 		}
-		res /= data.size()-1;
+		res /= k-1;
 		
 		return Math.sqrt(res);
+	}
+	
+	private double stdDev(List<Sample> data) {
+		return stdDev(data, null);
 	}
 	
 	private SplitAttribute findOptimalSplitAttribute(double stddev, List<Sample> data) {
@@ -599,7 +609,6 @@ public class DecisionTree {
 	
 	private List<SearchResult> getDomainOrNull(Node node, double stddev, Domain[] domains, List<Integer> parameter_indexes) {
 		List<SearchResult> res = new LinkedList<SearchResult>();
-		System.out.println("[DecisionTree] getDomainOrNull " + parameter_indexes.size());
 		if (node.left == null && node.right == null && node.nullNode == null) {
 			if (node.results.size() <= max_results || node.stddev > stddev) {
 				List<Pair<Parameter, Domain>> parameters = new ArrayList<Pair<Parameter, Domain>>();
