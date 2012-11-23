@@ -139,7 +139,7 @@ public class CensoredRandomForestTest {
             }
         }
         
-        CensoredRandomForest rf = new CensoredRandomForest(500, logModel, censoringThreshold, 1, catDomainSizes, new Random());
+        CensoredRandomForest rf = new CensoredRandomForest(500, logModel, censoringThreshold, 1, catDomainSizes, new Random(), null, null);
         rf.learnModel(all_theta, all_x, nParams, nFeatures, ixs, y, cens);
         System.out.println("Learned model");
         

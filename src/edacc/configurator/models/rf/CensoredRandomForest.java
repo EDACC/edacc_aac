@@ -10,21 +10,21 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import org.apache.commons.math.MathException;
-
-import edacc.configurator.models.rf.fastrf.RandomForest;
-import edacc.configurator.models.rf.fastrf.RegtreeBuildParams;
-import edacc.configurator.models.rf.fastrf.RegtreeFit;
+import ca.ubc.cs.beta.models.fastrf.RandomForest;
+import ca.ubc.cs.beta.models.fastrf.RegtreeFit;
+import ca.ubc.cs.beta.models.fastrf.RegtreeBuildParams;
 import edacc.configurator.models.rf.fastrf.utils.Gaussian;
 import edacc.configurator.models.rf.fastrf.utils.Utils;
 
-public class CensoredRandomForest {
+public class CensoredRandomForest implements java.io.Serializable {
+    private static final long serialVersionUID = 3243815546509104702L;
+
     public RandomForest rf;
     
     private Random rng;
     private double kappaMax;
     private double cutoffPenaltyFactor;
-    private int[] catDomainSizes;
+   // private int[] catDomainSizes;
     private double[][] instanceFeatures;
     
     private double[][] rf_theta;
@@ -34,21 +34,46 @@ public class CensoredRandomForest {
 
     private final int numImputationIterations = 1;
     
-    private int[][] condParents = null;
-    private int[][][] condParentVals = null;
+    //private int[][] condParents = null;
+    //private int[][][] condParentVals = null;
+    private int[][] tree_oob_samples;
     
-    public CensoredRandomForest(int nTrees, int logModel, double kappaMax, double cutoffPenaltyFactor, int[] catDomainSizes, Random rng) {
-        rf = new RandomForest(nTrees, logModel);
+    public static boolean parallelizeInternally = false;
+    public static int parallelizationProcs = 1;
+    
+    final RegtreeBuildParams params = new RegtreeBuildParams();
+    
+    /*public CensoredRandomForest(int nTrees, int logModel, double kappaMax, double cutoffPenaltyFactor, int[] catDomainSizes, Random rng) {
         this.rng = rng;
         this.kappaMax = kappaMax;
         this.cutoffPenaltyFactor = cutoffPenaltyFactor;
         this.catDomainSizes = catDomainSizes;
-    }
+
+        params.ratioFeatures = 5.0 / 6.0;
+        params.catDomainSizes = catDomainSizes;
+        params.logModel = logModel;
+        params.storeResponses = true;
+        params.splitMin = 10;
+        rf = new RandomForest(nTrees, params);
+        
+    }*/
     
     public CensoredRandomForest(int nTrees, int logModel, double kappaMax, double cutoffPenaltyFactor, int[] catDomainSizes, Random rng, int[][] condParents, int[][][] condParentVals) {
-        this(nTrees, logModel, kappaMax, cutoffPenaltyFactor, catDomainSizes, rng);
-        this.condParents = condParents;
-        this.condParentVals = condParentVals;
+        this.rng = rng;
+        this.kappaMax = kappaMax;
+        this.cutoffPenaltyFactor = cutoffPenaltyFactor;
+        //this.catDomainSizes = catDomainSizes;
+        tree_oob_samples = new int[nTrees][];
+        
+        params.ratioFeatures = 5.0 / 6.0;
+        params.catDomainSizes = catDomainSizes;
+        params.logModel = logModel;
+        params.storeResponses = true;
+        params.splitMin = 10;
+        params.condParents = condParents;
+        params.condParentVals = condParentVals;
+        
+        rf = new RandomForest(nTrees, params);
     }
     
     public void learnModel(double[][] theta, double[][] instance_features, int nParams, int nFeatures,
@@ -77,7 +102,6 @@ public class CensoredRandomForest {
         }
         // learn model on uncensored data
         internalLearnModel(theta, instance_features, nVars, theta_inst_idxs_noncens, y_noncens, censored_noncens, rf.logModel);
-        
         if (numCensored > 0) {
             // censored subset of observations
             int[][] theta_inst_idxs_cens = new int[numCensored][2];
@@ -128,7 +152,12 @@ public class CensoredRandomForest {
                     sigma[i] = Math.sqrt(cens_pred[i][1]);
                     alpha[i] = (y_cens[i] - mu[i]) / sigma[i];
                     //System.out.println(y_cens[i] + " " + mu[i] + " " + sigma[i] + " " +  alpha[i] + " " + Gaussian.phi(alpha[i]) + " " + (1-Gaussian.Phi(alpha[i])));
-                    single_y_hal[i] = Math.min(mu[i] + sigma[i] * Gaussian.phi(alpha[i]) / (1-Gaussian.Phi(alpha[i]) + 1e-20), maxValue);
+                    double a = Gaussian.normcdf(alpha[i]);
+                    double b = Gaussian.normcdf((Double.POSITIVE_INFINITY - mu[i]) / sigma[i]);
+                    double sample = mu[i] + sigma[i] * Math.sqrt(2) * (2 * (a + (b - a) * rng.nextDouble() - 1)); 
+                    single_y_hal[i] = Math.max(sample, y_cens[i]);
+                    //System.out.println("Predicted " + mu[i] + " sigma " + sigma[i] + " a " + a + " b " + b + " Imputed " + y_cens[i] + " to " + single_y_hal[i]);
+                    //single_y_hal[i] = Math.max(mu[i] + sigma[i] * Gaussian.phi(alpha[i]) / (1-Gaussian.Phi(alpha[i])), maxValue);
                 }
                 
                 double[] imp_y = new double[y.length];
@@ -145,66 +174,44 @@ public class CensoredRandomForest {
     
     protected void internalLearnModel(final double[][] theta, final double[][] instance_features, final int nVars,
             final int[][] theta_inst_idxs, final double[] y, final boolean[] censored, final int logModel) throws Exception {
-        final RegtreeBuildParams params = new RegtreeBuildParams();
-        params.ratioFeatures = 5.0 / 6.0;
-        params.catDomainSizes = catDomainSizes;
-        params.logModel = logModel;
-        params.storeResponses = true;
-        params.splitMin = 10;
-        params.condParents = condParents;
-        params.condParentVals = condParentVals;
-        
+
         // Remember last RF build data
         rf_theta = theta;
         rf_theta_inst_idxs = theta_inst_idxs;
         rf_y = y;
         rf_nVars = nVars;
-        
-        // Grow trees in parallel (currently not supported because RegreeFit.fit is not thread-safe
-        //ExecutorService exec = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
-        //try {
-            for (int tr = 0; tr < rf.numTrees; tr++) {
-                final int i = tr;
-                
-                //exec.submit(new Runnable() {
-                    //@Override
-                    //public void run() {
-                        int[] sample = new int[y.length];
-                        Set<Integer> sampleset = new HashSet<Integer>();
-                        // bootstrap sample y.length values for each tree with replacement
-                        for (int j = 0; j < sample.length; j++) {
-                            sample[j] = rng.nextInt(y.length);
-                            sampleset.add(sample[j]);
-                        }
-                        
-                        int[][] tree_theta_inst_idxs = new int[y.length][2];
-                        double[] tree_y = new double[y.length];
-                        for (int j = 0; j < sample.length; j++) {
-                            tree_theta_inst_idxs[j][0] = theta_inst_idxs[sample[j]][0];
-                            tree_theta_inst_idxs[j][1] = theta_inst_idxs[sample[j]][1];
-                            tree_y[j] = y[sample[j]];
-                        }
-                        
-                        int[] oob_samples = new int[y.length - sampleset.size()];
-                        int ix = 0;
-                        for (int j = 0; j < y.length; j++) {
-                            if (!sampleset.contains(j)) { // OOB sample
-                                oob_samples[ix++] = j;
-                            }
-                        }
-                        
-                        rf.Trees[i] = RegtreeFit.fit(theta, instance_features, tree_theta_inst_idxs, tree_y, params);
-                        rf.Trees[i].oob_samples = oob_samples;
-                        
-                    }
-                //});
-            //}
-            
-        //} finally {
-        //    exec.shutdown();
-        //}
-        //exec.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
-            
+
+        for (int tr = 0; tr < rf.numTrees; tr++) {
+            final int i = tr;
+
+            int[] sample = new int[y.length];
+            Set<Integer> sampleset = new HashSet<Integer>();
+            // bootstrap sample y.length values for each tree with replacement
+            for (int j = 0; j < sample.length; j++) {
+                sample[j] = rng.nextInt(y.length);
+                sampleset.add(sample[j]);
+            }
+
+            int[][] tree_theta_inst_idxs = new int[y.length][2];
+            double[] tree_y = new double[y.length];
+            for (int j = 0; j < sample.length; j++) {
+                tree_theta_inst_idxs[j][0] = theta_inst_idxs[sample[j]][0];
+                tree_theta_inst_idxs[j][1] = theta_inst_idxs[sample[j]][1];
+                tree_y[j] = y[sample[j]];
+            }
+
+            int[] oob_samples = new int[y.length - sampleset.size()];
+            int ix = 0;
+            for (int j = 0; j < y.length; j++) {
+                if (!sampleset.contains(j)) { // OOB sample
+                    oob_samples[ix++] = j;
+                }
+            }
+
+            rf.Trees[i] = RegtreeFit.fit(theta, instance_features, tree_theta_inst_idxs, tree_y, params);
+            tree_oob_samples[i] = oob_samples;
+        }
+
         System.gc();
     }
     
@@ -224,12 +231,49 @@ public class CensoredRandomForest {
         return RandomForest.applyMarginal(this.rf, tree_used_idxs, theta_inst, instance_features);
     }
     
+    public double[][] predictDirect(final double[][] thetaX) {
+        if (parallelizeInternally) {
+            final int N = thetaX.length;
+            final int D = thetaX[0].length;
+            final int C = N / parallelizationProcs;
+            final double[][] res = new double[N][2];
+            ExecutorService exec = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+            try {
+                for (int j = 0; j < parallelizationProcs; j++) {
+                    final int ix = j * C;
+                    exec.submit(new Runnable() {
+                        @Override
+                        public void run() {
+                            System.out.println("Thread " + Thread.currentThread().getId() + " computes " + ix + " to " + Math.min(ix + C, N));
+                            double[][] myThetaX = new double[Math.min(ix + C, N) - ix + 1][];
+                            for (int i = ix; i < Math.min(ix + C, N); i++) {
+                                myThetaX[i - ix] = thetaX[ix];
+                            }
+                            double[][] myRes = RandomForest.apply(rf, myThetaX);
+                            for (int i = ix; i < Math.min(ix + C, N); i++) {
+                                res[i][0] = myRes[i - ix][0];
+                                res[i][0] = myRes[i - ix][1];
+                            }
+                        }
+                    });
+                }
+                exec.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
+            } catch (InterruptedException e) {
+                e.printStackTrace(); // TODO Auto-generated catch block
+            } finally {
+                exec.shutdown();
+            }  
+            return res;
+        }
+        return RandomForest.apply(rf, thetaX);
+    }
+    
     public double[] calculateVI() {
         double[] RSS_t = new double[rf.numTrees];
         double[][] RSS_v_t = new double[rf_nVars][rf.numTrees];
         
         for (int t = 0; t < rf.numTrees; t++) {
-            int[] oob_samples = rf.Trees[t].oob_samples;
+            int[] oob_samples = tree_oob_samples[t];
             double[] oob_y = new double[oob_samples.length];
             double[][] X = new double[oob_samples.length][rf_nVars];
             for (int i = 0; i < oob_samples.length; i++) {
@@ -283,7 +327,7 @@ public class CensoredRandomForest {
         double[] RSS_t = new double[rf.numTrees];
         
         for (int t = 0; t < rf.numTrees; t++) {
-            int[] oob_samples = rf.Trees[t].oob_samples;
+            int[] oob_samples = tree_oob_samples[t];
             double[] oob_y = new double[oob_samples.length];
             double[][] X = new double[oob_samples.length][rf_nVars];
             for (int i = 0; i < oob_samples.length; i++) {
@@ -298,6 +342,31 @@ public class CensoredRandomForest {
             for (int i = 0; i < oob_samples.length; i++) {
                 RSS_t[t] += (oob_y[i] - oob_pred[i][0]) * (oob_y[i] - oob_pred[i][0]);
             }
+        }
+        
+        return Utils.mean(RSS_t);
+    }
+    
+    public double calculateAvgOobRSS() {
+        double[] RSS_t = new double[rf.numTrees];
+        
+        for (int t = 0; t < rf.numTrees; t++) {
+            int[] oob_samples = tree_oob_samples[t];
+            double[] oob_y = new double[oob_samples.length];
+            double[][] X = new double[oob_samples.length][rf_nVars];
+            for (int i = 0; i < oob_samples.length; i++) {
+                for (int j = 0; j < rf_theta[0].length; j++) X[i][j] = rf_theta[rf_theta_inst_idxs[oob_samples[i]][0]][j];
+                for (int j = 0; j < instanceFeatures[0].length; j++) X[i][rf_theta[0].length + j] = instanceFeatures[rf_theta_inst_idxs[oob_samples[i]][1]][j];
+                oob_y[i] = rf_y[oob_samples[i]];
+            }
+            
+            // calculate out of bag error of the tree (residual sum of squares)
+            double[][] oob_pred = RandomForest.apply(rf, X);
+            RSS_t[t] = 0;
+            for (int i = 0; i < oob_samples.length; i++) {
+                RSS_t[t] += (oob_y[i] - oob_pred[i][0]) * (oob_y[i] - oob_pred[i][0]);
+            }
+            RSS_t[t] /= oob_samples.length;
         }
         
         return Utils.mean(RSS_t);

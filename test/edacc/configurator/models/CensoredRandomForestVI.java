@@ -38,22 +38,22 @@ import edacc.parameterspace.domain.OrdinalDomain;
 import edacc.parameterspace.domain.RealDomain;
 import edacc.parameterspace.graph.ParameterGraph;
 
-public class CensoredRandomForestValidation {    
+public class CensoredRandomForestVI {    
     public static void main(String ... args) throws Exception {        
         API api = new APIImpl();
         
-        api.connect("edacc3", 3306, "daniel", "daniel", "edaccteam");
-        int idExperiment = 22;
+        api.connect("horst", 3306, "db", "user", "pw");
+        int idExperiment = 29;
         int CPUlimit = 10;
         int wallLimit = 10;
 
         CostFunction par1CostFunc;
         if (ExperimentDAO.getById(idExperiment).getDefaultCost().equals(Cost.resultTime)) {
-            par1CostFunc = new PARX(Experiment.Cost.resultTime, true, CPUlimit, 1);
+            par1CostFunc = new PARX(Experiment.Cost.resultTime, true, 1.0f);
         } else if (ExperimentDAO.getById(idExperiment).getDefaultCost().equals(Cost.wallTime)) {
-            par1CostFunc = new PARX(Experiment.Cost.wallTime, true, wallLimit, 1);
+            par1CostFunc = new PARX(Experiment.Cost.wallTime, true, 1.0f);
         } else {
-            par1CostFunc = new PARX(Experiment.Cost.cost, true, ExperimentDAO.getById(idExperiment).getCostPenalty(), 1);
+            par1CostFunc = new PARX(Experiment.Cost.cost, true, 1.0f);
         }
 
         Random rng = new edacc.util.MersenneTwister(123);
@@ -78,20 +78,16 @@ public class CensoredRandomForestValidation {
         
         List<String> instanceFeatureNames = new LinkedList<String>();
         
-        
-        for (int nTrees = 1; nTrees <= 256; nTrees *= 2) {
-            double rep_rss = 0;
-            int numRep = 2;
-            for (int rep = 0; rep < numRep; rep++) {
-                RandomForest model = new RandomForest(api, idExperiment, true, nTrees, rng, CPUlimit, wallLimit, instanceFeatureNames, null, null, true);
-                model.learnModel(solverConfigs);
-                //CensoredRandomForest model = new CensoredRandomForest(nTrees, 1, kappaMax, 1.0, catDomainSizes, rng, condParents, condParentVals);
-                //learnModel(model, instanceFeatureNames, instanceFeatures, true, par1CostFunc, instanceFeaturesIx, configurableParameters, solverConfigs);
-                //rep_rss += model.calculateOobRSS();
-                rep_rss += model.getOOBRSS();
-            }
-            rep_rss /= numRep;
-            System.out.println(nTrees + " " + rep_rss);
+        RandomForest model = new RandomForest(api, idExperiment, true, 50, rng, CPUlimit, wallLimit, instanceFeatureNames, null, null, true);
+        model.learnModel(solverConfigs);
+        System.out.println("RSS: " + model.getOOBRSS());
+        double[] VI = model.getVI();
+        int ix = 0;
+        for (Parameter p: model.getConfigurableParameters()) {
+            System.out.println(p.getName() + ": " + VI[ix++]);
+        }
+        for (String instanceFeature: model.getInstanceFeatureNames()) {
+            System.out.println(instanceFeature + ": " + VI[ix++]);
         }
         
         
