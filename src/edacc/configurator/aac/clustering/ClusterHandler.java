@@ -39,7 +39,7 @@ public class ClusterHandler implements ClusterMethods{
     private String resourcesName = "Resources_Properties";
 	// A set of fully evaluated SCs is required to create an initial
 	// clustering. The number of those SCs is defined in this variable
-    private int numberOfMinStartupSCs = 4;
+    private int numberOfMinStartupSCs = 1;
 	// Interface for a clustering-algorithm
     private Class<?> algorithmClass;
     private Class<?> resourcesClass;
@@ -465,6 +465,7 @@ public class ClusterHandler implements ClusterMethods{
 				bestSC = sc;
 			}
 		}
+		aac.validateIncumbent(bestSC);
 		return startupSCs;
 	}
     
