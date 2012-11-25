@@ -301,7 +301,7 @@ public class RandomForest implements java.io.Serializable {
      * Calculate average validation error (average out-of-bag average residual sum of squares)
      * @return
      */
-    public double getOOBAvgBRSS() {
+    public double getOOBAvgRSS() {
         return rf.calculateAvgOobRSS();
     }
     

@@ -168,7 +168,7 @@ public class FANOVA {
         model.learnModel(solverConfigs);
         System.out.println("Learning the model took " + (System.currentTimeMillis() - start) / 1000.0f + " seconds");
         System.out.println("RF model is based on " + model.getConfigurableParameters().size() + " parameters and " + model.getInstanceFeatureNames().size() + " instance features.");
-        System.out.println("RF OOB-RSS: " + model.getOOBRSS());
+        System.out.println("RF OOB MSE: " + model.getOOBAvgRSS());
         
         if (averageParamPerf != null) {
             System.out.println("Calculating average performance for parameter " + averageParamPerf);
