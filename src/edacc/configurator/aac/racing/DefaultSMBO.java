@@ -22,9 +22,12 @@ import edacc.model.ExperimentDAO;
 import edacc.model.ExperimentResult;
 import edacc.model.Instance;
 import edacc.model.InstanceDAO;
+import edacc.model.ResultCode;
+import edacc.model.StatusCode;
 import edacc.model.Experiment.Cost;
+import edacc.configurator.aac.JobListener;
 
-public class DefaultSMBO extends RacingMethods {
+public class DefaultSMBO extends RacingMethods implements JobListener {
 	SolverConfiguration bestSC;
 	int incumbentNumber;
 	int num_instances;
@@ -33,6 +36,8 @@ public class DefaultSMBO extends RacingMethods {
 	
 	private List<InstanceIdSeed> completeCourse;
 	private Rengine rengine;
+	
+	private Map<Integer, Integer> limitByInstance = new HashMap<Integer, Integer>();
 	
 	private int increaseIncumbentRunsEvery = 32;
     private String featureFolder = null;
@@ -46,8 +51,9 @@ public class DefaultSMBO extends RacingMethods {
 	HashSet<Integer> stopEvalSolverConfigIds = new HashSet<Integer>();
 	Set<SolverConfiguration> challengers = new HashSet<SolverConfiguration>();
 
-	public DefaultSMBO(AAC proar, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
-		super(proar, rng, api, parameters, firstSCs, referenceSCs);
+	public DefaultSMBO(AAC aac, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
+		super(aac, rng, api, parameters, firstSCs, referenceSCs);
+		aac.addJobListener(this);
 		incumbentNumber = 0;
 		num_instances = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse().getInitialLength();
 	
@@ -149,6 +155,20 @@ public class DefaultSMBO extends RacingMethods {
 			if (sc == bestSC) {
 			    continue;
 			}
+			
+            for (ExperimentResult er : sc.getJobs()) {
+                ExperimentResult apiER = api.getJob(er.getId());
+                if (limitByInstance.get(er.getInstanceId()) == null) continue;
+                er.setCPUTimeLimit(limitByInstance.get(er.getInstanceId()));
+                apiER.setCPUTimeLimit(limitByInstance.get(er.getInstanceId()));
+                if (er.getResultTime() > limitByInstance.get(er.getInstanceId()) && er.getResultCode().isCorrect()) {
+                    pacc.log("Setting time limit exceeded to job " + er.getId() + ".");
+                    er.setStatus(StatusCode.TIMELIMIT);
+                    apiER.setStatus(StatusCode.TIMELIMIT);
+                    er.setResultCode(ResultCode.UNKNOWN);
+                    apiER.setResultCode(ResultCode.UNKNOWN);
+                }
+            }
 
 			int comp = compareTo(sc, bestSC);
 			if (!stopEvalSolverConfigIds.contains(sc.getIdSolverConfiguration()) && comp >= 0) {
@@ -200,26 +220,9 @@ public class DefaultSMBO extends RacingMethods {
 			initBestSC(scs.get(0));
 			scs.remove(0);
 		}
-		
-        if (adaptiveCapping && ExperimentDAO.getById(parameters.getIdExperiment()).getDefaultCost().equals(Cost.resultTime)) {
-            for (Instance instance: api.getExperimentInstances(parameters.getIdExperiment())) {
-                double incumbentAvg = 0.0f;
-                int count = 0;
-                for (ExperimentResult run: bestSC.getFinishedJobs()) {
-                    if (run.getInstanceId() == instance.getId()) {
-                        incumbentAvg += parameters.getStatistics().getCostFunction().singleCost(run);
-                        count++;
-                    }
-                }
-
-                if (count > 0) {
-                    incumbentAvg /= count;
-                    int newLimit = Math.max(1, Math.min((int)Math.ceil(slackFactor * incumbentAvg), parameters.getJobCPUTimeLimit()));
-                    pacc.changeCPUTimeLimit(instance.getId(), newLimit, null, false, false);
-                }
-            }
-        }
-        
+		        
+        // First, check if we can update the incumbent
+        this.solverConfigurationsFinished(new LinkedList<SolverConfiguration>(challengers));
 		
 		for (SolverConfiguration sc : scs) {
 			// add 1 random job from the best configuration with the
@@ -232,7 +235,6 @@ public class DefaultSMBO extends RacingMethods {
 		    }
 			pacc.addSolverConfigurationToListNewSC(sc);
 		}
-		
 		
 		for (int i = 0; i < scs.size(); i++) {
 		    numSCs += 1;
@@ -264,6 +266,9 @@ public class DefaultSMBO extends RacingMethods {
 			pacc.log("w Warning: Current core count is " + coreCount);
 		}
 		if (parameters.getJobCPUTimeLimit() > 10) {
+		    if (Math.max(0, coreCount - jobs) > 0) {
+		        pacc.log("c [DefaultSMBO] coreCount: " + coreCount + ", Jobs to finish: " + jobs);
+		    }
 		    return Math.max(0, coreCount - jobs);
 		} else {
 		    return Math.max(0, 2 * coreCount - jobs);
@@ -316,5 +321,44 @@ public class DefaultSMBO extends RacingMethods {
 		// TODO Auto-generated method stub
 		
 	}
+
+    @Override
+    public void jobsFinished(List<ExperimentResult> result) throws Exception {
+        // adapt instance specific limits
+        if (adaptiveCapping && ExperimentDAO.getById(parameters.getIdExperiment()).getDefaultCost().equals(Cost.resultTime)) {
+            boolean anyIncumbentRunsFinished = false;
+            for (ExperimentResult run: result) {
+                if (run.getSolverConfigId() == bestSC.getIdSolverConfiguration()) {
+                    anyIncumbentRunsFinished = true;
+                    break;
+                }
+            }
+            
+            if (!anyIncumbentRunsFinished) return;
+            
+            for (Instance instance: api.getExperimentInstances(parameters.getIdExperiment())) {
+                double incumbentAvg = 0.0f;
+                int count = 0;
+                for (ExperimentResult run: bestSC.getFinishedJobs()) {
+                    if (run.getInstanceId() == instance.getId()) {
+                        incumbentAvg += parameters.getStatistics().getCostFunction().singleCost(run);
+                        count++;
+                    }
+                }
+
+                if (count > 0) {
+                    incumbentAvg /= count;
+                    int newLimit = Math.max(1, Math.min((int)Math.ceil(slackFactor * incumbentAvg), parameters.getJobCPUTimeLimit()));
+                    if (limitByInstance.get(instance.getId()) != null && limitByInstance.get(instance.getId()) == newLimit) {
+                        // limit did not change
+                        continue;
+                    }
+                    limitByInstance.put(instance.getId(), newLimit);
+                    pacc.changeCPUTimeLimit(instance.getId(), newLimit, new LinkedList<SolverConfiguration>(challengers), false, false);
+                }
+            }
+        }
+
+    }
 
 }
