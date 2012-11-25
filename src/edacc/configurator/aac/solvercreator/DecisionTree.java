@@ -39,14 +39,14 @@ public class DecisionTree implements Serializable {
 	
 	public double performance;
 	
-	public DecisionTree(HashMap<Integer, List<Integer>> _clustering, ImpurityMeasure impurityMeasure, Clustering clustering_original, Clustering clu2, int m, Random rng, float validationInstancesFactor) {
+	public DecisionTree(HashMap<Integer, List<Integer>> _clustering, ImpurityMeasure impurityMeasure, Clustering clustering_original, int m, Random rng, float validationInstancesFactor) {
 		// TODO: if there are equal feature vectors for different instances the training process might result in an exception!
 		this.rng = rng;
 		this.m = m;
 		
 		this.impurityMeasure = impurityMeasure;
-		this.num_features = clu2.getFeaturesCount();
-		this.features = clu2.getFeatures();
+		this.num_features = clustering_original.getFeaturesCount();
+		this.features = clustering_original.getFeatures();
 		
 		HashMap<Integer, List<Integer>> clustering = new HashMap<Integer, List<Integer>>();
 		for (Entry<Integer, List<Integer>> entry : _clustering.entrySet()) {

@@ -197,7 +197,7 @@ public class DecisionTree implements Serializable {
 		float performance = num/perf; //perf/num;
 		System.out.println("[RegressionTree] #all = " + num);
 		System.out.println("[RegressionTree] perf(T) = " + performance);
-		System.out.println("[RegressionTree] perf(C) = " + c_orig.performance(clustering.getClustering(false)));
+		System.out.println("[RegressionTree] perf(C) = " + c_orig.performance(clustering.getClustering(false, false)));
 		
 	}
 

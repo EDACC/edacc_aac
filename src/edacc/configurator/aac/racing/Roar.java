@@ -111,6 +111,7 @@ public class Roar extends RacingMethods {
 		} else {
 			pacc.updateJobsStatus(bestSC);
 		}
+		pacc.validateIncumbent(bestSC);
 	}
 
 	public String toString() {

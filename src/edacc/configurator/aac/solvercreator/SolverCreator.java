@@ -28,17 +28,22 @@ import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
 import java.util.Map.Entry;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
 import edacc.api.API;
 import edacc.api.APIImpl;
 import edacc.api.costfunctions.CostFunction;
+import edacc.api.costfunctions.Median;
 import edacc.api.costfunctions.PARX;
 import edacc.configurator.aac.AAC;
 import edacc.configurator.aac.solvercreator.Clustering.HierarchicalClusterMethod;
 import edacc.manageDB.FileInputStreamList;
 import edacc.manageDB.Util;
+import edacc.model.Experiment;
+import edacc.model.ExperimentDAO;
 import edacc.model.ExperimentResult;
 import edacc.model.ExperimentResultDAO;
 import edacc.model.Instance;
@@ -104,6 +109,8 @@ public class SolverCreator {
 		
 		System.out.println("Config:");
 		System.out.println(properties.toString());
+		
+		Integer evalExpId = Integer.parseInt(properties.getProperty("EvaluationExperimentId"));
 		
 		// feature specific settings
 		final String featureDirectory = properties.getProperty("FeatureDirectory");
@@ -278,7 +285,14 @@ public class SolverCreator {
 
 			// create clustering
 			C = new Clustering(instanceIds, featureMapping);
-			CostFunction f = new PARX(Cost.cost, true, 0, 1);
+			CostFunction f = null; //new PARX(Cost.cost, true, 0, 1);
+	        if (ExperimentDAO.getById(expid).getDefaultCost().equals(Cost.resultTime)) {
+	            f = new PARX(Experiment.Cost.resultTime, true, 1.0f);
+	        } else if (ExperimentDAO.getById(expid).getDefaultCost().equals(Cost.wallTime)) {
+	            f = new PARX(Experiment.Cost.wallTime, true, 1.0f);
+	        } else {
+	            f = new PARX(Experiment.Cost.cost, true, 1.0f);
+	        }
 			
 			// load experiment results
 			HashMap<Pair<Integer, Integer>, List<ExperimentResult>> results = new HashMap<Pair<Integer, Integer>, List<ExperimentResult>>();
@@ -299,12 +313,15 @@ public class SolverCreator {
 				if (!r.isEmpty()) {
 					boolean inf = true;
 					for (ExperimentResult res : r) {
-						if (res.getResultCode().isCorrect() && res.getCost() < 1e8) {
+						if (res.getResultCode().isCorrect()) {
 							inf = false;
 							break;
 						}
 					}
 					double c = inf ? Double.POSITIVE_INFINITY : f.calculateCost(r);
+					if (!inf && c > 1e8) {
+						c = Double.NaN;
+					}
 					C.update(p.getFirst(), p.getSecond(), c);
 				}
 			}
@@ -316,7 +333,9 @@ public class SolverCreator {
 		
 		
 		if (Boolean.parseBoolean(properties.getProperty("RemoveNotBest"))) {
-			for (int scid : C.getSolverConfigIds()) {
+			List<Integer> scids = new LinkedList<Integer>();
+			scids.addAll(C.getSolverConfigIds());
+			for (int scid : scids) {
 				if (!SolverConfigurationDAO.getSolverConfigurationById(scid).getName().contains("BEST")) {
 					C.remove(scid);
 				}
@@ -324,7 +343,9 @@ public class SolverCreator {
 		}
 		
 		if (Boolean.parseBoolean(properties.getProperty("RemoveRemoved"))) {
-			for (int scid : C.getSolverConfigIds()) {
+			List<Integer> scids = new LinkedList<Integer>();
+			scids.addAll(C.getSolverConfigIds());
+			for (int scid : scids) {
 				if (SolverConfigurationDAO.getSolverConfigurationById(scid).getName().contains("(removed)")) {
 					C.remove(scid);
 				}
@@ -367,7 +388,7 @@ public class SolverCreator {
 		
 		if (Boolean.parseBoolean(properties.getProperty("ShowClustering"))) {
 			System.out.println("Generating clustering for single decision tree using default method..");
-			HashMap<Integer, List<Integer>> c = C.getClustering(false, clustering_threshold);
+			HashMap<Integer, List<Integer>> c = C.getClustering(false, false, clustering_threshold);
 			System.out.println("Clustering size: " + c.size());
 			List<Pair<String, List<Integer>>> clustering = new LinkedList<Pair<String, List<Integer>>>();
 			for (Entry<Integer, List<Integer>> entry : c.entrySet()) {
@@ -394,6 +415,54 @@ public class SolverCreator {
 			}
 			System.out.println();
 		}
+		
+		System.out.println("Generating clustering..");
+		String clustering_filename = properties.getProperty("LoadClusteringLogFilename");
+		HashMap<Integer, List<Integer>> the_clustering = null;
+		if (clustering_filename == null || "".equals(clustering_filename)) {
+			the_clustering = C.getClustering(false, false, clustering_threshold);
+			//C.getClustering(false, false, clustering_threshold); //C.getClusteringTest(Integer.parseInt(properties.getProperty("k"))); //C.getClustering(true, false, clustering_threshold); //C.getClusteringHierarchical(HierarchicalClusterMethod.AVERAGE_LINKAGE, 15);
+		} else {
+			BufferedReader br = new BufferedReader(new FileReader(new File(clustering_filename)));
+			String line;
+			Pattern pattern = Pattern.compile("([0-9]+),\\[([0-9]+)(, ([0-9]+))*\\]");
+			the_clustering = new HashMap<Integer, List<Integer>>();
+			while ((line = br.readLine()) != null) {
+				Matcher m = pattern.matcher(line);
+				if (m.matches()) {
+					System.out.println("MATCH! " + m.groupCount());
+					int scid = Integer.parseInt(m.group(1));
+					line = line.substring(line.indexOf("[") +1);
+					//System.out.println("LINE = " + line);
+					List<Integer> iids = new LinkedList<Integer>();
+					while (true) {
+						if (line.contains(",")) {
+						
+							int iid = Integer.parseInt(line.substring(0, line.indexOf(",")));
+							line = line.substring(line.indexOf(",")+2);
+						//	System.out.println("LINE = " + line);
+							iids.add(iid);
+						} else {
+							int iid = Integer.parseInt(line.substring(0, line.indexOf("]")));
+							iids.add(iid);
+							break;
+						}
+					}
+					the_clustering.put(scid, iids);
+					System.out.println("Found: " + scid + "," + iids.toString());
+				}
+			}
+			br.close();
+		}
+				
+		for (Entry<Integer, List<Integer>> e : the_clustering.entrySet()) {
+			C.clusterPerformance.put(e.getKey(), C.getCost(e.getKey(), e.getValue()));
+			C.clusterSize.put(e.getKey(), e.getValue().size());
+		}
+		
+		System.out.println("Generated.");
+		System.out.println("Performance(C) = " + C_orig.performance(the_clustering));
+		System.out.println("Clusters: " + the_clustering.size());
 		
 		List<Integer> scids = C.getSolverConfigIds();
 		
@@ -444,10 +513,8 @@ public class SolverCreator {
 		if (Boolean.parseBoolean(properties.getProperty("BuildDecisionTree"))) {
 			System.out.println("Calculating clustering..");
 
-			HashMap<Integer, List<Integer>> c = C.getClustering(false, clustering_threshold);//, 0.9f);
 			System.out.println("Building decision tree..");
-			DecisionTree tree = new DecisionTree(c, DecisionTree.ImpurityMeasure.valueOf(properties.getProperty("DecisionTree_ImpurityMeasure")), C_orig, C, -1, new Random(), 0.2f);
-			System.out.println("Performance(C) = " + C_orig.performance(c));
+			DecisionTree tree = new DecisionTree(the_clustering, DecisionTree.ImpurityMeasure.valueOf(properties.getProperty("DecisionTree_ImpurityMeasure")), C_orig, -1, new Random(), 0.2f);
 			System.out.println("Performance(T) = " + tree.performance);
 			data.add(tree);
 			
@@ -594,7 +661,7 @@ public class SolverCreator {
 		
 		if (Boolean.parseBoolean(properties.getProperty("BuildRandomForest"))) {
 			System.out.println("Generating random forest..");
-			RandomForest forest = new RandomForest(C_orig, C, new Random(), Integer.parseInt(properties.getProperty("RandomForestTreeCount")), 200, clustering_threshold);
+			RandomForest forest = new RandomForest(C_orig, the_clustering, new Random(), Integer.parseInt(properties.getProperty("RandomForestTreeCount")), 200, clustering_threshold);
 			data.add(forest);
 			System.out.println("done.");
 		}
@@ -716,7 +783,7 @@ public class SolverCreator {
 	            bw.write("FeaturesBin = " + properties.getProperty("FeaturesRunCommand") + "\n");
 	            bw.write("FeaturesParameters = " + properties.getProperty("FeaturesParameters") + "\n");
 	            for (edacc.model.SolverBinaries binary : binaries) {
-	            	bw.write("SolverBin_" + binary.getId() + " = " + (binary.getRunCommand() == "" ? "" : binary.getRunCommand() + " ") + "./" + binary.getRunPath() + "\n");
+	            	bw.write("SolverBin_" + binary.getId() + " = " + ((binary.getRunCommand() == "" || binary.getRunCommand() == null) ? "" : binary.getRunCommand() + " ") + "./" + binary.getRunPath() + "\n");
 	            }
 	            bw.write("Data = ./data\n");
 	            bw.close();
@@ -758,7 +825,6 @@ public class SolverCreator {
 						SolverBinariesDAO.save(binary);
 						System.out.println("Saved.");
 						
-						Integer evalExpId = Integer.parseInt(properties.getProperty("EvaluationExperimentId"));
 						if (evalExpId != null && evalExpId != -1) {
 							String nameSuffix = properties.getProperty("EvaluationConfigNameSuffix");
 							String name = ""+expid + (nameSuffix != null ? nameSuffix : "");
@@ -779,10 +845,53 @@ public class SolverCreator {
 			} else {
 				System.err.println("Could not create directory: " + folder);
 			}
-		}		
+		}	
+		if (Boolean.parseBoolean(properties.getProperty("ExportClusterData"))) {
+			BufferedWriter bw = new BufferedWriter(new FileWriter(new File(properties.getProperty("ExportClusterDataFilename"))));
+			for (Entry<Integer, List<Integer>> e : the_clustering.entrySet()) {
+				bw.write(e.getKey() + ",");
+				for (int i = 0; i < e.getValue().size(); i++) {
+					bw.write(e.getValue().get(i).toString());
+					if (i != e.getValue().size() - 1) {
+						bw.write(',');
+					}
+				}
+				bw.write('\n');
+			}
+			bw.close();
+		}
+		
+		if (Boolean.parseBoolean(properties.getProperty("SaveUsedConfigurationsToEvaluationExperiment"))) {
+
+			
+			List<SolverConfiguration> scs = new LinkedList<SolverConfiguration>();
+			List<ParameterInstance> pis = new LinkedList<ParameterInstance>();
+			int sccount = 0;
+			for (Entry<Integer, List<Integer>> e : the_clustering.entrySet()) {
+				SolverConfiguration sc = SolverConfigurationDAO.getSolverConfigurationById(e.getKey());
+				SolverConfiguration newSc = new SolverConfiguration(sc);
+				newSc.setNew();
+				newSc.setExperiment_id(evalExpId);
+				
+				String nameSuffix = properties.getProperty("EvaluationConfigNameSuffix");
+				String name = ""+expid + (nameSuffix != null ? nameSuffix : "")+ "," + (sccount++) + "," + sc.getId();
+				
+				newSc.setName(name);
+				scs.add(newSc);
+				
+				for (ParameterInstance pi : ParameterInstanceDAO.getBySolverConfig(sc)) {
+					ParameterInstance newPi = new ParameterInstance(pi);
+					newPi.setNew();
+					newPi.setSolverConfiguration(newSc);
+					pis.add(newPi);
+				}
+			}
+			SolverConfigurationDAO.saveAll(scs);
+			ParameterInstanceDAO.saveBulk(pis);
+		}
 		
 		if (Boolean.parseBoolean(properties.getProperty("Interactive"))) {
-			interactiveMode(C, new File(featureDirectory));
+			interactiveMode(C, new File(featureDirectory),data);
 		}
 		
 	}
@@ -811,9 +920,14 @@ public class SolverCreator {
 	}
 	
 	
-	public static void interactiveMode(Clustering C, File featuresFolder) throws Exception {
+	public static void interactiveMode(Clustering C, File featuresFolder, List<Object> data) throws Exception {
 		BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
 		String line;
+		RandomForest rf = null;
+		for (Object o : data) {
+			if (o instanceof RandomForest)
+				rf = (RandomForest)o;
+		}
 		while ((line = br.readLine()) != null) {
 			if ("q".equals(line)) {
 				System.out.println("Query Mode");
@@ -824,9 +938,9 @@ public class SolverCreator {
 				if (method == null || id == null)
 					break;
 				
-				//float[] features = AAC.calculateFeatures(Integer.valueOf(id), featuresFolder, null);
+				float[] features = AAC.calculateFeatures(Integer.valueOf(id), featuresFolder, null);
 				if ("randomforest".equals(method)) {
-					//String params = C.P.get(C.forest.getSolverConfig(features));
+					String params = C.P.get(rf.getSolverConfig(features));
 					//System.out.println("Params: " + params);
 				} else if ("tree".equals(method)) {
 					//String params = C.P.get(C.tree.query(features).getFirst());

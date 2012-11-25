@@ -9,11 +9,16 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Vector;
 import java.util.Map.Entry;
 import java.util.Random;
 import java.util.Set;
 
+import edacc.model.Instance;
+import edacc.model.InstanceClass;
 import edacc.model.InstanceClassMustBeSourceException;
+import edacc.model.InstanceDAO;
+import edacc.model.InstanceHasInstanceClassDAO;
 import edacc.model.ParameterInstanceDAO;
 import edacc.model.SolverConfiguration;
 import edacc.model.SolverConfigurationDAO;
@@ -28,7 +33,7 @@ import edacc.util.Pair;
 public class Clustering implements Serializable {
 	
 	public enum HierarchicalClusterMethod {
-		SINGLE_LINKAGE, COMPLETE_LINKAGE, AVERAGE_LINKAGE
+		SINGLE_LINKAGE, COMPLETE_LINKAGE, AVERAGE_LINKAGE, CLUSTER
 	}
 	
 	
@@ -54,6 +59,13 @@ public class Clustering implements Serializable {
 	protected HashMap<Integer, float[]> F; // feature vectors for instances
 	protected HashMap<Integer, String> P; // parameter lines
 	protected HashMap<Integer, Integer> scToSb; // solver config to solver binary
+	
+	
+	public transient HashMap<Integer, List<Integer>> test_clustering = new HashMap<Integer, List<Integer>>();
+	public transient HashSet<Integer> test_clustering_usedInstances = new HashSet<Integer>();
+	
+	public HashMap<Integer, Double> clusterPerformance = new HashMap<Integer, Double>();
+	public HashMap<Integer, Integer> clusterSize = new HashMap<Integer, Integer>();
 	
 	private Clustering(HashMap<Integer, float[]> featureMapping) {
 		I = new HashMap<Integer, Integer>();
@@ -323,6 +335,56 @@ public class Clustering implements Serializable {
 		
 		// Add to data to be updated, invalidates the column of matrix M
 		update_columns.add(column);
+		
+		
+		// update test_clustering
+		/*if (!Double.isInfinite(cost)) {
+			if (!test_clustering_usedInstances.contains(instanceid)) {
+				List<Integer> list = test_clustering.get(scid);
+				if (list == null) {
+					list = new LinkedList<Integer>();
+					test_clustering.put(scid, list);
+				}
+				list.add(instanceid);
+				test_clustering_usedInstances.add(instanceid);
+			} else {
+				for (Entry<Integer, List<Integer>> e : test_clustering.entrySet()) {
+					if (e.getValue().contains(new Integer(instanceid))) {
+						if (!e.getKey().equals(scid)) {
+							double inc_cost = 0.;
+							double the_cost = 0.;
+							double _c[] = C.get(e.getKey());
+							List<Integer> instances = new LinkedList<Integer>();
+							for (int iid : e.getValue()) {
+								int col = I.get(iid);
+								if (!Double.isInfinite(_c[col])) {
+									instances.add(iid);
+									the_cost += _c[col];
+									inc_cost += c[col];
+								}
+							}
+							
+							if (instances.size() >= e.getValue().size() / 2 && the_cost < inc_cost) {
+								e.getValue().removeAll(instances);
+								
+								if (e.getValue().isEmpty()) {
+									test_clustering.remove(e.getKey());
+								}
+								
+								List<Integer> list = test_clustering.get(scid);
+								if (list == null) {
+									test_clustering.put(e.getKey(), instances);
+								} else {
+									list.addAll(instances);
+								}
+							}
+							
+						}
+						break;
+					}
+				}
+			}
+		}*/
 	}
 	
 	/**
@@ -430,9 +492,9 @@ public class Clustering implements Serializable {
 		return res;
 	}
 	
-	public HashMap<Integer, List<Integer>> getClustering(boolean removeSmallClusters, double threshold) {
+	public HashMap<Integer, List<Integer>> getClustering(boolean removeSmallClusters, boolean allowDuplicates, double threshold) {
 		if (threshold >= 1.f) {
-			return getClustering(removeSmallClusters);
+			return getClustering(removeSmallClusters, allowDuplicates);
 		}
 		List<Pair<Integer, Double>> scidWeight = new LinkedList<Pair<Integer, Double>>();
 		for (int scid : M.keySet()) {
@@ -454,14 +516,18 @@ public class Clustering implements Serializable {
 		});
 		HashSet<Integer> scids = new HashSet<Integer>();
 		for (int i = scidWeight.size()-1; i >= 0; i--) {
-			HashMap<Integer, List<Integer>> tmp = getClustering(false, scids);
+			HashMap<Integer, List<Integer>> tmp = getClustering(false, false, scids);
 			if (performance(tmp) >= threshold) {
-				return tmp;
+				if (allowDuplicates) {
+					return getClustering(false, true, scids);
+				} else {
+					return tmp;
+				}
 			}
 			scids.add(scidWeight.get(i).getFirst());
 		}
 		
-		return getClustering(false);
+		return getClustering(false, allowDuplicates);
 	}
 	
 	/**
@@ -469,11 +535,11 @@ public class Clustering implements Serializable {
 	 * @param removeSmallClusters if true, tries to remove small clusters by moving instances from small clusters to other clusters.
 	 * @return
 	 */
-	public HashMap<Integer, List<Integer>> getClustering(boolean removeSmallClusters) {
-		return getClustering(removeSmallClusters, M.keySet());
+	public HashMap<Integer, List<Integer>> getClustering(boolean removeSmallClusters, boolean allowDuplicates) {
+		return getClustering(removeSmallClusters, allowDuplicates, M.keySet());
 	}
 
-	public HashMap<Integer, List<Integer>> getClustering(boolean removeSmallClusters, Set<Integer> solverConfigs) {
+	public HashMap<Integer, List<Integer>> getClustering(boolean removeSmallClusters, boolean allowDuplicates, Set<Integer> solverConfigs) {
 		// for mindist method
 		if (update_columns != null) {
 			updateData();
@@ -493,22 +559,34 @@ public class Clustering implements Serializable {
 				}
 			}
 			if (!(scids.isEmpty())) {
-				int scid = -1;
-				double weight = 0.f;
-				for (int id : scids) {
-					double tmp = this.getWeight(id);
-					if (tmp > weight) {
-						weight = tmp;
-						scid = id;
+
+				if (allowDuplicates) {
+					for (int scid : scids) {
+						List<Integer> instanceids = res.get(scid);
+						if (instanceids == null) {
+							instanceids = new LinkedList<Integer>();
+							res.put(scid, instanceids);
+						}
+						instanceids.add(instanceid);
 					}
+				} else {
+					int scid = -1;
+					double weight = 0.f;
+					for (int id : scids) {
+						double tmp = this.getWeight(id);
+						if (tmp > weight) {
+							weight = tmp;
+							scid = id;
+						}
+					}
+
+					List<Integer> instanceids = res.get(scid);
+					if (instanceids == null) {
+						instanceids = new LinkedList<Integer>();
+						res.put(scid, instanceids);
+					}
+					instanceids.add(instanceid);
 				}
-				
-				List<Integer> instanceids = res.get(scid);
-				if (instanceids == null) {
-					instanceids = new LinkedList<Integer>();
-					res.put(scid, instanceids);
-				}
-				instanceids.add(instanceid);
 			}
 			
 		}
@@ -551,6 +629,119 @@ public class Clustering implements Serializable {
 					res.remove(rmscid);
 				}
 			} while (found);
+		}
+		return res;
+	}
+	
+	public double getCost(int scid, List<Integer> c) {
+		double cost = 0.;
+		for (int iid: c) {
+			double tmp = this.getCost(scid, iid);
+			if (Double.isNaN(tmp) || Double.isInfinite(tmp)) {
+				return Double.POSITIVE_INFINITY;
+			}
+			cost += tmp;
+		}
+		return cost;
+	}
+	
+	/*public HashMap<Integer, List<Integer>> getClusteringInstanceClassBased() throws Exception {
+    	List<List<Integer>> instanceClassClusters = new LinkedList<List<Integer>>();
+    	HashMap<Integer, List<Integer>> tmp = new HashMap<Integer, List<Integer>>();
+    	
+    	List<Integer> instanceIds = new LinkedList<Integer>();
+    	instanceIds.addAll(I.keySet());
+    	instanceIds.removeAll(getNotUsedInstances());
+    	
+    	for (int iid : instanceIds) {
+    		Instance i = InstanceDAO.getById(iid);
+    		Vector<InstanceClass> v = InstanceHasInstanceClassDAO.getInstanceClassElements(i);
+    		for (InstanceClass ic : v) {
+    			List<Integer> c = tmp.get(ic.getId());
+    			if (c == null) {
+    				c = new LinkedList<Integer>();
+    				tmp.put(ic.getId(), c);
+    			}
+    			c.add(i.getId());
+    		}
+    	}
+    	instanceClassClusters.addAll(tmp.values());
+    	Collections.sort(instanceClassClusters, new Comparator<List<Integer>>() {
+
+			@Override
+			public int compare(List<Integer> arg0, List<Integer> arg1) {
+				return arg1.size() - arg0.size();
+			}
+    		
+    	});
+    	
+    	for (int i = 0; i < instanceClassClusters.size(); i++) {
+    		List<Integer> current = instanceClassClusters.get(i);
+    		for (int j = instanceClassClusters.size()-1; j > i; j--) {
+    			List<Integer> tmpC = instanceClassClusters.get(j);
+    			tmpC.removeAll(current);
+    			if (tmpC.isEmpty()) {
+    				instanceClassClusters.remove(j);
+    			}
+    		}
+    	}
+    	
+    	
+	}*/
+	
+	public HashMap<Integer, List<Integer>> getClusteringTest(int k) {
+		HashMap<Integer, List<Integer>> res = new HashMap<Integer, List<Integer>>();
+		List<Integer> instanceIds = new LinkedList<Integer>();
+		instanceIds.addAll(I.keySet());
+		instanceIds.removeAll(this.getNotUsedInstances());
+		Random rng = new Random();
+		while (!instanceIds.isEmpty()) {
+			int rand = rng.nextInt(instanceIds.size());
+			int iid = instanceIds.get(rand);
+			instanceIds.remove(rand);
+			
+			if (res.size() < k) {
+				List<Integer> list = new LinkedList<Integer>();
+				list.add(iid);
+				res.put(this.getBestConfigurationForCluster(list), list);
+			} else {
+				double cost = Double.POSITIVE_INFINITY;
+				int scid = -1;
+				int nscid = -1;
+				for (Entry<Integer, List<Integer>> e : res.entrySet()) {
+					double tmp = getCost(e.getKey(), e.getValue());
+					e.getValue().add(iid);
+					int newScid = this.getBestConfigurationForCluster(e.getValue());
+					if (newScid < 0) {
+						e.getValue().remove(e.getValue().size()-1);
+						continue;
+					}
+					double tmp2 = getCost(newScid, e.getValue());
+					e.getValue().remove(e.getValue().size()-1);
+					if (Double.isInfinite(tmp2) || Double.isNaN(tmp2)) {
+						continue;
+					}
+					double tmp3 = tmp2 - tmp;
+					if (tmp3 < cost) {
+						scid = e.getKey();
+						nscid = newScid;
+						cost = tmp3;
+					}
+				}
+				if (scid != -1) {
+					res.get(scid).add(iid);
+					if (nscid != scid) {
+						List<Integer> c = res.get(scid);
+						res.remove(scid);
+						List<Integer> c2 = res.get(nscid);
+						if (c2 == null) {
+							res.put(nscid, c);
+						} else {
+							c2.addAll(c);
+						}
+					}
+				}
+			}
 		}
 		return res;
 	}
@@ -769,12 +960,18 @@ public class Clustering implements Serializable {
 		for (int i = 0; i < l1.size(); i++) {
 			if (l2.get(i).getFirst().equals(l1.get(0).getFirst())) {
 				dist1 = i;
+				if (this.getMembership(l1.get(0).getFirst(), i2) < 0.0001) {
+					dist1 = l1.size();
+				}
 				break;
 			}
 		}
 		for (int i = 0; i < l1.size(); i++) {
 			if (l1.get(i).getFirst().equals(l2.get(0).getFirst())) {
 				dist2 = i;
+				if (this.getMembership(l2.get(0).getFirst(), i1) < 0.0001) {
+					dist1 = l1.size();
+				}
 				break;
 			}
 		}
@@ -839,19 +1036,67 @@ public class Clustering implements Serializable {
 	public int getBestConfigurationForCluster(List<Integer> cluster) {
 		updateData();
 		
-		double weight = 0.f;
+		double weight = Double.POSITIVE_INFINITY;
 		int res = -1;
-		for (Entry<Integer, double[]> entry : M.entrySet()) {
+		for (Entry<Integer, double[]> entry : C.entrySet()) {
 		    double tmp = 0.f;
+		    boolean inf = false;
 			for (int instanceid : cluster) {
+				if (Double.isInfinite(entry.getValue()[I.get(instanceid)]) || Double.isNaN(entry.getValue()[I.get(instanceid)])) {
+					inf = true;
+					break;
+				}
 				tmp += entry.getValue()[I.get(instanceid)];
 			}
-			if (tmp > weight) {
+			if (inf) {
+				continue;
+			}
+			if (tmp < weight) {
 				weight = tmp;
 				res = entry.getKey();
 			}
 		}
 		return res;
+	}
+	
+	public double getDistanceTest(List<Integer> c1, List<Integer> c2) {
+		int sc1 = this.getBestConfigurationForCluster(c1);
+		int sc2 = this.getBestConfigurationForCluster(c2);
+		List<Integer> mergedCluster = new LinkedList<Integer>();
+		mergedCluster.addAll(c1);
+		mergedCluster.addAll(c2);
+		
+		double sc1_cost = 0., sc2_cost = 0.;
+		
+		for (int iid : mergedCluster) {
+			double tmp = this.getCost(sc1, iid);
+			if (!Double.isNaN(tmp) && !Double.isInfinite(tmp)) {
+				sc1_cost += tmp;
+			} else {
+				sc1_cost = Double.POSITIVE_INFINITY;
+				break;
+			}
+		}
+		
+		for (int iid : mergedCluster) {
+			double tmp = this.getCost(sc2, iid);
+			if (!Double.isNaN(tmp) && !Double.isInfinite(tmp)) {
+				sc2_cost += tmp;
+			} else {
+				sc2_cost = Double.POSITIVE_INFINITY;
+				break;
+			}
+		}
+		
+		if (Double.isInfinite(sc1_cost)) {
+			return sc2_cost;
+		} else if (Double.isInfinite(sc2_cost)) {
+			return sc1_cost;
+		} else if (sc1_cost < sc2_cost) {
+			return sc1_cost;
+		} else {
+			return sc2_cost;
+		}
 	}
 	
 	public HashMap<Integer, List<Integer>> getClusteringHierarchical(HierarchicalClusterMethod method, int k) {
@@ -867,6 +1112,7 @@ public class Clustering implements Serializable {
 		}
 		HashMap<Pair<Integer, Integer>, Double> matrix = getDistanceMatrix();
 		while (c.size() > k) {
+			System.out.println("csize = " + c.size());
 			int m1 = -1, m2 = -1;
 			double dist = Double.MAX_VALUE;
 			for (int i = 0; i < c.size(); i++) {
@@ -878,6 +1124,8 @@ public class Clustering implements Serializable {
 						tmp = getDistanceSingleLinkage(c.get(i), c.get(j), matrix);
 					} else if (method.equals(HierarchicalClusterMethod.AVERAGE_LINKAGE)) {
 						tmp = getDistanceAverageLinkage(c.get(i), c.get(j), matrix);
+					} else if (method.equals(HierarchicalClusterMethod.CLUSTER)) {
+						tmp = getDistanceTest(c.get(i), c.get(j));
 					} else {
 						throw new IllegalArgumentException("Unknown hierarchical clustering method: " + method);
 					}
@@ -889,6 +1137,10 @@ public class Clustering implements Serializable {
 					}
 				}
 			}
+			if (m1 == -1 || m2 == -1) {
+				break;
+			}
+			
 			c.get(m1).addAll(c.get(m2));
 			c.remove(m2);
 		}
