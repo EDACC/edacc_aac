@@ -1,6 +1,17 @@
 package edacc.configurator.models.rf;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInput;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutput;
+import java.io.ObjectOutputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -378,5 +389,18 @@ public class RandomForest implements java.io.Serializable {
     
     public double[][] getInstanceFeatures() {
         return instanceFeatures;
+    }
+    
+    public static void writeToFile(RandomForest rf, File f) throws IOException {
+        OutputStream buffer = new BufferedOutputStream(new FileOutputStream(f));
+        ObjectOutput output = new ObjectOutputStream(buffer);
+        output.writeObject(rf);
+        output.close();
+    }
+    
+    public static RandomForest loadFromFile(File f) throws IOException, ClassNotFoundException {
+        InputStream buffer = new BufferedInputStream(new FileInputStream(f));
+        ObjectInput input = new ObjectInputStream(buffer);
+        return (RandomForest)input.readObject();
     }
 }

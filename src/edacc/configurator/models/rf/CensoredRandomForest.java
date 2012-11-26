@@ -1,5 +1,18 @@
 package edacc.configurator.models.rf;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInput;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutput;
+import java.io.ObjectOutputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -68,7 +81,7 @@ public class CensoredRandomForest implements java.io.Serializable {
         params.ratioFeatures = 5.0 / 6.0;
         params.catDomainSizes = catDomainSizes;
         params.logModel = logModel;
-        params.storeResponses = true;
+        params.storeResponses = false;
         params.splitMin = 10;
         params.condParents = condParents;
         params.condParentVals = condParentVals;
@@ -370,5 +383,18 @@ public class CensoredRandomForest implements java.io.Serializable {
         }
         
         return Utils.mean(RSS_t);
+    }
+    
+    public static void writeToFile(CensoredRandomForest rf, File f) throws IOException {
+        OutputStream buffer = new BufferedOutputStream(new FileOutputStream(f));
+        ObjectOutput output = new ObjectOutputStream(buffer);
+        output.writeObject(rf);
+        output.close();
+    }
+    
+    public static CensoredRandomForest loadFromFile(File f) throws IOException, ClassNotFoundException {
+        InputStream buffer = new BufferedInputStream(new FileInputStream(f));
+        ObjectInput input = new ObjectInputStream(buffer);
+        return (CensoredRandomForest)input.readObject();
     }
 }

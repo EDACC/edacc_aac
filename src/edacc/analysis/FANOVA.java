@@ -1,6 +1,7 @@
 package edacc.analysis;
 
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
 import java.util.ArrayList;
@@ -65,6 +66,7 @@ public class FANOVA {
         options.addOption("calculaterfvi", false, "Whether to calculate the random forest variable importance");
         options.addOption("averageparamperf", true, "Name of the parameter of which to estimate the average performance");
         options.addOption("secondorder", false, "Estimate first and second-order indices instead of first and total indices (Warning: requires a lot of model predictions)");
+        options.addOption("savemodel", true, "Save the random forest to the given file");
         
         String hostname = null;
         Integer port = 3306;
@@ -84,6 +86,7 @@ public class FANOVA {
         String averageParamPerf = null;
         Integer nConfigsForAverage = 10000; // TODO
         Boolean secondOrder = false;
+        String savemodel = null;
         
         CommandLineParser parser = new PosixParser();
         try {
@@ -103,6 +106,7 @@ public class FANOVA {
             if (cmd.hasOption("seed")) seed = Integer.valueOf(cmd.getOptionValue("seed"));
             if (cmd.hasOption("samplingpath")) samplingPath = cmd.getOptionValue("samplingpath");
             if (cmd.hasOption("ntrees")) nTrees = Integer.valueOf(cmd.getOptionValue("ntrees"));
+            if (cmd.hasOption("savemodel")) savemodel = String.valueOf(cmd.getOptionValue("savemodel"));
             calculateRFVI = cmd.hasOption("calculaterfvi");
             secondOrder = cmd.hasOption("secondorder");
             if (cmd.hasOption("averageparamperf")) averageParamPerf = cmd.getOptionValue("averageparamperf"); 
@@ -168,6 +172,10 @@ public class FANOVA {
         model.learnModel(solverConfigs);
         System.out.println("Learning the model took " + (System.currentTimeMillis() - start) / 1000.0f + " seconds");
         System.out.println("RF model is based on " + model.getConfigurableParameters().size() + " parameters and " + model.getInstanceFeatureNames().size() + " instance features.");
+        if (savemodel != null) {
+            System.out.println("Saving RF model to file " + savemodel);
+            RandomForest.writeToFile(model, new File(savemodel));
+        }
         System.out.println("RF OOB MSE: " + model.getOOBAvgRSS());
         
         if (averageParamPerf != null) {
