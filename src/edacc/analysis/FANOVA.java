@@ -67,6 +67,7 @@ public class FANOVA {
         options.addOption("averageparamperf", true, "Name of the parameter of which to estimate the average performance");
         options.addOption("secondorder", false, "Estimate first and second-order indices instead of first and total indices (Warning: requires a lot of model predictions)");
         options.addOption("savemodel", true, "Save the random forest to the given file");
+        options.addOption("loadmodel", true, "Load model from file instead of fitting from data");
         
         String hostname = null;
         Integer port = 3306;
@@ -87,6 +88,7 @@ public class FANOVA {
         Integer nConfigsForAverage = 10000; // TODO
         Boolean secondOrder = false;
         String savemodel = null;
+        String loadmodel = null;
         
         CommandLineParser parser = new PosixParser();
         try {
@@ -107,6 +109,7 @@ public class FANOVA {
             if (cmd.hasOption("samplingpath")) samplingPath = cmd.getOptionValue("samplingpath");
             if (cmd.hasOption("ntrees")) nTrees = Integer.valueOf(cmd.getOptionValue("ntrees"));
             if (cmd.hasOption("savemodel")) savemodel = String.valueOf(cmd.getOptionValue("savemodel"));
+            if (cmd.hasOption("loadmodel")) loadmodel = String.valueOf(cmd.getOptionValue("loadmodel"));
             calculateRFVI = cmd.hasOption("calculaterfvi");
             secondOrder = cmd.hasOption("secondorder");
             if (cmd.hasOption("averageparamperf")) averageParamPerf = cmd.getOptionValue("averageparamperf"); 
@@ -166,17 +169,24 @@ public class FANOVA {
         System.out.println("Loaded " + countJobs + " runs.");
         
         // ===== Learn the random forest =====
-        System.out.println("Learning random forest from data ...");
+        RandomForest model = null;
         long start = System.currentTimeMillis();
-        RandomForest model = new RandomForest(api, idExperiment, false, nTrees, rng, CPUlimit, wallLimit, new LinkedList<String>(), featureFolder, featureCacheFolder, false);
-        model.learnModel(solverConfigs);
-        System.out.println("Learning the model took " + (System.currentTimeMillis() - start) / 1000.0f + " seconds");
+        if (loadmodel == null) {
+            System.out.println("Learning random forest from data ...");
+            model = new RandomForest(api, idExperiment, false, nTrees, rng, CPUlimit, wallLimit, new LinkedList<String>(), featureFolder, featureCacheFolder, false);
+            model.learnModel(solverConfigs);
+            System.out.println("Learning the model took " + (System.currentTimeMillis() - start) / 1000.0f + " seconds");
+        } else {
+            System.out.println("Loading RF from file");
+            model = RandomForest.loadFromFile(new File(loadmodel));
+            System.out.println("Loaded RF from file");
+        }
         System.out.println("RF model is based on " + model.getConfigurableParameters().size() + " parameters and " + model.getInstanceFeatureNames().size() + " instance features.");
         if (savemodel != null) {
             System.out.println("Saving RF model to file " + savemodel);
             RandomForest.writeToFile(model, new File(savemodel));
         }
-        System.out.println("RF OOB MSE: " + model.getOOBAvgRSS());
+        //System.out.println("RF OOB MSE: " + model.getOOBAvgRSS());
         
         if (averageParamPerf != null) {
             System.out.println("Calculating average performance for parameter " + averageParamPerf);
