@@ -68,11 +68,9 @@ public class Cluster{
 	 * @return all instances
 	 */
 	public List<InstanceIdSeed> getInstances() {
-		InstanceIdSeed[] instances = new InstanceIdSeed[idSeed.size()];
-                instances = idSeed.toArray(instances);
-                LinkedList<InstanceIdSeed> iList = new LinkedList<InstanceIdSeed>();
-                iList.addAll(Arrays.asList(instances));
-                return iList;
+            LinkedList<InstanceIdSeed> iList = new LinkedList<InstanceIdSeed>();
+            iList.addAll(idSeed);
+            return iList;
         }
 	
 	/**
