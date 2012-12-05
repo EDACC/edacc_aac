@@ -85,6 +85,7 @@ public class CensoredRandomForest implements java.io.Serializable {
         params.splitMin = 10;
         params.condParents = condParents;
         params.condParentVals = condParentVals;
+        params.random = rng;
         
         rf = new RandomForest(nTrees, params);
     }

@@ -13,6 +13,7 @@ import java.io.ObjectOutput;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -44,7 +45,7 @@ import edacc.parameterspace.domain.RealDomain;
 import edacc.parameterspace.graph.ParameterGraph;
 
 public class RandomForest implements java.io.Serializable {
-    private CensoredRandomForest rf;
+    public CensoredRandomForest rf;
     private List<Parameter> configurableParameters = new ArrayList<Parameter>();
     private CostFunction par1CostFunc;
     private boolean logModel;
@@ -203,6 +204,20 @@ public class RandomForest implements java.io.Serializable {
         int[][] augmentedCondParents = new int[condParents.length + instanceFeatureNames.size()][];
         for (int i = 0; i < condParents.length; i++) augmentedCondParents[i] = condParents[i];
         condParents = augmentedCondParents;
+        
+        /*for (int i = 0; i < configurableParameters.size(); i++) {
+            System.out.println("Conditional parents of " + configurableParameters.get(i));
+            if (condParents[i] == null) {
+                System.out.println("None"); continue;
+            }
+            for (int j = 0; j < condParents[i].length; j++) {
+                System.out.println(configurableParameters.get(condParents[i][j]));
+                for (int k = 0; k < condParentVals[i][j].length; k++) {
+                    System.out.println(condParentVals[i][j][k]);
+                }
+            }
+        }*/
+
 
         rf = new CensoredRandomForest(nTrees, logModel ? 1 : 0, kappaMax, 1.0, catDomainSizes, rng, condParents, condParentVals);
     }
@@ -258,7 +273,9 @@ public class RandomForest implements java.io.Serializable {
     public double[][] predict(List<ParameterConfiguration> configs) {
         double[][] thetas = new double[configs.size()][];
         int ix = 0;
-        for (ParameterConfiguration config: configs) thetas[ix++] = paramConfigToTuple(config);
+        for (ParameterConfiguration config: configs) {
+            thetas[ix++] = paramConfigToTuple(config);
+        }
         return rf.predict(thetas);
     }
     

@@ -21,6 +21,8 @@ import org.apache.commons.cli.ParseException;
 import org.apache.commons.cli.PosixParser;
 import org.rosuda.JRI.Rengine;
 
+import ca.ubc.cs.beta.models.fastrf.Regtree;
+
 import edacc.api.API;
 import edacc.api.APIImpl;
 import edacc.api.costfunctions.CostFunction;
@@ -65,6 +67,7 @@ public class FANOVA {
         options.addOption("ntrees", true, "number of trees in the random forest model");
         options.addOption("calculaterfvi", false, "Whether to calculate the random forest variable importance");
         options.addOption("averageparamperf", true, "Name of the parameter of which to estimate the average performance");
+        options.addOption("averageparamsamples", true, "Number of samples for average parameter performance");
         options.addOption("secondorder", false, "Estimate first and second-order indices instead of first and total indices (Warning: requires a lot of model predictions)");
         options.addOption("savemodel", true, "Save the random forest to the given file");
         options.addOption("loadmodel", true, "Load model from file instead of fitting from data");
@@ -85,6 +88,7 @@ public class FANOVA {
         Integer nTrees = 40;
         Boolean calculateRFVI = false;
         String averageParamPerf = null;
+        Integer averageParamSamples = 100;
         Integer nConfigsForAverage = 10000; // TODO
         Boolean secondOrder = false;
         String savemodel = null;
@@ -112,7 +116,8 @@ public class FANOVA {
             if (cmd.hasOption("loadmodel")) loadmodel = String.valueOf(cmd.getOptionValue("loadmodel"));
             calculateRFVI = cmd.hasOption("calculaterfvi");
             secondOrder = cmd.hasOption("secondorder");
-            if (cmd.hasOption("averageparamperf")) averageParamPerf = cmd.getOptionValue("averageparamperf"); 
+            if (cmd.hasOption("averageparamperf")) averageParamPerf = cmd.getOptionValue("averageparamperf");
+            if (cmd.hasOption("averageparamsamples")) averageParamSamples = Integer.valueOf(cmd.getOptionValue("averageparamsamples"));
         } catch (ParseException e) {
             System.out.println( "Parsing error: " + e.getMessage() + "\n");
             HelpFormatter formatter = new HelpFormatter();
@@ -192,15 +197,17 @@ public class FANOVA {
             System.out.println("Calculating average performance for parameter " + averageParamPerf);
             List<ParameterConfiguration> pconfigs = new ArrayList<ParameterConfiguration>(nConfigsForAverage);
             SamplingSequence sequenceParam = new SamplingSequence(samplingPath);
-            double[][] sequenceValuesParams = sequenceParam.getSequence(model.getConfigurableParameters().size(), nConfigsForAverage);
+            double[][] sequenceValuesParams = sequenceParam.getSequence(model.getConfigurableParameters().size(), 5 * nConfigsForAverage);
+            int sn = 0;
             for (int i = 0; i < nConfigsForAverage; i++) {
-                ParameterConfiguration config = mapRealTupleToParameters(pspace, rng, model.getConfigurableParameters(), sequenceValuesParams[i]);// pspace.getRandomConfiguration(rng); // TODO: base on quasi random sequences
+                ParameterConfiguration config = mapRealTupleToParameters(pspace, rng, model.getConfigurableParameters(), sequenceValuesParams[sn++]);// pspace.getRandomConfiguration(rng); // TODO: base on quasi random sequences
+                while (!pspace.validateParameterConfiguration(config)) config = mapRealTupleToParameters(pspace, rng, model.getConfigurableParameters(), sequenceValuesParams[sn++]);
                 pconfigs.add(config);
             }
 
             for (Parameter p: model.getConfigurableParameters()) {
                 if (p.getName().equals(averageParamPerf)) {
-                    for (Object v: p.getDomain().getUniformDistributedValues(100)) {
+                    for (Object v: p.getDomain().getUniformDistributedValues(averageParamSamples)) {
                         Object[] old_vals = new Object[nConfigsForAverage];
                         for (int i = 0; i < nConfigsForAverage; i++) {
                             old_vals[i] = pconfigs.get(i).getParameterValue(p);
@@ -313,6 +320,7 @@ public class FANOVA {
         OutputStreamWriter out = new OutputStreamWriter(fos, "UTF-8"); 
         BufferedWriter writer = new BufferedWriter(out);
         writer.write("library(sensitivity)\n");
+        writer.write("library(ggplot2)\n");
         writer.write("X1 = c(");
         for (int i = 0; i < linearizedData.length; i++) {
             writer.write(String.valueOf(linearizedData[i]));
@@ -367,6 +375,10 @@ public class FANOVA {
         } else {
             writer.write("topTotalEffects = x$T[with(x$T, order(-x$T[,1])),][1:10,]\n");
         }
+        writer.write("d = data.frame(Parameter=rownames(topTotalEffects), TotalEffect=topTotalEffects[,1])\n");
+        writer.write("ggplot(d, aes(x=reorder(Parameter, TotalEffect), y=TotalEffect)) + geom_bar(stat=\"identity\") + scale_y_continuous(\"Total effect\") + coord_flip()\n");
+        writer.write("ggsave(file=\"FANOVA.pdf\", height=3, width=4.8)\n");
+        writer.write("barplot(topTotalEffects[,1], names.arg=rownames(topTotalEffects), horiz=T, las=2)\n");
         writer.write("par(mar=c(4,12,1,1))\n");
         writer.write("barplot(topTotalEffects[,1], names.arg=rownames(topTotalEffects), horiz=T, las=2)\n");
         writer.close();

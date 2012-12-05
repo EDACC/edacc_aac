@@ -152,6 +152,7 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 	@Override
 	public void solverConfigurationsFinished(List<SolverConfiguration> scs) throws Exception {
 		for (SolverConfiguration sc : scs) {
+		    if (sc.getJobCount() != sc.getFinishedJobs().size()) continue;
 			if (sc == bestSC) {
 			    continue;
 			}
