@@ -86,7 +86,7 @@ public class Resources_Properties extends ClusteringResources{
         for(int i=80; i<134; i++){
              val1 = Double.parseDouble(m1.get(i).getValue());
              val2 = Double.parseDouble(m2.get(i).getValue());             
-             tmp = val1-val2;//TODO: rework to avoid rounding errors
+             tmp = val1-val2;
              tmp = tmp * tmp;
              dist += tmp;
         }

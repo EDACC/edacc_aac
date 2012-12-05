@@ -36,7 +36,7 @@ public class ClusterHandler implements ClusterMethods{
     private ParameterGraph paramGraph;
     private SolverConfiguration bestSC;
     private String algorithmName = "Algorithm_CLC";
-    private String resourcesName = "Resources_Properties";
+    private String resourcesName = "Resources_PropertiesWorkaround";
 	// A set of fully evaluated SCs is required to create an initial
 	// clustering. The number of those SCs is defined in this variable
     private int numberOfMinStartupSCs = 1;
@@ -178,19 +178,31 @@ public class ClusterHandler implements ClusterMethods{
                 return i;
         return -1;
     }
-
+    
+    
     public InstanceIdSeed getInstanceInCluster(int clusterNumber) {
         return getRandomInstance(clusters[clusterNumber].getInstances());
     }
     public InstanceIdSeed getInstanceInCluster(int clusterNr, SolverConfiguration solverConfig){
         List<InstanceIdSeed> clusterInstances = clusters[clusterNr].getInstances();
         List<InstanceIdSeed> tmpList = getInstances(solverConfig);
+        //DEBUG
+        List<ExperimentResult> resList = solverConfig.getJobs();
+        List<ExperimentResult>[] clusterLists = mapResultsToClusters(solverConfig);
+        if(clusterLists[clusterNr].size() == clusterInstances.size()){
+            System.out.println("ERROR: ClusterHandler.getInstanceInCluster: config already has all jobs in this cluster");
+        }        
+        //END DEBUG
         clusterInstances.removeAll(tmpList);//clusterInstances is a copy of the cluster's list -> no side effects
         InstanceIdSeed newInstance = getRandomInstance(clusterInstances);
-        if(tmpList.contains(newInstance))
-            System.out.println("ERROR: getInstanceInCluster returns duplicate Instance!!");
-        if(!clusters[clusterNr].contains(newInstance))
-            System.out.println("ERROR: getInstanceInCluster returns an instance not present in this cluster!");
+        if(clusterInstances.isEmpty())
+            System.out.println("ERROR: ClusterHandler.getInstanceInCluster was called even though config has already completed this cluster");
+        else if(newInstance == null)
+            System.out.println("ERROR: ClusterHandler.getInstanceInCluster returns null instance!");
+        else if(tmpList.contains(newInstance))
+            System.out.println("ERROR: ClusterHandler.getInstanceInCluster returns duplicate Instance!!");
+        else if(!clusters[clusterNr].contains(newInstance))
+            System.out.println("ERROR: ClusterHandler.getInstanceInCluster returns an instance not present in this cluster!");
         return newInstance;
     }
     
@@ -214,6 +226,9 @@ public class ClusterHandler implements ClusterMethods{
     protected InstanceIdSeed getRandomInstance(List<InstanceIdSeed> instances){
         if(instances.isEmpty())
             return null;
+        for(InstanceIdSeed idSeed : instances)
+            if(idSeed==null)
+                System.out.println("Error: ClusterHandler.getRandomInstance: list of instances contains null elements!");
         LinkedList<InstanceData> datList = new LinkedList<InstanceData>();
         for(InstanceIdSeed inst : instances)
             datList.add(data.get(inst));       
