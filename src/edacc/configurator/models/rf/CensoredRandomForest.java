@@ -23,11 +23,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import ca.ubc.cs.beta.models.fastrf.RandomForest;
-import ca.ubc.cs.beta.models.fastrf.RegtreeFit;
-import ca.ubc.cs.beta.models.fastrf.RegtreeBuildParams;
-import edacc.configurator.models.rf.fastrf.utils.Gaussian;
+import edacc.configurator.models.rf.fastrf.RandomForest;
+import edacc.configurator.models.rf.fastrf.RegtreeBuildParams;
+import edacc.configurator.models.rf.fastrf.RegtreeFit;
 import edacc.configurator.models.rf.fastrf.utils.Utils;
+import edacc.configurator.models.rf.fastrf.utils.Gaussian;
 
 public class CensoredRandomForest implements java.io.Serializable {
     private static final long serialVersionUID = 3243815546509104702L;
@@ -87,7 +87,7 @@ public class CensoredRandomForest implements java.io.Serializable {
         params.condParentVals = condParentVals;
         params.random = rng;
         
-        rf = new RandomForest(nTrees, params);
+        rf = new RandomForest(nTrees, logModel);
     }
     
     public void learnModel(double[][] theta, double[][] instance_features, int nParams, int nFeatures,
@@ -221,7 +221,7 @@ public class CensoredRandomForest implements java.io.Serializable {
                     oob_samples[ix++] = j;
                 }
             }
-
+            
             rf.Trees[i] = RegtreeFit.fit(theta, instance_features, tree_theta_inst_idxs, tree_y, params);
             tree_oob_samples[i] = oob_samples;
         }

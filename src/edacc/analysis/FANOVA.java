@@ -248,6 +248,8 @@ public class FANOVA {
         int d = model.getConfigurableParameters().size() + model.getInstanceFeatureNames().size();
         SamplingSequence sequence = new SamplingSequence(samplingPath);
         double[][] sequenceValues = sequence.getSequence(d, (2+d)*mcSamples * 2);
+        // Shuffle samples
+        shuffleArray(sequenceValues, rng);
         
         System.out.println("Number of model input variables is: " + d);
         double[] linearizedData = new double[mcSamples * d];
@@ -378,7 +380,6 @@ public class FANOVA {
         writer.write("d = data.frame(Parameter=rownames(topTotalEffects), TotalEffect=topTotalEffects[,1])\n");
         writer.write("ggplot(d, aes(x=reorder(Parameter, TotalEffect), y=TotalEffect)) + geom_bar(stat=\"identity\") + scale_y_continuous(\"Total effect\") + coord_flip()\n");
         writer.write("ggsave(file=\"FANOVA.pdf\", height=3, width=4.8)\n");
-        writer.write("barplot(topTotalEffects[,1], names.arg=rownames(topTotalEffects), horiz=T, las=2)\n");
         writer.write("par(mar=c(4,12,1,1))\n");
         writer.write("barplot(topTotalEffects[,1], names.arg=rownames(topTotalEffects), horiz=T, las=2)\n");
         writer.close();
@@ -450,5 +451,15 @@ public class FANOVA {
             features[i] = instanceFeaturesRange[i][0] + (instanceFeaturesRange[i][1] - instanceFeaturesRange[i][0]) * values[i];
         }
         return features;
+    }
+    
+    // Fisher–Yates shuffle
+    private static void shuffleArray(double[][] ar, Random rng) {
+        for (int i = ar.length - 1; i >= 0; i--) {
+            int index = rng.nextInt(i + 1);
+            double[] a = ar[index];
+            ar[index] = ar[i];
+            ar[i] = a;
+        }
     }
 }
