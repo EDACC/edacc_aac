@@ -479,6 +479,7 @@ public class ClusterHandler implements ClusterMethods{
 				bestCost = sc.getCost();
 				bestSC = sc;
 			}
+			sc.setFinished(true);
 		}
 		aac.validateIncumbent(bestSC);
 		return startupSCs;

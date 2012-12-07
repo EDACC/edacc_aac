@@ -34,7 +34,7 @@ public class Roar extends RacingMethods {
 	HashSet<Integer> stopEvalSolverConfigIds = new HashSet<Integer>();
 	// /////////////////////CAPPING///////////////////////////////////
 	// Flag to enable/disable the functionality of aggressive capping
-	boolean aggressiveCapping = true;
+	boolean aggressiveCapping = false;
 	// Multiplier to tolerate worse SCs for further evaluation. The
 	// capping factor decreases with the number of runs a SC gains
 	float maxCappingFactor = 2f;
@@ -57,13 +57,13 @@ public class Roar extends RacingMethods {
 			clustering = Boolean.parseBoolean(params
 					.get("Clustering_useClustering"));
 		}
-		if (params.containsKey("ROAR_capping")) {
+		if (params.containsKey("Roar_capping")) {
 			aggressiveCapping = Boolean
-					.parseBoolean(params.get("ROAR_capping"));
+					.parseBoolean(params.get("Roar_capping"));
 		}
-		if (params.containsKey("ROAR_cappingFactor")) {
+		if (params.containsKey("Roar_cappingFactor")) {
 			maxCappingFactor = Float.parseFloat(params
-					.get("ROAR_cappingFactor"));
+					.get("Roar_cappingFactor"));
 		}
 
 		if (clustering) {
