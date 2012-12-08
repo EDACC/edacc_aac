@@ -268,6 +268,7 @@ public class SMBO extends SearchMethods {
             // Start the search with an initial design of random configurations
             for (int i = 0; i < sampledConfigs; i++) {
                 ParameterConfiguration pc = mapRealTupleToParameters(sequenceValues[randomSeqNum++]);
+                if (pspace.validateParameterConfiguration(pc) == false) pc = mapRealTupleToParameters(sequenceValues[randomSeqNum++]);
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), pc, "SN: " + randomSeqNum);
                 rssConfigs.add(new SolverConfiguration(idSC, pc, parameters.getStatistics()));
             }
