@@ -158,7 +158,6 @@ public abstract class Algorithm_GreedyBottomUp implements ClusteringAlgorithm {
         else{ //useAdaptiveVarianceCriterion=true            
             mergeViable =  var*10 < varianceOfAllInstances;
         }
-        System.out.println("Algorithm:GreedyBottomUp.isMergeViable: var="+var+", viable="+mergeViable);
         return mergeViable;
     }
     

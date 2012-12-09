@@ -35,7 +35,7 @@ public class ClusterHandler implements ClusterMethods{
 	// parameter configurations
     private ParameterGraph paramGraph;
     private SolverConfiguration bestSC;
-    private String algorithmName = "Algorithm_CLC";
+    private String algorithmName = "Algorithm_Average";
     private String resourcesName = "Resources_PropertiesWorkaround";
 	// A set of fully evaluated SCs is required to create an initial
 	// clustering. The number of those SCs is defined in this variable
@@ -138,6 +138,18 @@ public class ClusterHandler implements ClusterMethods{
         }
     }
     
+    /* Returns the number of instances contained in each cluster
+     * 
+     * @return the number of instances in the specified cluster
+     */
+    public int[] getNumberOfInstancesInClusters(){
+        int[] res = new int[clusters.length];
+        for(int i=0; i<clusters.length; i++){
+            res[i] = clusters[i].size();
+        }
+        return res;
+    }
+    
     /**
          * Maps the ExperimentResults of a given SolverConfiguration to the clusters their instance-seed-pairs
          * belong to
@@ -186,13 +198,6 @@ public class ClusterHandler implements ClusterMethods{
     public InstanceIdSeed getInstanceInCluster(int clusterNr, SolverConfiguration solverConfig){
         List<InstanceIdSeed> clusterInstances = clusters[clusterNr].getInstances();
         List<InstanceIdSeed> tmpList = getInstances(solverConfig);
-        //DEBUG
-        List<ExperimentResult> resList = solverConfig.getJobs();
-        List<ExperimentResult>[] clusterLists = mapResultsToClusters(solverConfig);
-        if(clusterLists[clusterNr].size() == clusterInstances.size()){
-            System.out.println("ERROR: ClusterHandler.getInstanceInCluster: config already has all jobs in this cluster");
-        }        
-        //END DEBUG
         clusterInstances.removeAll(tmpList);//clusterInstances is a copy of the cluster's list -> no side effects
         InstanceIdSeed newInstance = getRandomInstance(clusterInstances);
         if(clusterInstances.isEmpty())

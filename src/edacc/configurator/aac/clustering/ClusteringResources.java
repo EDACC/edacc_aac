@@ -30,6 +30,8 @@ public abstract class ClusteringResources {
             return true;
         if(resourceType.equals("Resources_Properties"))
             return false;
+        if(resourceType.equals("Resources_PropertiesWorkaround"))
+            return false;
         //default: if in doubt, provide data to prevent crashes
         System.out.println("Warning: Clustering resource type does not specify whether initial data is required");
         return true;
