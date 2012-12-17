@@ -60,6 +60,9 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 	private int instanceTimeoutsMinNumJobs = 11;
 	private float instanceTimeoutFactor = 1.5f;
 	private int limitCPUTimeMaxCPUTime = 600;
+	private int parFactor = 10;
+	
+	private String clusteringOutputDirectory = null;
 	
 	private int fixClusteringCPUTime = -1;
 	
@@ -86,6 +89,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 	
 	HashMap<Integer, List<Integer>> lastClustering;
 	BufferedWriter debugWriter = null;
+	BufferedWriter clusteringWriter = null;
 	
 	public ClusterRacing(AAC pacc, Random rng, API api, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
 		super(pacc, rng, api, parameters, firstSCs, referenceSCs);
@@ -127,15 +131,25 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 			fixClusteringCPUTime = Integer.parseInt(val);
 		if ((val = parameters.getRacingMethodParameters().get("ClusterRacing_useInstanceClassClusters")) != null)
 			useInstanceClassClusters = Boolean.parseBoolean(val);
+		if ((val = parameters.getRacingMethodParameters().get("ClusterRacing_clusteringOutputDirectory")) != null) 
+			clusteringOutputDirectory = val;
+		if ((val = parameters.getRacingMethodParameters().get("ClusterRacing_parFactor")) != null)
+			parFactor = Integer.parseInt(val);
+		
+		
+		if (clusteringOutputDirectory != null && !"".equals(clusteringOutputDirectory)) {
+			clusteringWriter = new BufferedWriter(new FileWriter(new File(clusteringOutputDirectory, "" + parameters.getIdExperiment() + "_clustering")));
+		}
 		
         if (ExperimentDAO.getById(parameters.getIdExperiment()).getDefaultCost().equals(Cost.resultTime)) {
-            par1 = new PARX(Experiment.Cost.resultTime, true, 1.0f);
+            par1 = new PARX(Experiment.Cost.resultTime, true, 1.0f, parFactor);
             median = new Median(Experiment.Cost.resultTime, true);
         } else if (ExperimentDAO.getById(parameters.getIdExperiment()).getDefaultCost().equals(Cost.wallTime)) {
-            par1 = new PARX(Experiment.Cost.wallTime, true, 1.0f);
+            par1 = new PARX(Experiment.Cost.wallTime, true, 1.0f, parFactor);
             median = new Median(Experiment.Cost.wallTime, true);
         } else {
-            par1 = new PARX(Experiment.Cost.cost, true, 1.0f);
+        	// TODO: 1.0f?!!
+            par1 = new PARX(Experiment.Cost.cost, true, 1.0f, parFactor);
             median = new Median(Experiment.Cost.cost, true);
         }
 		
@@ -318,6 +332,25 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 				count += l.size();
 			pacc.log("[ClusterRacing] Clustering - size: " + cachedClustering.size() + " cost: " + clustering.getCost(cachedClustering) + " instances_used: " + count);
 			
+			if (clusteringWriter != null) {
+				try {
+					clusteringWriter.write("BEGIN\n");
+					clusteringWriter.write("Clustering: size: " + cachedClustering.size() + " cost: " + clustering.getCost(cachedClustering) + " instances_used: " + count + '\n');
+					clusteringWriter.write("Wall:" + pacc.getWallTime() + ",CPU:" + pacc.getCumulatedCPUTime() + ",CPU(restartedJobsOnly):" + pacc.getCumulatedCPUTimeRestartedJobs() + ",SCs:" + pacc.getNumSCs() + ",Jobs:" + pacc.getNumJobs() + ",Jobs(restartedOnly):" + pacc.getNumRestartedJobs() + "\n");
+					clusteringWriter.write("Clustering - scid -> instances:\n");
+					for (Entry<Integer, List<Integer>> e : cachedClustering.entrySet()) {
+						clusteringWriter.write("" + e.getKey() + "," + e.getValue().toString() + '\n');
+					}
+					clusteringWriter.write("Clustering - scid -> cost:\n");
+					for (Entry<Integer, List<Integer>> e : cachedClustering.entrySet()) {
+						clusteringWriter.write("" + e.getKey() + "," + clustering.getCost(e.getKey(), e.getValue()) + '\n');
+					}
+					clusteringWriter.write("END\n");
+					clusteringWriter.flush();
+				} catch (Exception ex) {
+				}
+			}
+			
 			if (debugWriter != null) {
 				if (!cachedClustering.equals(lastClustering)) {
 					lastClustering = getClustering();
@@ -417,10 +450,14 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		if (!initialRunsFinished) {
 			pacc.log("[ClusterRacing] initial not finished");
 			initialRunsFinished = true;
-			for (SolverConfigurationMetaData data : scs.values()) {
-				if (data.sc.getJobCount() != data.sc.getFinishedJobs().size()) {
-					initialRunsFinished = false;
-					break;
+			if (scs.isEmpty()) {
+				initialRunsFinished = false;
+			} else {
+				for (SolverConfigurationMetaData data : scs.values()) {
+					if (data.sc.getJobCount() != data.sc.getFinishedJobs().size()) {
+						initialRunsFinished = false;
+						break;
+					}
 				}
 			}
 			if (!initialRunsFinished) {
@@ -475,8 +512,11 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		res.add("ClusterRacing_maxCost = " + maxCost);
 		res.add("ClusterRacing_useInstanceClassClusters = " + useInstanceClassClusters);
 		res.add("ClusterRacing_fixClusteringCPUTime = " + fixClusteringCPUTime);
+		res.add("ClusterRacing_initialRandomJobs = " + initialRandomJobs);
+		res.add("ClusterRacing_parFactor = " + parFactor);
 		res.add("% misc");
 		res.add("ClusterRacing_fixedSeed = " + fixedSeed);
+		res.add("ClusterRacing_clusteringOutputDirectory = " + clusteringOutputDirectory);
 		return res;
 	}
 
@@ -512,7 +552,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 		
 		List<Integer> possibleInstanceIds = new LinkedList<Integer>();
 		
-		if (useInstanceClassClusters) {
+		/*if (useInstanceClassClusters) {
 			if (usedInstanceClassCluster < instanceClassClusters.size()) {
 				possibleInstanceIds.addAll(instanceClassClusters.get(usedInstanceClassCluster++));
 				cachedClustering.put(sc.getIdSolverConfiguration(), new LinkedList<Integer>());
@@ -528,14 +568,21 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 					}
 				}
 			}
+		}*/
+		
+		// TODO: PARAMETER!!
+		if (!useInstanceClassClusters && !(fixClusteringCPUTime != -1 && pacc.getCumulatedCPUTime() >= fixClusteringCPUTime && cachedClustering != null)) {
+			initialRunsFinished = true;
+			possibleInstanceIds.addAll(clustering.getNotUsedInstances());
 		}
+		
 		
 		pacc.log("[ClusterRacing] Initialize Solver Configuration, possible instance ids: " + possibleInstanceIds.size() + " clustering size: " + c.size());
 		if (!possibleInstanceIds.isEmpty()) {
 			for (int i = 0; i < parameters.getMinRuns() - sc.getJobCount() && !possibleInstanceIds.isEmpty(); i++) {
 				int rand = rng.nextInt(possibleInstanceIds.size());
 				int instanceid = possibleInstanceIds.get(rand);
-				addRuns(sc, instanceid, 0);
+				addRuns(sc, instanceid, Integer.MAX_VALUE - sc.getIdSolverConfiguration() -1);
 				unsolved.remove(instanceid);
 				possibleInstanceIds.remove(rand);
 				initialRandomJobs--;
@@ -934,7 +981,7 @@ public class ClusterRacing extends RacingMethods implements JobListener {
 				pacc.log("[ClusterRacing] Solver Configuration " + data.sc.getIdSolverConfiguration() + " lost against " + incumbent.getIdSolverConfiguration());
 				
 				// TODO: really?! Parameter? Adaptive?
-				if (icount >= 2) {
+				if (icount >= 2 || data.c.get(incumbent.getIdSolverConfiguration()).size() == 1) {
 					updatePoints(incumbent.getIdSolverConfiguration(), 1);
 				}
 				addUnsolvedJobs(scs.get(incumbent.getIdSolverConfiguration()));
