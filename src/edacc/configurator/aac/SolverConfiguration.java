@@ -185,7 +185,8 @@ public class SolverConfiguration implements Comparable<SolverConfiguration> {
 	}
 
 	public void putJob(ExperimentResult job) {
-		jobs.add(job);
+                if((job != null) && !jobs.contains(job))
+                    jobs.add(job);
 	}
 
 	/**

@@ -30,9 +30,11 @@ public abstract class Algorithm_GreedyBottomUp implements ClusteringAlgorithm {
     //if useVarianceCriterion is set, clusters will be merged until further mergin would create
     //a cluster with a variance > maximumVariance.
     //Otherwise, clusters will be merged until the number of clusters = staticClusterNumber
-    private final double maximumVariance = 0.1d;
+    private final double maximumStaticVariance = 1.0d;//0.0000000000000001d;
     private final int staticClusterNumber = 10;
-    private boolean useVarianceCriterion = true;
+    private final boolean useVarianceCriterion = true;
+    private final boolean useAdaptiveVarianceCriterion = true;
+    private Double varianceOfAllInstances = null;
     
     public Algorithm_GreedyBottomUp(AAC aac, ClusteringResources resources, ClusterHandler handler){
         this.aac = aac;
@@ -49,10 +51,14 @@ public abstract class Algorithm_GreedyBottomUp implements ClusteringAlgorithm {
      */
     public abstract String getName();
     
-    public Cluster[] calculateClustering(List<InstanceIdSeed> instances){
+    public Cluster[] calculateClustering(List<InstanceIdSeed> instances){        
         Map<InstanceIdSeed, InstanceData> data = handler.getInstanceDataMap();
         long time = System.currentTimeMillis();
         log("Initialising clusters ... ");
+        if(useAdaptiveVarianceCriterion){
+            varianceOfAllInstances = resources.calculateVariance(instances);
+            log("Variance of all instances is "+varianceOfAllInstances);
+        }
         LinkedList<Pair<Cluster, Integer>> clusterList = new LinkedList<Pair<Cluster,Integer>>();
         Cluster c;
         int count = 0;
@@ -142,11 +148,17 @@ public abstract class Algorithm_GreedyBottomUp implements ClusteringAlgorithm {
     protected boolean isMergeViable(Cluster c1, Cluster c2){
         if(!useVarianceCriterion)
             return true;
-        
         List<InstanceIdSeed> instances = c1.getInstances();
         instances.addAll(c2.getInstances());//list now contains all instances that would be in the merged cluster      
-        double var = resources.calculateVariance(instances);        
-        return var < maximumVariance;
+        double var = resources.calculateVariance(instances);
+        
+        boolean mergeViable;
+        if(useVarianceCriterion && !useAdaptiveVarianceCriterion)
+            mergeViable = var < maximumStaticVariance;
+        else{ //useAdaptiveVarianceCriterion=true            
+            mergeViable =  var*10 < varianceOfAllInstances;
+        }
+        return mergeViable;
     }
     
     protected void log(String message){

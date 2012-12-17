@@ -268,6 +268,7 @@ public class SMBO extends SearchMethods {
             // Start the search with an initial design of random configurations
             for (int i = 0; i < sampledConfigs; i++) {
                 ParameterConfiguration pc = mapRealTupleToParameters(sequenceValues[randomSeqNum++]);
+                if (pspace.validateParameterConfiguration(pc) == false) pc = mapRealTupleToParameters(sequenceValues[randomSeqNum++]);
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), pc, "SN: " + randomSeqNum);
                 rssConfigs.add(new SolverConfiguration(idSC, pc, parameters.getStatistics()));
             }
@@ -414,18 +415,21 @@ public class SMBO extends SearchMethods {
                 exec.submit(new Runnable() {
                     @Override
                     public void run() {
-                        for (int u = 0; u < (numRandomTheta / availProcs); u++) {
-                            ParameterConfiguration randomConfig = canUseFastMethods ? pspace.getRandomConfigurationFast(rng) : pspace.getRandomConfiguration(rng);
-                            randomConfigurations.add(randomConfig);
-
+                        try {
+                            for (int u = 0; u < (numRandomTheta / availProcs); u++) {
+                                ParameterConfiguration randomConfig = canUseFastMethods ? pspace.getRandomConfigurationFast(rng) : pspace.getRandomConfiguration(rng);
+                                randomConfigurations.add(randomConfig);
+                            }
+                        } catch (Exception e) {
+                            e.printStackTrace();
                         }
                     }
                 });
             }
         } finally {
             exec.shutdown();
-            exec.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
         }
+        exec.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
 
         pacc.log("c Generating " + randomConfigurations.size() + " random configurations took " + (System.currentTimeMillis() - start) + " ms");
         start = System.currentTimeMillis();

@@ -35,11 +35,11 @@ public class ClusterHandler implements ClusterMethods{
 	// parameter configurations
     private ParameterGraph paramGraph;
     private SolverConfiguration bestSC;
-    private String algorithmName = "Algorithm_CLC";
-    private String resourcesName = "Resources_Properties";
+    private String algorithmName = "Algorithm_Average";
+    private String resourcesName = "Resources_PropertiesWorkaround";
 	// A set of fully evaluated SCs is required to create an initial
 	// clustering. The number of those SCs is defined in this variable
-    private int numberOfMinStartupSCs = 4;
+    private int numberOfMinStartupSCs = 1;
 	// Interface for a clustering-algorithm
     private Class<?> algorithmClass;
     private Class<?> resourcesClass;
@@ -138,6 +138,18 @@ public class ClusterHandler implements ClusterMethods{
         }
     }
     
+    /* Returns the number of instances contained in each cluster
+     * 
+     * @return the number of instances in the specified cluster
+     */
+    public int[] getNumberOfInstancesInClusters(){
+        int[] res = new int[clusters.length];
+        for(int i=0; i<clusters.length; i++){
+            res[i] = clusters[i].size();
+        }
+        return res;
+    }
+    
     /**
          * Maps the ExperimentResults of a given SolverConfiguration to the clusters their instance-seed-pairs
          * belong to
@@ -178,7 +190,8 @@ public class ClusterHandler implements ClusterMethods{
                 return i;
         return -1;
     }
-
+    
+    
     public InstanceIdSeed getInstanceInCluster(int clusterNumber) {
         return getRandomInstance(clusters[clusterNumber].getInstances());
     }
@@ -187,10 +200,14 @@ public class ClusterHandler implements ClusterMethods{
         List<InstanceIdSeed> tmpList = getInstances(solverConfig);
         clusterInstances.removeAll(tmpList);//clusterInstances is a copy of the cluster's list -> no side effects
         InstanceIdSeed newInstance = getRandomInstance(clusterInstances);
-        if(tmpList.contains(newInstance))
-            System.out.println("ERROR: getInstanceInCluster returns duplicate Instance!!");
-        if(!clusters[clusterNr].contains(newInstance))
-            System.out.println("ERROR: getInstanceInCluster returns an instance not present in this cluster!");
+        if(clusterInstances.isEmpty())
+            System.out.println("ERROR: ClusterHandler.getInstanceInCluster was called even though config has already completed this cluster");
+        else if(newInstance == null)
+            System.out.println("ERROR: ClusterHandler.getInstanceInCluster returns null instance!");
+        else if(tmpList.contains(newInstance))
+            System.out.println("ERROR: ClusterHandler.getInstanceInCluster returns duplicate Instance!!");
+        else if(!clusters[clusterNr].contains(newInstance))
+            System.out.println("ERROR: ClusterHandler.getInstanceInCluster returns an instance not present in this cluster!");
         return newInstance;
     }
     
@@ -214,6 +231,9 @@ public class ClusterHandler implements ClusterMethods{
     protected InstanceIdSeed getRandomInstance(List<InstanceIdSeed> instances){
         if(instances.isEmpty())
             return null;
+        for(InstanceIdSeed idSeed : instances)
+            if(idSeed==null)
+                System.out.println("Error: ClusterHandler.getRandomInstance: list of instances contains null elements!");
         LinkedList<InstanceData> datList = new LinkedList<InstanceData>();
         for(InstanceIdSeed inst : instances)
             datList.add(data.get(inst));       
@@ -464,7 +484,9 @@ public class ClusterHandler implements ClusterMethods{
 				bestCost = sc.getCost();
 				bestSC = sc;
 			}
+			sc.setFinished(true);
 		}
+		aac.validateIncumbent(bestSC);
 		return startupSCs;
 	}
     

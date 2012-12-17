@@ -34,7 +34,7 @@ public class Roar extends RacingMethods {
 	HashSet<Integer> stopEvalSolverConfigIds = new HashSet<Integer>();
 	// /////////////////////CAPPING///////////////////////////////////
 	// Flag to enable/disable the functionality of aggressive capping
-	boolean aggressiveCapping = true;
+	boolean aggressiveCapping = false;
 	// Multiplier to tolerate worse SCs for further evaluation. The
 	// capping factor decreases with the number of runs a SC gains
 	float maxCappingFactor = 2f;
@@ -57,13 +57,13 @@ public class Roar extends RacingMethods {
 			clustering = Boolean.parseBoolean(params
 					.get("Clustering_useClustering"));
 		}
-		if (params.containsKey("ROAR_capping")) {
+		if (params.containsKey("Roar_capping")) {
 			aggressiveCapping = Boolean
-					.parseBoolean(params.get("ROAR_capping"));
+					.parseBoolean(params.get("Roar_capping"));
 		}
-		if (params.containsKey("ROAR_cappingFactor")) {
+		if (params.containsKey("Roar_cappingFactor")) {
 			maxCappingFactor = Float.parseFloat(params
-					.get("ROAR_cappingFactor"));
+					.get("Roar_cappingFactor"));
 		}
 
 		if (clustering) {
@@ -111,6 +111,7 @@ public class Roar extends RacingMethods {
 		} else {
 			pacc.updateJobsStatus(bestSC);
 		}
+		pacc.validateIncumbent(bestSC);
 	}
 
 	public String toString() {
@@ -274,6 +275,7 @@ public class Roar extends RacingMethods {
 			pacc.updateJobsStatus(bestSC);
 			int[] competitor = clusterHandler.countRunPerCluster(sc);
 			int[] best = clusterHandler.countRunPerCluster(bestSC);
+                        int[] totalInstances = clusterHandler.getNumberOfInstancesInClusters();
 			for (int i = 0; i < best.length; i++) {
 				if (competitor[i] < best[i])
 					equalRuns = false;
@@ -327,11 +329,11 @@ public class Roar extends RacingMethods {
 							+ sc.getIdSolverConfiguration()
 							+ " has already "
 							+ sc.getJobCount()
-							+ " jobs but still isnt compared to the incumbent with "
-							+ bestSC.getIdSolverConfiguration() + " jobs");
+							+ " jobs but still isnt compared to the incumbent "
+							+ bestSC.getIdSolverConfiguration()+" with "+bestSC.getJobCount() + " jobs");                                        
 				}
 				while (runsToAddInc > 0) {
-					int rand = rng.nextInt(best.length);
+					int rand = getRandomValidClusterNumber(totalInstances, best);
 					InstanceIdSeed newRun = clusterHandler
 							.getInstanceInCluster(rand, bestSC);
 					if (newRun != null) {
@@ -342,7 +344,7 @@ public class Roar extends RacingMethods {
 					}
 				}
 				while (runsToAdd > 0) {
-					int rand = rng.nextInt(competitor.length);
+					int rand = getRandomValidClusterNumber(best, competitor);
 					if (competitor[rand] < best[rand]) {
 						InstanceIdSeed newRun = clusterHandler
 								.getInstanceInCluster(rand, sc);
@@ -361,6 +363,33 @@ public class Roar extends RacingMethods {
 			pacc.addSolverConfigurationToListNewSC(bestSC);
 		}
 	}
+        
+        private int getRandomValidClusterNumber(int[] totalInstancesPerCluster, int[] configHasRunsPerCluster){
+            int[] leftOver = new int[totalInstancesPerCluster.length];
+            int numberOfValidClusters = 0;
+            for(int i=0; i<leftOver.length; i++){
+                leftOver[i] = totalInstancesPerCluster[i] - configHasRunsPerCluster[i];
+                if(leftOver[i]>0)
+                    numberOfValidClusters++;
+            }
+            int rand = rng.nextInt(numberOfValidClusters);
+            int randBackup = rand;
+            int clusterNumber=0;
+            for(int i=0; i<leftOver.length; i++){
+                //this loop skips all clusters where no instances are left, and thus finds the
+                // rand'th cluster in which new runs can be performed
+                if(rand == 0 && leftOver[i]>0){
+                    clusterNumber = i;
+                    break;
+                }
+                if(leftOver[i]>0)
+                    rand--;
+            }
+            if(leftOver[clusterNumber] < 1){
+                log("ERROR - getRandomValidClusterNumber was unable to find a cluster");
+            }
+            return clusterNumber;    
+        }
 
 	/**
 	 * Checks if a competitor-sc should gain more runs and compares promising

@@ -1,5 +1,18 @@
 package edacc.configurator.models.rf;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.ObjectInput;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutput;
+import java.io.ObjectOutputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -10,11 +23,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import ca.ubc.cs.beta.models.fastrf.RandomForest;
-import ca.ubc.cs.beta.models.fastrf.RegtreeFit;
-import ca.ubc.cs.beta.models.fastrf.RegtreeBuildParams;
-import edacc.configurator.models.rf.fastrf.utils.Gaussian;
+import edacc.configurator.models.rf.fastrf.RandomForest;
+import edacc.configurator.models.rf.fastrf.RegtreeBuildParams;
+import edacc.configurator.models.rf.fastrf.RegtreeFit;
 import edacc.configurator.models.rf.fastrf.utils.Utils;
+import edacc.configurator.models.rf.fastrf.utils.Gaussian;
 
 public class CensoredRandomForest implements java.io.Serializable {
     private static final long serialVersionUID = 3243815546509104702L;
@@ -68,12 +81,13 @@ public class CensoredRandomForest implements java.io.Serializable {
         params.ratioFeatures = 5.0 / 6.0;
         params.catDomainSizes = catDomainSizes;
         params.logModel = logModel;
-        params.storeResponses = true;
+        params.storeResponses = false;
         params.splitMin = 10;
         params.condParents = condParents;
         params.condParentVals = condParentVals;
+        params.random = rng;
         
-        rf = new RandomForest(nTrees, params);
+        rf = new RandomForest(nTrees, logModel);
     }
     
     public void learnModel(double[][] theta, double[][] instance_features, int nParams, int nFeatures,
@@ -207,7 +221,7 @@ public class CensoredRandomForest implements java.io.Serializable {
                     oob_samples[ix++] = j;
                 }
             }
-
+            
             rf.Trees[i] = RegtreeFit.fit(theta, instance_features, tree_theta_inst_idxs, tree_y, params);
             tree_oob_samples[i] = oob_samples;
         }
@@ -370,5 +384,18 @@ public class CensoredRandomForest implements java.io.Serializable {
         }
         
         return Utils.mean(RSS_t);
+    }
+    
+    public static void writeToFile(CensoredRandomForest rf, File f) throws IOException {
+        OutputStream buffer = new BufferedOutputStream(new FileOutputStream(f));
+        ObjectOutput output = new ObjectOutputStream(buffer);
+        output.writeObject(rf);
+        output.close();
+    }
+    
+    public static CensoredRandomForest loadFromFile(File f) throws IOException, ClassNotFoundException {
+        InputStream buffer = new BufferedInputStream(new FileInputStream(f));
+        ObjectInput input = new ObjectInputStream(buffer);
+        return (CensoredRandomForest)input.readObject();
     }
 }
