@@ -83,15 +83,15 @@ public class ClusterHandler implements ClusterMethods{
 						params.getIdExperiment()).getCourse()
 				.getInitialLength();
 		HashMap<String, String> parameters = params.getRacingMethodParameters();
-		if(parameters.containsKey("Clustering_algorithm")) {
-			algorithmName = parameters.get("Clustering_algorithm");
+		if(parameters.containsKey("Roar_ClusterAlgorithm")) {
+			algorithmName = parameters.get("Roar_ClusterAlgorithm");
 		}
-		if(parameters.containsKey("Clustering_resources")) {
-			resourcesName = parameters.get("Clustering_resources");
+		if(parameters.containsKey("Roar_ClusterResources")) {
+			resourcesName = parameters.get("Roar_ClusterResources");
 		}
-		if (parameters.containsKey("Clustering_minStartupSCs")) {
+		if (parameters.containsKey("Roar_minStartupSCs")) {
 			numberOfMinStartupSCs = Integer.parseInt(parameters
-					.get("Clustering_minStartupSCs"));
+					.get("Roar_minStartupSCs"));
 		}
         // Initialise Algorithms and Resources here
 		algorithmClass = ClassLoader.getSystemClassLoader().loadClass(
@@ -415,7 +415,7 @@ public class ClusterHandler implements ClusterMethods{
 		log("Reference SCs...");
 		if (referenceSCs.size() > 0) {
 			for (SolverConfiguration refSc : referenceSCs) {
-				log(startupSCs.size() + ": " + refSc.getName());
+				log(startupSCs.size() + ": " + refSc.getIdSolverConfiguration());
 				startupSCs.add(refSc);
 			}
 		}
@@ -423,8 +423,8 @@ public class ClusterHandler implements ClusterMethods{
 		int defaultSCs = Math.min(firstSCs.size(), numberOfMinStartupSCs);
 		log("Default SCs...");
 		for (int i = 0; i < defaultSCs; i++) {
-			aac.log("c " + startupSCs.size() + ": "
-					+ firstSCs.get(i).getName());
+			aac.log(startupSCs.size() + ": "
+					+ firstSCs.get(i).getIdSolverConfiguration());
 			startupSCs.add(firstSCs.get(i));
 		}
 		// At least (number of minimal startupSCs)/2 random SCs are added.
