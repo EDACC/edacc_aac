@@ -9,6 +9,7 @@ import edacc.configurator.aac.InstanceIdSeed;
 import edacc.configurator.aac.Parameters;
 import edacc.model.Course;
 import edacc.model.InstanceSeed;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -81,6 +82,29 @@ public class Resources_MeanCost extends ClusteringResources{
     @Override
     public String getName() {
         return "Resources_MeanCost";
+    }
+
+    @Override
+    public RefinedData getRefinedData() {
+        Map<InstanceIdSeed, InstanceData> instanceDataMap = handler.getInstanceDataMap();
+        HashMap<Integer, InstanceIdSeed> indexToInstance = new HashMap<Integer,InstanceIdSeed>();
+        double[][] data = new double[instanceIdSeedList.size()][1];
+        int count = 0;
+        double minValue = Double.MIN_VALUE;
+        double maxValue = Double.MAX_VALUE;
+        for(InstanceIdSeed idSeed : instanceIdSeedList){
+            data[count][0] = instanceDataMap.get(idSeed).getAvg();
+            minValue = Math.min(minValue,data[count][0]);
+            maxValue = Math.max(maxValue, data[count][0]);
+            indexToInstance.put(count, idSeed);
+            count++;
+        }
+        //normalise to [-1,1] (well...to [0,1])
+        for(int i=0; i<data.length; i++){
+            data[count][0] = data[count][0] - minValue;
+            data[count][0] = data[count][0] / maxValue;
+        }
+        return new RefinedData(data, indexToInstance);
     }
     
 }

@@ -40,7 +40,7 @@ public class Roar extends RacingMethods {
 	float maxCappingFactor = 2f;
 	// ////////////////////CLUSTERING/////////////////////////////////
 	// Flag to enable/disable the functionality of instance-clustering
-	boolean clustering = true;
+	boolean clustering = false;
 	ClusterHandler clusterHandler;
 
 	public Roar(AAC proar, Random rng, API api,

@@ -9,7 +9,7 @@ import edacc.configurator.aac.InstanceIdSeed;
 
 /**
  *
- * @author fr
+ * @author mugrauer
  */
 public class Algorithm_Average extends Algorithm_GreedyBottomUp{
     

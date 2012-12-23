@@ -16,7 +16,7 @@ import java.io.File;
  *
  * @author mugrauer
  */
-public class Resources_PropertiesWorkaround extends Resources_Properties{
+public class Resources_PropertiesWorkaround extends Resources_Properties_OUTDATED{
     private static String   featureCache = "/home/share/features/featureCache",
                             features = "/home/share/features/features";
     private File featureCacheFolder, featureFolder;
