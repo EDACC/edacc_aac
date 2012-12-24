@@ -70,8 +70,8 @@ public class Resources_Properties extends ClusteringResources{
         boolean[] ignoreProperty = new boolean[highestPropertyIndex];
         int numOfIgnoredProperties=0;
         for(int propertyIndex=0; propertyIndex<highestPropertyIndex; propertyIndex++){
-            double maxValue = Double.MAX_VALUE;
-            double minValue = Double.MIN_VALUE;
+            double maxValue = Double.MIN_VALUE;
+            double minValue = Double.MAX_VALUE;
             for(int instanceIndex=0; instanceIndex<data.length; instanceIndex++){
                 if(data[instanceIndex].length <= propertyIndex){
                     ignoreProperty[propertyIndex] = true;
@@ -92,8 +92,8 @@ public class Resources_Properties extends ClusteringResources{
                 val = data[instanceIndex][propertyIndex];
                 val = val - minValue;
                 val = val/(maxValue-minValue);
-                val = val*2d - 1d; 
-                data[instanceIndex][propertyIndex] = val;
+                val = val*2.0 -1.0;
+                data[instanceIndex][propertyIndex] = val;                
             }
         }
         //remove irrelevant properties:
@@ -109,7 +109,15 @@ public class Resources_Properties extends ClusteringResources{
             }
             relevantIndex++;
         }
-        data = relevantData;
+        data = relevantData;  
+        /*
+        for(int i=0; i<data.length; i++){
+            for(int j=0; j<data[i].length; j++){
+                System.out.print(data[i][j]+"|");
+            }
+            System.out.println();
+        }*/
+                
     }
 
     @Override

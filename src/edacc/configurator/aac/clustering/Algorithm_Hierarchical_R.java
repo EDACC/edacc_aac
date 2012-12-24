@@ -34,9 +34,13 @@ public class Algorithm_Hierarchical_R implements ClusteringAlgorithm{
             RefinedData refinedData = resources.getRefinedData();
             double[][] data = refinedData.getData();
             //caculate clustering
+            handler.log("Calculating clustering...");
             ClusterSilhouette cs = new ClusterSilhouette(rengine, data.length, data[0].length, data);
             int clusterNumber = cs.findNumberOfClusters((int)Math.sqrt(data.length));
+            handler.log("Dividing into "+clusterNumber+" clusters.");
             int[] clusterEntries = cs.clusterData(clusterNumber);
+            for(int i=0; i<clusterEntries.length; i++)//clusters are numbered 1 through 5. We map it to
+                clusterEntries[i] = clusterEntries[i]-1; //0 through 4 for direct array access
             //map instances to clusters
             Cluster[] clusters = new Cluster[clusterNumber];
             int clusterIndex;

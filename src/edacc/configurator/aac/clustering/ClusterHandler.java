@@ -35,8 +35,8 @@ public class ClusterHandler implements ClusterMethods{
 	// parameter configurations
     private ParameterGraph paramGraph;
     private SolverConfiguration bestSC;
-    private String algorithmName = "Algorithm_CLC";
-    private String resourcesName = "Resources_MeanCost";
+    private String algorithmName = "Algorithm_Hierarchical_R";
+    private String resourcesName = "Resources_Properties";
 	// A set of fully evaluated SCs is required to create an initial
 	// clustering. The number of those SCs is defined in this variable
     private int numberOfMinStartupSCs = 1;

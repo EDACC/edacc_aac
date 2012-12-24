@@ -156,7 +156,7 @@ public abstract class Algorithm_GreedyBottomUp implements ClusteringAlgorithm {
         if(useVarianceCriterion && !useAdaptiveVarianceCriterion)
             mergeViable = var < maximumStaticVariance;
         else{ //useAdaptiveVarianceCriterion=true            
-            mergeViable =  var*10 < varianceOfAllInstances;
+            mergeViable =  var*2 < varianceOfAllInstances;
         }
         return mergeViable;
     }
