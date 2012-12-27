@@ -350,7 +350,7 @@ public class Roar extends RacingMethods {
 				while (runsToAdd > 0) {
 					int rand = getRandomValidClusterNumber(best, competitor);
 					InstanceIdSeed newRun = clusterHandler
-							.getInstanceInCluster(rand, sc);
+							.getInstanceInCluster(rand, sc, bestSC);
 					if (newRun != null) {
 						pacc.addJob(sc, newRun.seed, newRun.instanceId,
 								Integer.MAX_VALUE - sc.getNumber());

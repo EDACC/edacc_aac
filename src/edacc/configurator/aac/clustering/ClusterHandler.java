@@ -112,7 +112,7 @@ public class ClusterHandler implements ClusterMethods{
             data.put(new InstanceIdSeed(is.instance.getId(), is.seed), 
                         new InstanceData(is.instance.getId(), is.seed, params.getStatistics().getCostFunction()));
         }
-        if(resources.isInitialDataRequired(resourcesName)) {
+        if(ClusteringResources.isInitialDataRequired(resourcesName)) {
         	List<SolverConfiguration> startupSCs = initClusteringData();
         	for (SolverConfiguration sc : startupSCs) {
 				addData(sc);
@@ -195,19 +195,32 @@ public class ClusterHandler implements ClusterMethods{
     public InstanceIdSeed getInstanceInCluster(int clusterNumber) {
         return getRandomInstance(clusters[clusterNumber].getInstances());
     }
+    /* returns an InstanceIdSeed in the specified cluster that the solverConfig has not yet completed
+     * 
+     */
     public InstanceIdSeed getInstanceInCluster(int clusterNr, SolverConfiguration solverConfig){
         List<InstanceIdSeed> clusterInstances = clusters[clusterNr].getInstances();
         List<InstanceIdSeed> tmpList = getInstances(solverConfig);
         clusterInstances.removeAll(tmpList);//clusterInstances is a copy of the cluster's list -> no side effects
         InstanceIdSeed newInstance = getRandomInstance(clusterInstances);
-        if(clusterInstances.isEmpty())
-            System.out.println("ERROR: ClusterHandler.getInstanceInCluster was called even though config has already completed this cluster");
-        else if(newInstance == null)
-            System.out.println("ERROR: ClusterHandler.getInstanceInCluster returns null instance!");
-        else if(tmpList.contains(newInstance))
-            System.out.println("ERROR: ClusterHandler.getInstanceInCluster returns duplicate Instance!!");
-        else if(!clusters[clusterNr].contains(newInstance))
-            System.out.println("ERROR: ClusterHandler.getInstanceInCluster returns an instance not present in this cluster!");
+        if(newInstance == null)
+            log("ERROR: ClusterHandler.getInstanceInCluster returns null instance!");        
+        return newInstance;
+    }
+    /* returns an InstanceIdSeed in the specified cluster that the incumbent has already completed, but the 
+     * solverConfig has not
+     * 
+     */
+    public InstanceIdSeed getInstanceInCluster(int clusterNr, 
+            SolverConfiguration solverConfig, SolverConfiguration incumbent){
+        List<InstanceIdSeed> clusterInstances = clusters[clusterNr].getInstances();
+        List<InstanceIdSeed> solverConfigInstances = getInstances(solverConfig);
+        List<InstanceIdSeed> incumbentInstances = getInstances(incumbent);
+        clusterInstances.retainAll(incumbentInstances);
+        clusterInstances.removeAll(solverConfigInstances);
+        InstanceIdSeed newInstance = getRandomInstance(clusterInstances);
+        if(newInstance == null)
+            log("Error: ClusterHandler.getInstanceInCluster returns null!");
         return newInstance;
     }
     
