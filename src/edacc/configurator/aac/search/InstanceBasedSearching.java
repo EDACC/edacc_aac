@@ -28,7 +28,6 @@ import edacc.util.Pair;
 
 public class InstanceBasedSearching extends SearchMethods implements JobListener {
 
-	double stddev = 2.5;
 	Double maxCost = null;
 	int numCachedConfigs = 75;
 	int minConfigs = 100;
@@ -50,28 +49,18 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 	int numConfigsModel, numConfigsRandom;
 	int numParams;
 	
-	int timeStddevChanged;
-	double currentClusteringPerformance;
-	
 	public InstanceBasedSearching(AAC pacc, API api, Random rng, Parameters parameters, List<SolverConfiguration> firstSCs, List<SolverConfiguration> referenceSCs) throws Exception {
 		super(pacc, api, rng, parameters, firstSCs, referenceSCs);
 		
 		numConfigsModel = 0;
 		numConfigsRandom = 0;
 		String val;
-		if ((val = parameters.getSearchMethodParameters().get("InstanceBasedSearching_stddev")) != null) {
-			stddev = Double.parseDouble(val);
-		}
-		if ((val = parameters.getSearchMethodParameters().get("InstanceBasedSearching_maxCost")) != null) {
+		if ((val = parameters.getSearchMethodParameters().get("InstanceBasedSearching_maxCost")) != null)
 			maxCost = Double.parseDouble(val);
-		}
-		if ((val = parameters.getSearchMethodParameters().get("InstanceBasedSearching_IBSConfigsCPUTime")) != null) {
+		if ((val = parameters.getSearchMethodParameters().get("InstanceBasedSearching_IBSConfigsCPUTime")) != null)
 			IBSConfigsCPUTime = Integer.parseInt(val);
-		}
+			
 		numParams = api.getConfigurableParameters(parameters.getIdExperiment()).size();
-		
-		timeStddevChanged = 0;
-		currentClusteringPerformance = 0.f;
 		
 		cachedParameterConfigurations = new LinkedList<Pair<HashSet<Integer>, Pair<ParameterConfiguration, String>>>();
 		solvedInstances = new HashSet<Integer>();
@@ -157,26 +146,6 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 			if (!tmp.isEmpty()) {
 				clustering = new LinkedList<List<Integer>>();
 				clustering.addAll(tmp.values());
-			}
-			
-			// adaptive stddev
-			double tmpPerf = clusterRacing.getPerformance();
-			pacc.log("[IBS] dist = " + Math.abs(tmpPerf - currentClusteringPerformance) + ", abs = " + tmpPerf);
-			if (!(Math.abs(tmpPerf - currentClusteringPerformance) < 0.000001)) {
-				currentClusteringPerformance = tmpPerf;
-				timeStddevChanged = existingParameterConfigurations.size();
-				stddev -= 0.1;
-				if (stddev < 0.01) {
-					stddev = 0.01;
-				}
-				pacc.log("[IBS] Changed stddev to " + stddev + " (lower)");
-			} else if (existingParameterConfigurations.size() - timeStddevChanged >= 10) {
-				timeStddevChanged = existingParameterConfigurations.size();
-				stddev += 0.05;
-				if (stddev > 2.0) {
-					stddev = 2.0;
-				}
-				pacc.log("[IBS] Changed stddev to " + stddev + " (higher)");
 			}
 		}
 		
@@ -445,7 +414,8 @@ public class InstanceBasedSearching extends SearchMethods implements JobListener
 	@Override
 	public List<String> getParameters() {
 		LinkedList<String> res = new LinkedList<String>();
-		res.add("InstanceBasedSearching_stddev = " + stddev);
+		res.add("InstanceBasedSearching_maxCost = " + maxCost);
+		res.add("InstanceBasedSearching_IBSConfigsCPUTime" + IBSConfigsCPUTime);
 		return res;
 	}
 

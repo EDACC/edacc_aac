@@ -76,6 +76,14 @@ public abstract class ClusteringResources {
      */
     public abstract double calculateVariance(List<InstanceIdSeed> instances);
     
+    /**
+     * returns a representation of this resource in array format (first index represents instance-seed-pairs, 
+     * second index represents data values)
+     * The data does not contain null values, and is in some way normalised (to [-1,1]), so that no knowledge of
+     * the underlying resource is required to meaningfully interpret it
+     */
+    public abstract RefinedData getRefinedData();
+    
     /** 
      * returns the name of this resource-type, e.g. "Resources_Properties" or "Resources_MeanCost"
      */

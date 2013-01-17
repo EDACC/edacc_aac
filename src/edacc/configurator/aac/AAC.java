@@ -118,7 +118,20 @@ public class AAC {
 	private int statNumSolverConfigs;
 	private int statNumJobs;
 	private int statNumRestartedJobs;
-
+	private float cumulatedCPUTimeRestartedJobs;
+	
+	public int getNumSCs() {
+		return statNumSolverConfigs;
+	}
+	public int getNumJobs() {
+		return statNumJobs;
+	}
+	public int getNumRestartedJobs() {
+		return statNumRestartedJobs;
+	}
+	public float getCumulatedCPUTimeRestartedJobs() {
+		return cumulatedCPUTimeRestartedJobs;
+	}
 	
 	private ParameterGraph graph;
 
@@ -150,6 +163,7 @@ public class AAC {
 		listNewSC = new HashMap<Integer, SolverConfiguration>();
 		this.statNumSolverConfigs = 0;
 		this.statNumJobs = 0;
+		cumulatedCPUTimeRestartedJobs = 0.f;
 		this.parameters = params;
 		searchClass = ClassLoader.getSystemClassLoader().loadClass("edacc.configurator.aac.search." + params.searchMethod);
 		racingClass = ClassLoader.getSystemClassLoader().loadClass("edacc.configurator.aac.racing." + params.racingMethod);
@@ -449,7 +463,7 @@ public class AAC {
 							
 							apiER = api.getJob(er.getId());
 							
-							rst = (apiER.getCPUTimeLimit() < limit && !String.valueOf(apiER.getResultCode()).startsWith("1"));
+							rst = (apiER.getCPUTimeLimit() < limit && !apiER.getResultCode().isCorrect());
 							rst |= (apiER.getStatus().equals(StatusCode.RUNNING));
 							rst |= (apiER.getStatus().equals(StatusCode.NOT_STARTED));
 							
@@ -508,6 +522,7 @@ public class AAC {
 			log("Done.");
 			log("Adding " + cputime + "s to cumulated cpu time for restarted jobs.");
 			cumulatedCPUTime += cputime;
+			cumulatedCPUTimeRestartedJobs += cputime;
 		}
 		
 		// reset priority

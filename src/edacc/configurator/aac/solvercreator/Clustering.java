@@ -517,12 +517,72 @@ public class Clustering implements Serializable {
 		HashSet<Integer> scids = new HashSet<Integer>();
 		for (int i = scidWeight.size()-1; i >= 0; i--) {
 			HashMap<Integer, List<Integer>> tmp = getClustering(false, false, scids);
-			if (performance(tmp) >= threshold) {
+			if (performance(tmp) >= threshold) {				
 				if (allowDuplicates) {
-					return getClustering(false, true, scids);
-				} else {
-					return tmp;
+					tmp = getClustering(false, true, scids);
 				}
+				
+				// add clusters for solved instances which are currently eliminated
+				Set<Integer> iids = new HashSet<Integer>();
+				iids.addAll(I.keySet());
+				iids.removeAll(this.getNotUsedInstances());
+				for (List<Integer> list : tmp.values()) {
+					iids.removeAll(list);
+				}
+				
+				if (!iids.isEmpty()) {
+					HashMap<Integer, List<Integer>> tmp2 = new HashMap<Integer, List<Integer>>();
+					for (int iid : iids) {
+						for (int scid : this.getSolverConfigIds()) {
+							double cost = this.getCost(scid, iid);
+							if (!Double.isNaN(cost) && !Double.isInfinite(cost)) {
+								List<Integer> list = tmp2.get(scid);
+								if (list == null) {
+									list = new LinkedList<Integer>();
+									tmp2.put(scid, list);
+								}
+								list.add(iid);
+							}
+						}
+					}
+					
+					int clustersadded = 0;
+					while (!iids.isEmpty() && !tmp2.isEmpty()) {
+						int count = 0;
+						int scid = -1;
+						for (Entry<Integer, List<Integer>> e : tmp2.entrySet()) {
+							if (e.getValue().size() > count) {
+								count = e.getValue().size();
+								scid = e.getKey();
+							}
+						}
+						
+						if (scid == -1) {
+							break;
+						}
+						List<Integer> list = tmp.get(scid);
+						if (list != null) {
+							System.out.println("[DEBUG] Error: scid already in clustering.");
+							list.addAll(tmp2.get(scid));
+						} else {
+							tmp.put(scid, tmp2.get(scid));
+						}
+						clustersadded++;
+						list = tmp2.get(scid);
+						iids.removeAll(list);
+						tmp2.remove(scid);
+						for (Entry<Integer, List<Integer>> e : tmp2.entrySet()) {
+							e.getValue().removeAll(list);
+						}
+					}
+					System.out.println("[DEBUG] Added " + clustersadded + " clusters.");
+					if (!iids.isEmpty()) {
+						System.out.println("[DEBUG] Error: iids list was not empty.");
+					}
+				}
+				
+				return tmp;
+				
 			}
 			scids.add(scidWeight.get(i).getFirst());
 		}
