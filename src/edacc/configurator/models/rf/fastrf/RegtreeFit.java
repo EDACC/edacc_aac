@@ -609,7 +609,7 @@ public class RegtreeFit {
                             for (int i=0; i < Nnode; i++) {
                                 int idx = index_into_dataIdxs_here[i];
                                 double xVal = allPrimary[dataIdxs[idx][is_X]][varIdx];
-                                if (xVal <= bestcut) {
+                                if (xVal < bestcut) {
                                     nleft++;
                                     yGoesLeft[i] = true;
                                 } else {
@@ -620,7 +620,7 @@ public class RegtreeFit {
                         } else {
                             for (int i=0; i < numPrimary; i++) {
                                 // Use the presorting to get values for primaryGoesLeft to split allPrimary into 2 halves
-                                if (allPrimary[i][varIdx] <= bestcut) {
+                                if (allPrimary[i][varIdx] < bestcut) {
                                     primaryGoesLeft[i] = true;
                                     if (ynodePrimary[i] != null) {
                                         for (int j=0; j < ynodePrimary[i].length; j++) {
@@ -641,6 +641,7 @@ public class RegtreeFit {
                         }
                     }
                     if (nleft == 0 || nright == 0) {
+                        System.out.println(nleft + " " + nright + " " + bestvar + " " + (catDomainSizes[bestvar]!=0) + " " + bestcut);
                         throw new RuntimeException("Empty side after splitting!");
                     }
                     

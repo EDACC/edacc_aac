@@ -48,6 +48,8 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 	private boolean adaptiveCapping = false;
 	private float slackFactor = 1.5f;
 	
+	public boolean initialDesignMode = true;
+	
 	HashSet<Integer> stopEvalSolverConfigIds = new HashSet<Integer>();
 	Set<SolverConfiguration> challengers = new HashSet<SolverConfiguration>();
 
@@ -125,7 +127,7 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 		}
 		// update the status of the jobs of bestSC and if first level wait
 		// also for jobs to finish
-		if (expansion > 0) {
+		/*if (expansion > 0) {
 			pacc.log("c Waiting for currently best solver config " + bestSC.getIdSolverConfiguration() + " to finish " + expansion + "job(s)");
 			while (true) {
 				pacc.updateJobsStatus(bestSC);
@@ -137,12 +139,12 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 			pacc.validateIncumbent(bestSC);
 		} else {
 			pacc.updateJobsStatus(bestSC);
-		}
+		}*/
 	}
 	
 
 	public String toString(){
-		return "This is the racing method or ROAR";
+		return "DefaultSMBO racing method";
 	}
 	@Override
 	public int compareTo(SolverConfiguration sc1, SolverConfiguration sc2) {
@@ -151,6 +153,13 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 
 	@Override
 	public void solverConfigurationsFinished(List<SolverConfiguration> scs) throws Exception {
+	    if (initialDesignMode) {
+	        pacc.updateJobsStatus(bestSC);
+	        scs.clear();
+	        scs.addAll(challengers);
+	        scs.add(bestSC);
+	    }
+	    
 		for (SolverConfiguration sc : scs) {
 		    if (sc.getJobCount() != sc.getFinishedJobs().size()) continue;
 			if (sc == bestSC) {
@@ -229,32 +238,47 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 			// add 1 random job from the best configuration with the
 			// priority corresponding to the level
 			// lower levels -> higher priorities
-		    if (aggressiveJobSelection) {
-		        pacc.addRandomJobAggressive(parameters.getMinRuns(), sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
-		    } else {
-		        pacc.addRandomJob(parameters.getMinRuns(), sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
-		    }
+            if (initialDesignMode) {
+                if (useClusterCourse) {
+                    for (int i = 0; i < parameters.getInitialDefaultParcoursLength(); i++) {
+                        pacc.addJob(sc, completeCourse.get(sc.getJobCount()).seed,
+                                completeCourse.get(sc.getJobCount()).instanceId, parameters.getMaxParcoursExpansionFactor()
+                                        * num_instances - sc.getJobCount());
+                    }
+                } else {
+                    pacc.expandParcoursSC(sc, parameters.getInitialDefaultParcoursLength());
+                }
+
+            } else {
+                if (aggressiveJobSelection) {
+                    pacc.addRandomJobAggressive(parameters.getMinRuns(), sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
+                } else {
+                    pacc.addRandomJob(parameters.getMinRuns(), sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
+                }
+            }
 			pacc.addSolverConfigurationToListNewSC(sc);
 		}
 		
-		for (int i = 0; i < scs.size(); i++) {
-		    numSCs += 1;
-	        if (numSCs > curThreshold && bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
-	            pacc.log("c Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration() + " by 1");
-	            if (useClusterCourse) {
-	                if (bestSC.getJobCount() < completeCourse.size()) {
-                        pacc.addJob(bestSC, completeCourse.get(bestSC.getJobCount()).seed,
-                                completeCourse.get(bestSC.getJobCount()).instanceId, parameters.getMaxParcoursExpansionFactor()
-                                        * num_instances - bestSC.getJobCount());
-	                } else {
-	                    pacc.log("c Incumbent reached maximum number of evaluations. No more jobs are generated for it.");
-	                }
-	            } else {
-	                pacc.expandParcoursSC(bestSC, 1);
-	            }
-	            pacc.addSolverConfigurationToListNewSC(bestSC);
-	            curThreshold += increaseIncumbentRunsEvery;
-	        }
+		if (!initialDesignMode) {
+    		for (int i = 0; i < scs.size(); i++) {
+    		    numSCs += 1;
+    	        if (numSCs > curThreshold && bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
+    	            pacc.log("c Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration() + " by 1");
+    	            if (useClusterCourse) {
+    	                if (bestSC.getJobCount() < completeCourse.size()) {
+                            pacc.addJob(bestSC, completeCourse.get(bestSC.getJobCount()).seed,
+                                    completeCourse.get(bestSC.getJobCount()).instanceId, parameters.getMaxParcoursExpansionFactor()
+                                            * num_instances - bestSC.getJobCount());
+    	                } else {
+    	                    pacc.log("c Incumbent reached maximum number of evaluations. No more jobs are generated for it.");
+    	                }
+    	            } else {
+    	                pacc.expandParcoursSC(bestSC, 1);
+    	            }
+    	            pacc.addSolverConfigurationToListNewSC(bestSC);
+    	            curThreshold += increaseIncumbentRunsEvery;
+    	        }
+    		}
 		}
 
 		challengers.addAll(scs);
@@ -262,10 +286,10 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 
 	@Override
 	public int computeOptimalExpansion(int coreCount, int jobs, int listNewSCSize) {
-		int res = 0;
 		if (coreCount < parameters.getMinCPUCount() || coreCount > parameters.getMaxCPUCount()) {
 			pacc.log("w Warning: Current core count is " + coreCount);
 		}
+		
 		if (parameters.getJobCPUTimeLimit() > 10) {
 		    if (Math.max(0, coreCount - jobs) > 0) {
 		        pacc.log("c [DefaultSMBO] coreCount: " + coreCount + ", Jobs to finish: " + jobs);
