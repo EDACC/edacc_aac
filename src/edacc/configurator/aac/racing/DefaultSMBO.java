@@ -201,9 +201,9 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 				} else {
 				    int generated = 0;
 				    if (aggressiveJobSelection) {
-				        generated = pacc.addRandomJobAggressive(sc.getJobCount(), sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
+				        generated = pacc.addRandomJobAggressive(sc.getJobCount(), sc, bestSC, sc.getJobCount());
 				    } else {
-				        generated = pacc.addRandomJob(sc.getJobCount(), sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
+				        generated = pacc.addRandomJob(sc.getJobCount(), sc, bestSC, sc.getJobCount());
 				    }
 					pacc.log("c Generated " + generated + " jobs for solver config id " + sc.getIdSolverConfiguration());
 					pacc.addSolverConfigurationToListNewSC(sc);
@@ -217,6 +217,7 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 				if (parameters.isDeleteSolverConfigs())
 					api.removeSolverConfig(sc.getIdSolverConfiguration());
 				pacc.log("d Solver config " + sc.getIdSolverConfiguration() + " with cost " + sc.getCost() + " lost against best solver config on " + sc.getJobCount() + " runs.");
+				api.updateSolverConfigurationName(sc.getIdSolverConfiguration(), "* " + sc.getName());
 			}
 		}
 	}
@@ -235,15 +236,11 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
         this.solverConfigurationsFinished(new LinkedList<SolverConfiguration>(challengers));
 		
 		for (SolverConfiguration sc : scs) {
-			// add 1 random job from the best configuration with the
-			// priority corresponding to the level
-			// lower levels -> higher priorities
             if (initialDesignMode) {
                 if (useClusterCourse) {
                     for (int i = 0; i < parameters.getInitialDefaultParcoursLength(); i++) {
                         pacc.addJob(sc, completeCourse.get(sc.getJobCount()).seed,
-                                completeCourse.get(sc.getJobCount()).instanceId, parameters.getMaxParcoursExpansionFactor()
-                                        * num_instances - sc.getJobCount());
+                                completeCourse.get(sc.getJobCount()).instanceId, sc.getJobCount());
                     }
                 } else {
                     pacc.expandParcoursSC(sc, parameters.getInitialDefaultParcoursLength());
@@ -251,9 +248,9 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 
             } else {
                 if (aggressiveJobSelection) {
-                    pacc.addRandomJobAggressive(parameters.getMinRuns(), sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
+                    pacc.addRandomJobAggressive(parameters.getMinRuns(), sc, bestSC, sc.getJobCount());
                 } else {
-                    pacc.addRandomJob(parameters.getMinRuns(), sc, bestSC, Integer.MAX_VALUE - sc.getNumber());
+                    pacc.addRandomJob(parameters.getMinRuns(), sc, bestSC, sc.getJobCount());
                 }
             }
 			pacc.addSolverConfigurationToListNewSC(sc);
@@ -267,8 +264,7 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
     	            if (useClusterCourse) {
     	                if (bestSC.getJobCount() < completeCourse.size()) {
                             pacc.addJob(bestSC, completeCourse.get(bestSC.getJobCount()).seed,
-                                    completeCourse.get(bestSC.getJobCount()).instanceId, parameters.getMaxParcoursExpansionFactor()
-                                            * num_instances - bestSC.getJobCount());
+                                    completeCourse.get(bestSC.getJobCount()).instanceId, bestSC.getJobCount());
     	                } else {
     	                    pacc.log("c Incumbent reached maximum number of evaluations. No more jobs are generated for it.");
     	                }
