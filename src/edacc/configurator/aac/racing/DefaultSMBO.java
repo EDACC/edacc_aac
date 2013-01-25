@@ -48,7 +48,7 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 	private boolean adaptiveCapping = false;
 	private float slackFactor = 1.5f;
 	
-	public boolean initialDesignMode = true;
+	//public boolean initialDesignMode = true;
 	
 	HashSet<Integer> stopEvalSolverConfigIds = new HashSet<Integer>();
 	Set<SolverConfiguration> challengers = new HashSet<SolverConfiguration>();
@@ -153,12 +153,12 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 
 	@Override
 	public void solverConfigurationsFinished(List<SolverConfiguration> scs) throws Exception {
-	    if (initialDesignMode) {
+	    /*if (initialDesignMode) {
 	        pacc.updateJobsStatus(bestSC);
 	        scs.clear();
 	        scs.addAll(challengers);
 	        scs.add(bestSC);
-	    }
+	    }*/
 	    
 		for (SolverConfiguration sc : scs) {
 		    if (sc.getJobCount() != sc.getFinishedJobs().size()) continue;
@@ -236,7 +236,7 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
         this.solverConfigurationsFinished(new LinkedList<SolverConfiguration>(challengers));
 		
 		for (SolverConfiguration sc : scs) {
-            if (initialDesignMode) {
+            /*if (initialDesignMode) {
                 if (useClusterCourse) {
                     for (int i = 0; i < parameters.getInitialDefaultParcoursLength(); i++) {
                         pacc.addJob(sc, completeCourse.get(sc.getJobCount()).seed,
@@ -246,17 +246,17 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
                     pacc.expandParcoursSC(sc, parameters.getInitialDefaultParcoursLength());
                 }
 
-            } else {
+            } else {*/
                 if (aggressiveJobSelection) {
                     pacc.addRandomJobAggressive(parameters.getMinRuns(), sc, bestSC, sc.getJobCount());
                 } else {
                     pacc.addRandomJob(parameters.getMinRuns(), sc, bestSC, sc.getJobCount());
                 }
-            }
+            //}
 			pacc.addSolverConfigurationToListNewSC(sc);
 		}
 		
-		if (!initialDesignMode) {
+		//if (!initialDesignMode) {
     		for (int i = 0; i < scs.size(); i++) {
     		    numSCs += 1;
     	        if (numSCs > curThreshold && bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
@@ -275,7 +275,7 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
     	            curThreshold += increaseIncumbentRunsEvery;
     	        }
     		}
-		}
+		//}
 
 		challengers.addAll(scs);
 	}

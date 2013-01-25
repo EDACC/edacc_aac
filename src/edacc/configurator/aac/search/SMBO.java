@@ -292,7 +292,7 @@ public class SMBO extends SearchMethods {
         }
         
         
-        boolean initialDesignEvaluated = true;
+        /*boolean initialDesignEvaluated = true;
         for (SolverConfiguration config: initialDesignConfigs) {
             if (config.getNumFinishedJobs() < parameters.getInitialDefaultParcoursLength()) initialDesignEvaluated = false;
         }
@@ -308,7 +308,7 @@ public class SMBO extends SearchMethods {
                 pacc.log("c Deactivating initialDesignMode of DefaultSMBO");
                 ((DefaultSMBO)pacc.racing).initialDesignMode = false;
             }
-        }
+        }*/
         
         
         List<SolverConfiguration> newConfigs = new ArrayList<SolverConfiguration>();
