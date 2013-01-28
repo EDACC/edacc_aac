@@ -127,7 +127,7 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 		}
 		// update the status of the jobs of bestSC and if first level wait
 		// also for jobs to finish
-		/*if (expansion > 0) {
+		if (expansion > 0) {
 			pacc.log("c Waiting for currently best solver config " + bestSC.getIdSolverConfiguration() + " to finish " + expansion + "job(s)");
 			while (true) {
 				pacc.updateJobsStatus(bestSC);
@@ -139,7 +139,7 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 			pacc.validateIncumbent(bestSC);
 		} else {
 			pacc.updateJobsStatus(bestSC);
-		}*/
+		}
 	}
 	
 
@@ -205,7 +205,9 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 				    } else {
 				        generated = pacc.addRandomJob(sc.getJobCount(), sc, bestSC, sc.getJobCount());
 				    }
-					pacc.log("c Generated " + generated + " jobs for solver config id " + sc.getIdSolverConfiguration());
+				    if (generated > 0) {
+				        pacc.log("c Generated " + generated + " jobs for solver config id " + sc.getIdSolverConfiguration());
+				    }
 					pacc.addSolverConfigurationToListNewSC(sc);
 				}
 			} else {// lost against best on part of the actual (or should not be evaluated anymore)
