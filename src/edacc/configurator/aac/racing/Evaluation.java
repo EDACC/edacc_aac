@@ -72,6 +72,7 @@ public class Evaluation extends RacingMethods implements JobListener {
 	}
 
 	private void start_new_sc() throws Exception {
+		current_sc = null;
 		if (!scs.isEmpty()) {
 			current_sc = scs.get(0);
 			scs.remove(0);
@@ -82,16 +83,23 @@ public class Evaluation extends RacingMethods implements JobListener {
 	
 	@Override
 	public void jobsFinished(List<ExperimentResult> result) throws Exception {
+		if (current_sc == null) {
+			return;
+		}
 		double current_walltime = 0.;
 		long current_time = System.currentTimeMillis();
 		for (ExperimentResult res : current_sc.getJobs()) {
 			if (res.getStartTime() != null) {
+				if (res.getStatus().equals(StatusCode.RUNNING)) {
 				current_walltime += current_time - res.getStartTime().getTime();
+				} else {
+					current_walltime += res.getWallTime()*1000;
+				}
 			}
 		}
 		current_walltime /= 1000.;
 		if (current_walltime >= budget) {
-			pacc.log("Budget for solver config " + current_sc.getName() + " reached.");
+			pacc.log("Budget for solver config " + current_sc.getIdSolverConfiguration() + " reached.");
 			int not_started = 0;
 			for (ExperimentResult res : current_sc.getJobs()) {
 				if (res.getStatus().equals(StatusCode.RUNNING)) {
