@@ -27,6 +27,7 @@ import edacc.configurator.aac.Parameters;
 import edacc.configurator.aac.SolverConfiguration;
 import edacc.configurator.aac.racing.FRace;
 import edacc.configurator.aac.racing.SMFRace;
+import edacc.configurator.aac.racing.DefaultSMBO;
 import edacc.configurator.aac.search.ibsutils.SolverConfigurationIBS;
 import edacc.configurator.aac.util.RInterface;
 import edacc.configurator.math.PCA;
@@ -200,6 +201,19 @@ public class SMBO extends SearchMethods {
         for (int i = 0; i < condParents.length; i++) augmentedCondParents[i] = condParents[i];
         condParents = augmentedCondParents;
         
+        for (int i = 0; i < configurableParameters.size(); i++) {
+            System.out.println("Conditional parents of " + configurableParameters.get(i));
+            if (condParents[i] == null) {
+                System.out.println("None"); continue;
+            }
+            for (int j = 0; j < condParents[i].length; j++) {
+                System.out.println(configurableParameters.get(condParents[i][j]));
+                for (int k = 0; k < condParentVals[i][j].length; k++) {
+                    System.out.println(condParentVals[i][j][k]);
+                }
+            }
+        }
+        
         // If there are no conditional parameters use optimized parameter graph methods
         canUseFastMethods = true;
         for (int i = 0; i < condParents.length; i++) {
@@ -268,7 +282,7 @@ public class SMBO extends SearchMethods {
             // Start the search with an initial design of random configurations
             for (int i = 0; i < sampledConfigs; i++) {
                 ParameterConfiguration pc = mapRealTupleToParameters(sequenceValues[randomSeqNum++]);
-                if (pspace.validateParameterConfiguration(pc) == false) pc = mapRealTupleToParameters(sequenceValues[randomSeqNum++]);
+                while (pspace.validateParameterConfiguration(pc) == false) pc = mapRealTupleToParameters(sequenceValues[randomSeqNum++]);
                 int idSC = api.createSolverConfig(parameters.getIdExperiment(), pc, "SN: " + randomSeqNum);
                 rssConfigs.add(new SolverConfiguration(idSC, pc, parameters.getStatistics()));
             }
@@ -276,6 +290,26 @@ public class SMBO extends SearchMethods {
             initialDesignConfigs.addAll(rssConfigs);
             return rssConfigs;
         }
+        
+        
+        /*boolean initialDesignEvaluated = true;
+        for (SolverConfiguration config: initialDesignConfigs) {
+            if (config.getNumFinishedJobs() < parameters.getInitialDefaultParcoursLength()) initialDesignEvaluated = false;
+        }
+        if (!initialDesignEvaluated) {
+            if (pacc.racing instanceof DefaultSMBO && ((DefaultSMBO)pacc.racing).initialDesignMode) {
+                pacc.log("Waiting for initial design to be evaluated.");
+                return new LinkedList<SolverConfiguration>();
+            }
+        }
+        
+        if (initialDesignEvaluated) {
+            if (pacc.racing instanceof DefaultSMBO) {
+                pacc.log("c Deactivating initialDesignMode of DefaultSMBO");
+                ((DefaultSMBO)pacc.racing).initialDesignMode = false;
+            }
+        }*/
+        
         
         List<SolverConfiguration> newConfigs = new ArrayList<SolverConfiguration>();
         
@@ -302,11 +336,15 @@ public class SMBO extends SearchMethods {
 
             // Update the model
             int numJobs = 0;
+            boolean anyUncensored = false;
             for (SolverConfiguration config: generatedConfigs) {
                 numJobs += config.getNumFinishedJobs();
+                for (ExperimentResult run: config.getFinishedJobs()) {
+                    if (!par1CostFunc.isSingleCostPenalized(run)) anyUncensored = true;
+                }
             }
-            if (numJobs == 0) {
-                pacc.log("c There are no jobs finished yet. Waiting for initial design to be evaluated.");
+            if (numJobs == 0 || !anyUncensored) {
+                pacc.log("c There are no jobs finished yet, or only censored runs available. Waiting for initial design to be evaluated.");
                 return new LinkedList<SolverConfiguration>(); // nothing to learn from (wait for initial design)
             }
             
@@ -841,7 +879,7 @@ public class SMBO extends SearchMethods {
         ParameterConfiguration pc = pspace.getRandomConfiguration(rng);
         int i = 0;
         for (Parameter p: configurableParameters) {
-            if (pc.getParameterValue(p) == null) continue;
+            //if (pc.getParameterValue(p) == null) continue;
             double v = values[i++];
             if (p.getDomain() instanceof RealDomain) {
                 RealDomain dom = (RealDomain)p.getDomain();

@@ -711,7 +711,7 @@ public class AAC {
 				}
 			}
 
-			if (listNewSC.isEmpty()) {
+			if (listNewSC.isEmpty() && api.getComputationCoreCount(parameters.getIdExperiment()) == 0) {
 				log("c no solver configs in list: exiting");
 				break;
 			}

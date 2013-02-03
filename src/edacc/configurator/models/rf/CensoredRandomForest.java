@@ -23,6 +23,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
+/*import ca.ubc.cs.beta.models.fastrf.RandomForest;
+import ca.ubc.cs.beta.models.fastrf.RegtreeBuildParams;
+import ca.ubc.cs.beta.models.fastrf.RegtreeFit;*/
+
 import edacc.configurator.models.rf.fastrf.RandomForest;
 import edacc.configurator.models.rf.fastrf.RegtreeBuildParams;
 import edacc.configurator.models.rf.fastrf.RegtreeFit;
@@ -194,6 +198,14 @@ public class CensoredRandomForest implements java.io.Serializable {
         rf_theta_inst_idxs = theta_inst_idxs;
         rf_y = y;
         rf_nVars = nVars;
+        
+        int ixFirstUncensored = 0;
+        for (int i = 0; i < y.length; i++) {
+            if (!censored[i]) {
+                ixFirstUncensored = i;
+                break;
+            }
+        }
 
         for (int tr = 0; tr < rf.numTrees; tr++) {
             final int i = tr;
@@ -204,6 +216,16 @@ public class CensoredRandomForest implements java.io.Serializable {
             for (int j = 0; j < sample.length; j++) {
                 sample[j] = rng.nextInt(y.length);
                 sampleset.add(sample[j]);
+            }
+            
+            boolean anyUncensored = false;
+            for (int j = 0; j < sample.length; j++) {
+                anyUncensored |= !censored[sample[j]];
+            }
+            
+            if (!anyUncensored) {
+                sample[0] = ixFirstUncensored;
+                sampleset.add(ixFirstUncensored);
             }
 
             int[][] tree_theta_inst_idxs = new int[y.length][2];

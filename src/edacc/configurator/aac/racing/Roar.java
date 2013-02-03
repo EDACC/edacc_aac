@@ -1,6 +1,5 @@
 package edacc.configurator.aac.racing;
 
-
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -43,8 +42,8 @@ public class Roar extends RacingMethods {
 	boolean clustering = true;
 	ClusterHandler clusterHandler;
 
-	public Roar(AAC proar, Random rng, API api,
-			Parameters parameters, List<SolverConfiguration> firstSCs,
+	public Roar(AAC proar, Random rng, API api, Parameters parameters,
+			List<SolverConfiguration> firstSCs,
 			List<SolverConfiguration> referenceSCs) throws Exception {
 		super(proar, rng, api, parameters, firstSCs, referenceSCs);
 		incumbentNumber = 0;
@@ -53,9 +52,8 @@ public class Roar extends RacingMethods {
 						parameters.getIdExperiment()).getCourse()
 				.getInitialLength();
 		HashMap<String, String> params = parameters.getRacingMethodParameters();
-		if (params.containsKey("Clustering_useClustering")) {
-			clustering = Boolean.parseBoolean(params
-					.get("Clustering_useClustering"));
+		if (params.containsKey("Roar_useClustering")) {
+			clustering = Boolean.parseBoolean(params.get("Roar_useClustering"));
 		}
 		if (params.containsKey("Roar_capping")) {
 			aggressiveCapping = Boolean
@@ -67,7 +65,7 @@ public class Roar extends RacingMethods {
 		}
 
 		if (clustering) {
-			clusterHandler = new ClusterHandler(proar, parameters, api, rng,  
+			clusterHandler = new ClusterHandler(proar, parameters, api, rng,
 					firstSCs, referenceSCs);
 			bestSC = clusterHandler.initBestSC();
 		} else {
@@ -273,9 +271,11 @@ public class Roar extends RacingMethods {
 			numCompCalls++;
 			boolean equalRuns = true;
 			pacc.updateJobsStatus(bestSC);
+			pacc.updateJobsStatus(sc);
 			int[] competitor = clusterHandler.countRunPerCluster(sc);
 			int[] best = clusterHandler.countRunPerCluster(bestSC);
-                        int[] totalInstances = clusterHandler.getNumberOfInstancesInClusters();
+			int[] totalInstances = clusterHandler
+					.getNumberOfInstancesInClusters();
 			for (int i = 0; i < best.length; i++) {
 				if (competitor[i] < best[i])
 					equalRuns = false;
@@ -325,12 +325,11 @@ public class Roar extends RacingMethods {
 					}
 				} else if (sc.getJobCount() >= parameters
 						.getMaxParcoursExpansionFactor() * num_instances) {
-					log("Error - The SC "
-							+ sc.getIdSolverConfiguration()
-							+ " has already "
-							+ sc.getJobCount()
+					log("Error - The SC " + sc.getIdSolverConfiguration()
+							+ " has already " + sc.getJobCount()
 							+ " jobs but still isnt compared to the incumbent "
-							+ bestSC.getIdSolverConfiguration()+" with "+bestSC.getJobCount() + " jobs");                                        
+							+ bestSC.getIdSolverConfiguration() + " with "
+							+ bestSC.getJobCount() + " jobs");
 				}
 				while (runsToAddInc > 0) {
 					int rand = getRandomValidClusterNumber(totalInstances, best);
@@ -341,20 +340,29 @@ public class Roar extends RacingMethods {
 								Integer.MAX_VALUE - bestSC.getNumber());
 						runsToAddInc--;
 						best[rand]++;
+					} else {
+						System.out.println("Error - The incumbent "
+								+ bestSC.getIdSolverConfiguration()
+								+ " could not receive another job in cluster "
+								+ rand);
 					}
 				}
 				while (runsToAdd > 0) {
 					int rand = getRandomValidClusterNumber(best, competitor);
-					if (competitor[rand] < best[rand]) {
-						InstanceIdSeed newRun = clusterHandler
-								.getInstanceInCluster(rand, sc);
-						if (newRun != null) {
-							pacc.addJob(sc, newRun.seed, newRun.instanceId,
-									Integer.MAX_VALUE - sc.getNumber());
-							runsToAdd--;
-							competitor[rand]++;
-						}
+					InstanceIdSeed newRun = clusterHandler
+							.getInstanceInCluster(rand, sc, bestSC);
+					if (newRun != null) {
+						pacc.addJob(sc, newRun.seed, newRun.instanceId,
+								Integer.MAX_VALUE - sc.getNumber());
+						runsToAdd--;
+						competitor[rand]++;
+					} else {
+						System.out.println("Error - The competitor "
+								+ sc.getIdSolverConfiguration()
+								+ " could not receive another job in cluster "
+								+ rand);
 					}
+
 				}
 				pacc.addSolverConfigurationToListNewSC(sc);
 			}
@@ -363,33 +371,63 @@ public class Roar extends RacingMethods {
 			pacc.addSolverConfigurationToListNewSC(bestSC);
 		}
 	}
-        
-        private int getRandomValidClusterNumber(int[] totalInstancesPerCluster, int[] configHasRunsPerCluster){
-            int[] leftOver = new int[totalInstancesPerCluster.length];
-            int numberOfValidClusters = 0;
-            for(int i=0; i<leftOver.length; i++){
-                leftOver[i] = totalInstancesPerCluster[i] - configHasRunsPerCluster[i];
-                if(leftOver[i]>0)
-                    numberOfValidClusters++;
-            }
-            int rand = rng.nextInt(numberOfValidClusters);
-            int randBackup = rand;
-            int clusterNumber=0;
-            for(int i=0; i<leftOver.length; i++){
-                //this loop skips all clusters where no instances are left, and thus finds the
-                // rand'th cluster in which new runs can be performed
-                if(rand == 0 && leftOver[i]>0){
-                    clusterNumber = i;
-                    break;
-                }
-                if(leftOver[i]>0)
-                    rand--;
-            }
-            if(leftOver[clusterNumber] < 1){
-                log("ERROR - getRandomValidClusterNumber was unable to find a cluster");
-            }
-            return clusterNumber;    
-        }
+
+	/**
+	 * Uses round-robin to determine the next cluster number.
+	 * 
+	 * @param totalInstancesPerCluster
+	 * @param configHasRunsPerCluster
+	 * @return cluster number
+	 */
+	private int getRandomValidClusterNumber(int[] totalInstancesPerCluster,
+			int[] configHasRunsPerCluster) {
+		int minCluster = rng.nextInt(totalInstancesPerCluster.length);
+		for (int i = 0; i < configHasRunsPerCluster.length; i++) {
+			if(configHasRunsPerCluster[minCluster] >= totalInstancesPerCluster[minCluster]) {
+				minCluster++;
+				if(minCluster >= totalInstancesPerCluster.length) minCluster = 0;
+			}
+		}
+		for (int i = minCluster; i < totalInstancesPerCluster.length; i++) {
+			if (configHasRunsPerCluster[i] < totalInstancesPerCluster[i]) {
+				if (configHasRunsPerCluster[i] < configHasRunsPerCluster[minCluster])
+					minCluster = i;
+			}
+		}
+		for (int i = 0; i < minCluster; i++) {
+			if (configHasRunsPerCluster[i] < totalInstancesPerCluster[i]) {
+				if (configHasRunsPerCluster[i] < configHasRunsPerCluster[minCluster])
+					minCluster = i;
+			}
+		}
+		return minCluster;
+		// int[] leftOver = new int[totalInstancesPerCluster.length];
+		// int numberOfValidClusters = 0;
+		// for(int i=0; i<leftOver.length; i++){
+		// leftOver[i] = totalInstancesPerCluster[i] -
+		// configHasRunsPerCluster[i];
+		// if(leftOver[i]>0)
+		// numberOfValidClusters++;
+		// }
+		// int rand = rng.nextInt(numberOfValidClusters);
+		// int randBackup = rand;
+		// int clusterNumber=0;
+		// for(int i=0; i<leftOver.length; i++){
+		// //this loop skips all clusters where no instances are left, and thus
+		// finds the
+		// // rand'th cluster in which new runs can be performed
+		// if(rand == 0 && leftOver[i]>0){
+		// clusterNumber = i;
+		// break;
+		// }
+		// if(leftOver[i]>0)
+		// rand--;
+		// }
+		// if(leftOver[clusterNumber] < 1){
+		// log("ERROR - getRandomValidClusterNumber was unable to find a cluster");
+		// }
+		// return clusterNumber;
+	}
 
 	/**
 	 * Checks if a competitor-sc should gain more runs and compares promising

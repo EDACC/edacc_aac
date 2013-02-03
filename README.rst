@@ -31,5 +31,17 @@ Dependencies
 ------------
 
 - Java (JRE) 6 or 7
-- some procedures need R (tested with version 2.15) and certain R packages
+- some procedures need R (tested with version 2.15), JRI and certain R packages
   (they will tell which at runtime)
+  
+EDACC-MBO Dependencies
+----------------------
+
+The SMBO/Default_SMBO optimization procedure requires a working R installation with the
+Java-R-interface "JRI" and some R packages.
+
+- JRI for R can be installed in R itself by using the command install.packages("rJava").
+  See also http://www.rforge.net/JRI/ and the FAQ at the bottom for adjusting environment
+  variables (in particular LD_LIBRARY_PATH) so Java can access JRI.
+- The R packages "asbio", "cluster" and "survival" can be installed in an R shell via install.packages("pkgname")
+

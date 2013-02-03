@@ -35,8 +35,8 @@ public class ClusterHandler implements ClusterMethods{
 	// parameter configurations
     private ParameterGraph paramGraph;
     private SolverConfiguration bestSC;
-    private String algorithmName = "Algorithm_Average";
-    private String resourcesName = "Resources_PropertiesWorkaround";
+    private String algorithmName = "Algorithm_Hierarchical_R";
+    private String resourcesName = "Resources_Properties";
 	// A set of fully evaluated SCs is required to create an initial
 	// clustering. The number of those SCs is defined in this variable
     private int numberOfMinStartupSCs = 1;
@@ -83,15 +83,15 @@ public class ClusterHandler implements ClusterMethods{
 						params.getIdExperiment()).getCourse()
 				.getInitialLength();
 		HashMap<String, String> parameters = params.getRacingMethodParameters();
-		if(parameters.containsKey("Clustering_algorithm")) {
-			algorithmName = parameters.get("Clustering_algorithm");
+		if(parameters.containsKey("Roar_ClusterAlgorithm")) {
+			algorithmName = parameters.get("Roar_ClusterAlgorithm");
 		}
-		if(parameters.containsKey("Clustering_resources")) {
-			resourcesName = parameters.get("Clustering_resources");
+		if(parameters.containsKey("Roar_ClusterResources")) {
+			resourcesName = parameters.get("Roar_ClusterResources");
 		}
-		if (parameters.containsKey("Clustering_minStartupSCs")) {
+		if (parameters.containsKey("Roar_minStartupSCs")) {
 			numberOfMinStartupSCs = Integer.parseInt(parameters
-					.get("Clustering_minStartupSCs"));
+					.get("Roar_minStartupSCs"));
 		}
         // Initialise Algorithms and Resources here
 		algorithmClass = ClassLoader.getSystemClassLoader().loadClass(
@@ -112,7 +112,7 @@ public class ClusterHandler implements ClusterMethods{
             data.put(new InstanceIdSeed(is.instance.getId(), is.seed), 
                         new InstanceData(is.instance.getId(), is.seed, params.getStatistics().getCostFunction()));
         }
-        if(resources.isInitialDataRequired(resourcesName)) {
+        if(ClusteringResources.isInitialDataRequired(resourcesName)) {
         	List<SolverConfiguration> startupSCs = initClusteringData();
         	for (SolverConfiguration sc : startupSCs) {
 				addData(sc);
@@ -195,19 +195,32 @@ public class ClusterHandler implements ClusterMethods{
     public InstanceIdSeed getInstanceInCluster(int clusterNumber) {
         return getRandomInstance(clusters[clusterNumber].getInstances());
     }
+    /* returns an InstanceIdSeed in the specified cluster that the solverConfig has not yet completed
+     * 
+     */
     public InstanceIdSeed getInstanceInCluster(int clusterNr, SolverConfiguration solverConfig){
         List<InstanceIdSeed> clusterInstances = clusters[clusterNr].getInstances();
         List<InstanceIdSeed> tmpList = getInstances(solverConfig);
         clusterInstances.removeAll(tmpList);//clusterInstances is a copy of the cluster's list -> no side effects
         InstanceIdSeed newInstance = getRandomInstance(clusterInstances);
-        if(clusterInstances.isEmpty())
-            System.out.println("ERROR: ClusterHandler.getInstanceInCluster was called even though config has already completed this cluster");
-        else if(newInstance == null)
-            System.out.println("ERROR: ClusterHandler.getInstanceInCluster returns null instance!");
-        else if(tmpList.contains(newInstance))
-            System.out.println("ERROR: ClusterHandler.getInstanceInCluster returns duplicate Instance!!");
-        else if(!clusters[clusterNr].contains(newInstance))
-            System.out.println("ERROR: ClusterHandler.getInstanceInCluster returns an instance not present in this cluster!");
+        if(newInstance == null)
+            log("ERROR: ClusterHandler.getInstanceInCluster returns null instance!");        
+        return newInstance;
+    }
+    /* returns an InstanceIdSeed in the specified cluster that the incumbent has already completed, but the 
+     * solverConfig has not
+     * 
+     */
+    public InstanceIdSeed getInstanceInCluster(int clusterNr, 
+            SolverConfiguration solverConfig, SolverConfiguration incumbent){
+        List<InstanceIdSeed> clusterInstances = clusters[clusterNr].getInstances();
+        List<InstanceIdSeed> solverConfigInstances = getInstances(solverConfig);
+        List<InstanceIdSeed> incumbentInstances = getInstances(incumbent);
+        clusterInstances.retainAll(incumbentInstances);
+        clusterInstances.removeAll(solverConfigInstances);
+        InstanceIdSeed newInstance = getRandomInstance(clusterInstances);
+        if(newInstance == null)
+            log("Error: ClusterHandler.getInstanceInCluster returns null!");
         return newInstance;
     }
     
@@ -415,7 +428,7 @@ public class ClusterHandler implements ClusterMethods{
 		log("Reference SCs...");
 		if (referenceSCs.size() > 0) {
 			for (SolverConfiguration refSc : referenceSCs) {
-				log(startupSCs.size() + ": " + refSc.getName());
+				log(startupSCs.size() + ": " + refSc.getIdSolverConfiguration());
 				startupSCs.add(refSc);
 			}
 		}
@@ -423,8 +436,8 @@ public class ClusterHandler implements ClusterMethods{
 		int defaultSCs = Math.min(firstSCs.size(), numberOfMinStartupSCs);
 		log("Default SCs...");
 		for (int i = 0; i < defaultSCs; i++) {
-			aac.log("c " + startupSCs.size() + ": "
-					+ firstSCs.get(i).getName());
+			aac.log(startupSCs.size() + ": "
+					+ firstSCs.get(i).getIdSolverConfiguration());
 			startupSCs.add(firstSCs.get(i));
 		}
 		// At least (number of minimal startupSCs)/2 random SCs are added.
