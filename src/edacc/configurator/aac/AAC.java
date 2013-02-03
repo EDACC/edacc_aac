@@ -201,7 +201,7 @@ public class AAC {
 
 		List<Integer> solverConfigIds = api.getSolverConfigurations(parameters.getIdExperiment(), "default");
 		if (solverConfigIds.isEmpty()) {
-			solverConfigIds = api.getSolverConfigurations(parameters.getIdExperiment());
+			solverConfigIds = api.getSolverConfigurations(parameters.getIdExperiment(), "");
 			log("c Found " + solverConfigIds.size() + " solver configuration(s)");
 		} else {
 			log("c Found " + solverConfigIds.size() + " default configuration(s)");

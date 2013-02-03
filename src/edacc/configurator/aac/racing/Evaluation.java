@@ -28,7 +28,7 @@ public class Evaluation extends RacingMethods implements JobListener {
             budget = Double.valueOf(val);
 		
 		scs = new LinkedList<SolverConfiguration>();
-		scs.addAll(firstSCs);
+		scs.addAll(referenceSCs);
 		start_new_sc();
 	}
 
@@ -85,7 +85,9 @@ public class Evaluation extends RacingMethods implements JobListener {
 		double current_walltime = 0.;
 		long current_time = System.currentTimeMillis();
 		for (ExperimentResult res : current_sc.getJobs()) {
-			current_walltime += current_time - res.getStartTime().getTime();
+			if (res.getStartTime() != null) {
+				current_walltime += current_time - res.getStartTime().getTime();
+			}
 		}
 		current_walltime /= 1000.;
 		if (current_walltime >= budget) {
