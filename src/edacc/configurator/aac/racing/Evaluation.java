@@ -91,7 +91,7 @@ public class Evaluation extends RacingMethods implements JobListener {
 		for (ExperimentResult res : current_sc.getJobs()) {
 			if (res.getStartTime() != null) {
 				if (res.getStatus().equals(StatusCode.RUNNING)) {
-				current_walltime += current_time - res.getStartTime().getTime();
+					current_walltime += current_time - res.getStartTime().getTime();
 				} else {
 					current_walltime += res.getWallTime()*1000;
 				}
@@ -108,8 +108,12 @@ public class Evaluation extends RacingMethods implements JobListener {
 					api.setJobPriority(res.getId(), -1);
 					// maybe started:
 					api.killJob(res.getId());
+					
 					not_started++;
 				}
+				
+				// Update cpu time limit for statistics
+				api.updateCPUTimeLimit(res.getId(), (int) (System.currentTimeMillis() - res.getStartTime().getTime()) / 1000, res.getStatus(), res.getResultCode());
 			}
 			if (not_started > 0) {
 				pacc.log("Warning: " + not_started + " jobs not started. Maybe you don't have enough cores?");

@@ -491,9 +491,7 @@ public class AAC {
 							}
 							// apiER is more up2date.
 							// should be done by api?:
-							Statement st = DatabaseConnector.getInstance().getConn().createStatement();
-							st.executeUpdate("UPDATE ExperimentResults SET status = " + apiER.getStatus().getStatusCode() + ", resultCode = " + apiER.getResultCode().getResultCode() + ", CPUTimeLimit = " + apiER.getCPUTimeLimit() + " WHERE idJob = " + apiER.getId());
-							st.close();
+							api.updateCPUTimeLimit(apiER.getId(), apiER.getCPUTimeLimit(), apiER.getStatus(), apiER.getResultCode());
 						}
 					}
 				}
