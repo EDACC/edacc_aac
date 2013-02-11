@@ -98,7 +98,7 @@ public class Evaluation extends RacingMethods implements JobListener {
 			}
 		}
 		current_walltime /= 1000.;
-		if (current_walltime >= budget) {
+		if (current_walltime >= budget || current_sc.getJobCount() == current_sc.getFinishedJobs().size()) {
 			pacc.log("Budget for solver config " + current_sc.getIdSolverConfiguration() + " reached.");
 			int not_started = 0;
 			for (ExperimentResult res : current_sc.getJobs()) {
