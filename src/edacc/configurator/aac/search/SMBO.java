@@ -154,10 +154,10 @@ public class SMBO extends SearchMethods {
         // Project instance features into lower dimensional space using PCA
         PCA pca = new PCA(RInterface.getRengine());
         instanceFeatures = pca.transform(instanceFeatures.length, instanceFeatureNames.size(), instanceFeatures, numPC);
-        pacc.log("c Using " + Math.min(numPC, instanceFeatureNames.size()) + " instance features");
-        double[][] pcaFeatures = new double[instanceFeatures.length][Math.min(numPC, instanceFeatureNames.size())];
+        pacc.log("c Using " + instanceFeatures[0].length + " instance features of " + instanceFeatures.length + " instances");
+        double[][] pcaFeatures = new double[instanceFeatures.length][instanceFeatures[0].length];
         for (int i = 0; i < instanceFeatures.length; i++) {
-            for (int j = 0; j < Math.min(numPC, instanceFeatureNames.size()); j++) {
+            for (int j = 0; j < instanceFeatures[0].length; j++) {
                 //System.out.print(instanceFeatures[i][j] + " ");
                 pcaFeatures[i][j] = instanceFeatures[i][j];
             }
@@ -165,9 +165,9 @@ public class SMBO extends SearchMethods {
         }
         instanceFeatures = pcaFeatures;
         
-        int numFeatures = instanceFeatureNames.size();
+        //int numFeatures = instanceFeatureNames.size();
         instanceFeatureNames.clear();
-        for (int i = 0; i < Math.min(numPC, numFeatures); i++) instanceFeatureNames.add("PC" + (i+1)); // rename instance features to reflect PCA transformation
+        for (int i = 0; i < instanceFeatures[0].length; i++) instanceFeatureNames.add("PC" + (i+1)); // rename instance features to reflect PCA transformation
         
         // Load information about the parameter space
         configurableParameters.addAll(api.getConfigurableParameters(parameters.getIdExperiment()));
