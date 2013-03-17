@@ -1054,9 +1054,16 @@ public class AAC {
 		BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
 		
 		String line;
-		while (((line = br.readLine()) != null) && line.startsWith("c "));
+		while (((line = br.readLine()) != null) && line.startsWith("c ")) {
+		    System.err.println("[Instance feature calculation] " + line);
+		}
 		
-		String[] features_str = br.readLine().split(",");
+		String featureLine = br.readLine();
+		if (featureLine == null) {
+		    return new float[features.length];
+		}
+		
+		String[] features_str = featureLine.split(",");
 		for (int i = 0; i < features_str.length; i++) {
 			res[i] = Float.valueOf(features_str[i]);
 		}
