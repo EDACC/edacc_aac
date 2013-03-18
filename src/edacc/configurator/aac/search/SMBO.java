@@ -879,7 +879,7 @@ public class SMBO extends SearchMethods {
         ParameterConfiguration pc = pspace.getRandomConfiguration(rng);
         int i = 0;
         for (Parameter p: configurableParameters) {
-            //if (pc.getParameterValue(p) == null) continue;
+            if (pc.getParameterValue(p) == null) continue;
             double v = values[i++];
             if (p.getDomain() instanceof RealDomain) {
                 RealDomain dom = (RealDomain)p.getDomain();
