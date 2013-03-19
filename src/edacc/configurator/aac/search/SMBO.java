@@ -233,6 +233,10 @@ public class SMBO extends SearchMethods {
         // Add default configurations to the search
         generatedConfigs.addAll(firstSCs);
         for (SolverConfiguration defaultConfig: firstSCs) {
+            if (!pspace.validateParameterConfiguration(defaultConfig.getParameterConfiguration())) {
+                pacc.log("e Default configuration " + defaultConfig.getName() + " does not conform to the parameter space specification");
+                throw new RuntimeException("Invalid default configuration");
+            }
             defaultConfig.getParameterConfiguration().updateChecksum();
             allSelectedConfigs.add(defaultConfig.getParameterConfiguration());
         }
@@ -862,6 +866,7 @@ public class SMBO extends SearchMethods {
                 } else {
                     // TODO
                     theta[pIx] = paramValue.hashCode();
+                    throw new RuntimeException("Domain " + p.getDomain().getName() + " not implemented yet.");
                 }
             }
             
