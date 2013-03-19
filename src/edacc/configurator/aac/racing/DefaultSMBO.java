@@ -187,17 +187,13 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 					// all jobs from bestSC computed and won against
 					// best:
 					if (comp > 0) {
+					    challengers.remove(sc);
 						bestSC = sc;
 						sc.setIncumbentNumber(incumbentNumber++);
 						pacc.log("new incumbent: " + sc.getIdSolverConfiguration() + ":" + pacc.getWallTime() + ":" + pacc.getCumulatedCPUTime() + ":" + sc.getCost());
 						pacc.log("i " + pacc.getWallTime() + "," + sc.getCost() + ",n.A. ," + sc.getIdSolverConfiguration() + ",n.A. ," + sc.getParameterConfiguration().toString());
 						pacc.validateIncumbent(bestSC);
 					}
-					challengers.remove(sc);
-					// api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(),
-					// sc.getCost(),
-					// statistics.getCostFunction());
-					// listNewSC.remove(i);
 				} else {
 				    int generated = 0;
 				    if (aggressiveJobSelection) {
@@ -220,6 +216,23 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 					api.removeSolverConfig(sc.getIdSolverConfiguration());
 				pacc.log("d Solver config " + sc.getIdSolverConfiguration() + " with cost " + sc.getCost() + " lost against best solver config on " + sc.getJobCount() + " runs.");
 				api.updateSolverConfigurationName(sc.getIdSolverConfiguration(), "* " + sc.getName());
+				
+                numSCs += 1;
+                if (numSCs > curThreshold && bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
+                    pacc.log("c Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration() + " by 1");
+                    if (useClusterCourse) {
+                        if (bestSC.getJobCount() < completeCourse.size()) {
+                            pacc.addJob(bestSC, completeCourse.get(bestSC.getJobCount()).seed,
+                                    completeCourse.get(bestSC.getJobCount()).instanceId, bestSC.getJobCount());
+                        } else {
+                            pacc.log("c Incumbent reached maximum number of evaluations. No more jobs are generated for it.");
+                        }
+                    } else {
+                        pacc.expandParcoursSC(bestSC, 1);
+                    }
+                    pacc.addSolverConfigurationToListNewSC(bestSC);
+                    curThreshold += increaseIncumbentRunsEvery;
+                }
 			}
 		}
 	}
@@ -259,7 +272,7 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 		}
 		
 		//if (!initialDesignMode) {
-    		for (int i = 0; i < scs.size(); i++) {
+    	/*	for (int i = 0; i < scs.size(); i++) {
     		    numSCs += 1;
     	        if (numSCs > curThreshold && bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
     	            pacc.log("c Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration() + " by 1");
@@ -276,7 +289,7 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
     	            pacc.addSolverConfigurationToListNewSC(bestSC);
     	            curThreshold += increaseIncumbentRunsEvery;
     	        }
-    		}
+    		}*/
 		//}
 
 		challengers.addAll(scs);
