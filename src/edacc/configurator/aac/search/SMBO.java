@@ -785,14 +785,14 @@ public class SMBO extends SearchMethods {
     @Override
     public void searchFinished() {
         pacc.log("c Out of " + statTotalOptimizations + " criterion optimizations, " + statNumBestRandom + " where due to a random config");
-        pacc.log("c Calculating variable importance measures from OOB samples:");
+        /*pacc.log("c Calculating variable importance measures from OOB samples:");
         double[] VI = model.calculateVI();
         for (int i = 0; i < configurableParameters.size(); i++) {
             pacc.log(configurableParameters.get(i).getName() + ": " + VI[i]);
         }
         for (int i = 0; i < instanceFeatureNames.size(); i++) {
             pacc.log(instanceFeatureNames.get(i) + ": " + VI[configurableParameters.size() + i]);
-        }
+        }*/
     }
     
     double calcExpectedImprovement(double mu, double sigma, double f_min) throws MathException {

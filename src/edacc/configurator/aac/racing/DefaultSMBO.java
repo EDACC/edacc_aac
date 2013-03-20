@@ -193,6 +193,8 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 						pacc.log("new incumbent: " + sc.getIdSolverConfiguration() + ":" + pacc.getWallTime() + ":" + pacc.getCumulatedCPUTime() + ":" + sc.getCost());
 						pacc.log("i " + pacc.getWallTime() + "," + sc.getCost() + ",n.A. ," + sc.getIdSolverConfiguration() + ",n.A. ," + sc.getParameterConfiguration().toString());
 						pacc.validateIncumbent(bestSC);
+					} else {
+					    pacc.log("c Configuration " + sc.getIdSolverConfiguration() + " tied with incumbent");
 					}
 				} else {
 				    int generated = 0;

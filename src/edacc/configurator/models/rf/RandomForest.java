@@ -235,8 +235,8 @@ public class RandomForest implements java.io.Serializable {
         for (SolverConfiguration config: configs) {
             solverConfigTheta.put(config, cIx);
             theta[cIx] = paramConfigToTuple(config.getParameterConfiguration());
-            System.out.println(config.getParameterConfiguration());
-            System.out.println(Arrays.toString(theta[cIx]));
+            //System.out.println(config.getParameterConfiguration());
+            //System.out.println(Arrays.toString(theta[cIx]));
             countJobs += config.getFinishedJobs().size();
             cIx++;
         }
