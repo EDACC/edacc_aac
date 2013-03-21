@@ -339,16 +339,34 @@ public class SMBO extends SearchMethods {
             pacc.log("c wall time: " + pacc.getWallTime() + "s, job CPU time: " + pacc.getCumulatedCPUTime() + "s");
 
             // Update the model
-            int numJobs = 0;
+            int numFinishedJobs = 0;
             boolean anyUncensored = false;
             for (SolverConfiguration config: generatedConfigs) {
-                numJobs += config.getNumFinishedJobs();
+                numFinishedJobs += config.getNumFinishedJobs();
                 for (ExperimentResult run: config.getFinishedJobs()) {
                     if (!par1CostFunc.isSingleCostPenalized(run)) anyUncensored = true;
                 }
             }
-            if (numJobs == 0 || !anyUncensored) {
+            if (numFinishedJobs == 0 || !anyUncensored) {
                 pacc.log("c There are no jobs finished yet, or only censored runs available. Waiting for initial design to be evaluated.");
+                boolean allInitialConfigsFinished = true;
+                for (SolverConfiguration sc: initialDesignConfigs) {
+                    if (sc.getNumRunningJobs() > 0) allInitialConfigsFinished = false;
+                }
+                if (allInitialConfigsFinished) {
+                    // If the initial design did not lead to any uncensored data, add a random configuration
+                    List<SolverConfiguration> randomConfigs = new LinkedList<SolverConfiguration>();
+                    for (int i = 0; i < num; i++) {
+                        ParameterConfiguration paramConfig = pspace.getRandomConfiguration(rng);
+                        int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, "Random configuration");
+                        SolverConfiguration solverConfig = new SolverConfiguration(idSC, paramConfig, parameters.getStatistics());
+                        randomConfigs.add(solverConfig);
+                        generatedConfigs.add(solverConfig);
+                        initialDesignConfigs.add(solverConfig);
+                    }
+                    pacc.log("c Adding " + num + " random configuration to the initial design.");
+                    return randomConfigs;
+                }
                 return new LinkedList<SolverConfiguration>(); // nothing to learn from (wait for initial design)
             }
             
@@ -369,7 +387,7 @@ public class SMBO extends SearchMethods {
             
             long start = System.currentTimeMillis();
             updateModel();
-            pacc.log("c Learning the model from " + generatedConfigs.size() + " configs and " + numJobs + " runs in total took " + (System.currentTimeMillis() - start) + " ms");
+            pacc.log("c Learning the model from " + generatedConfigs.size() + " configs and " + numFinishedJobs + " runs in total took " + (System.currentTimeMillis() - start) + " ms");
             
             double f_min = bestConfigs.get(0).getCost();
             if (logModel) f_min = Math.log10(f_min);
