@@ -344,6 +344,14 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 		List<String> p = new LinkedList<String>();
         p.add("% --- Default_SMBO parameters ---");
         p.add("DefaultSMBO_adaptiveCapping = " + (adaptiveCapping ? 1 : 0) + " % (Use adaptive capping mechanism)");
+        p.add("DefaultSMBO_increaseIncumbentRunsEvery = " + increaseIncumbentRunsEvery + " % (How many challengers does the incumbent have to beat to gain additional runs)");
+        p.add("DefaultSMBO_aggressiveJobSelection = " + (aggressiveJobSelection ? 1 : 0) + " % (Challengers should start on instances where the best configuration did not time out)");
+        p.add("DefaultSMBO_featureFolder = " + featureFolder + " % (Instance feature computation folder containing a features.propertiers file)");
+        p.add("DefaultSMBO_featureCacheFolder = " + featureCacheFolder + " % (Temporary folder used for caching instance features)");
+        p.add("DefaultSMBO_useClusterCourse = " + (useClusterCourse ? 1 : 0) + " % (Cluster instances using instance properties for improved handling of heterogenous instance sets)");
+        p.add("DefaultSMBO_slackFactor = " + slackFactor + " % (Slack factor used with adaptive capping (new timeout = slackFactor * best known time))");
+        p.add("DefaultSMBO_adaptiveCapping = " + (adaptiveCapping ? 1 : 0) + " % (Lower time limit on instances according to the results of the best configuration)");
+        p.add("DefaultSMBO_clusterSizeExpansion = " + clusterSizeExpansion + " % (If the cluster course is used, give the incumbent configuration k additional runs instead of one (k = no. of clusters))");
 		return p;
 	}
 
