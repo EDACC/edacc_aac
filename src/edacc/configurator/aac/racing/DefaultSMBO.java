@@ -47,6 +47,9 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 	private boolean aggressiveJobSelection = false;
 	private boolean adaptiveCapping = false;
 	private float slackFactor = 1.5f;
+	private boolean clusterSizeExpansion = false;
+	
+	StratifiedClusterCourse course = null;
 	
 	//public boolean initialDesignMode = true;
 	
@@ -74,6 +77,8 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
             adaptiveCapping = Integer.valueOf(val) == 1;
         if ((val = parameters.getRacingMethodParameters().get("DefaultSMBO_slackFactor")) != null)
             slackFactor = Float.valueOf(val);
+        if ((val = parameters.getRacingMethodParameters().get("DefaultSMBO_clusterSizeExpansion")) != null)
+            clusterSizeExpansion = Integer.valueOf(val) == 1;
         
         if (useClusterCourse) {
             rengine = RInterface.getRengine();
@@ -86,7 +91,7 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
                 throw new Exception("Did not find R library survival (should come with R though).");
             }
             
-            StratifiedClusterCourse course = new StratifiedClusterCourse(rengine, api.getExperimentInstances(parameters.getIdExperiment()), null, null, parameters.getMaxParcoursExpansionFactor(), rng, featureFolder, featureCacheFolder);
+            course = new StratifiedClusterCourse(rengine, api.getExperimentInstances(parameters.getIdExperiment()), null, null, parameters.getMaxParcoursExpansionFactor(), rng, featureFolder, featureCacheFolder);
             this.completeCourse = course.getCourse();
             List<Instance> instances = InstanceDAO.getAllByExperimentId(parameters.getIdExperiment());
             Map<Integer, Instance> instanceById = new HashMap<Integer, Instance>();
@@ -230,7 +235,11 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
                             pacc.log("c Incumbent reached maximum number of evaluations. No more jobs are generated for it.");
                         }
                     } else {
-                        pacc.expandParcoursSC(bestSC, 1);
+                        if (useClusterCourse && clusterSizeExpansion) {
+                            pacc.expandParcoursSC(bestSC, Math.min(course.getK(), parameters.getMaxParcoursExpansionFactor() * num_instances - bestSC.getJobCount()));
+                        } else {
+                            pacc.expandParcoursSC(bestSC, 1);
+                        }
                     }
                     pacc.addSolverConfigurationToListNewSC(bestSC);
                     curThreshold += increaseIncumbentRunsEvery;
