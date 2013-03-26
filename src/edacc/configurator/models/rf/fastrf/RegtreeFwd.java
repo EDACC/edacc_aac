@@ -116,6 +116,10 @@ public class RegtreeFwd {
                             thisnode = (Theta[i][splitvar-1] <= cutoff ? left_kid : right_kid);
                         } else { // categorical
                             int x = (int)Theta[i][-splitvar-1];
+                            if (x-1 < 0 || (int)cutoff < 0) {
+                                System.err.println("cutoff=" + (int)cutoff + " x="+x + " splitvar="+splitvar);
+                                System.err.println("theta = " + Arrays.toString(Theta[i]));
+                            }
                             int split = tree.catsplit[(int)cutoff][x-1];
                             if (split == 0) thisnode = left_kid;
                             else if (split == 1) thisnode = right_kid;

@@ -154,10 +154,10 @@ public class SMBO extends SearchMethods {
         // Project instance features into lower dimensional space using PCA
         PCA pca = new PCA(RInterface.getRengine());
         instanceFeatures = pca.transform(instanceFeatures.length, instanceFeatureNames.size(), instanceFeatures, numPC);
-        pacc.log("c Using " + Math.min(numPC, instanceFeatureNames.size()) + " instance features");
-        double[][] pcaFeatures = new double[instanceFeatures.length][Math.min(numPC, instanceFeatureNames.size())];
+        pacc.log("c Using " + instanceFeatures[0].length + " instance features of " + instanceFeatures.length + " instances");
+        double[][] pcaFeatures = new double[instanceFeatures.length][instanceFeatures[0].length];
         for (int i = 0; i < instanceFeatures.length; i++) {
-            for (int j = 0; j < Math.min(numPC, instanceFeatureNames.size()); j++) {
+            for (int j = 0; j < instanceFeatures[0].length; j++) {
                 //System.out.print(instanceFeatures[i][j] + " ");
                 pcaFeatures[i][j] = instanceFeatures[i][j];
             }
@@ -165,9 +165,9 @@ public class SMBO extends SearchMethods {
         }
         instanceFeatures = pcaFeatures;
         
-        int numFeatures = instanceFeatureNames.size();
+        //int numFeatures = instanceFeatureNames.size();
         instanceFeatureNames.clear();
-        for (int i = 0; i < Math.min(numPC, numFeatures); i++) instanceFeatureNames.add("PC" + (i+1)); // rename instance features to reflect PCA transformation
+        for (int i = 0; i < instanceFeatures[0].length; i++) instanceFeatureNames.add("PC" + (i+1)); // rename instance features to reflect PCA transformation
         
         // Load information about the parameter space
         configurableParameters.addAll(api.getConfigurableParameters(parameters.getIdExperiment()));
@@ -233,6 +233,10 @@ public class SMBO extends SearchMethods {
         // Add default configurations to the search
         generatedConfigs.addAll(firstSCs);
         for (SolverConfiguration defaultConfig: firstSCs) {
+            if (!pspace.validateParameterConfiguration(defaultConfig.getParameterConfiguration())) {
+                pacc.log("e Default configuration " + defaultConfig.getName() + " does not conform to the parameter space specification");
+                throw new RuntimeException("Invalid default configuration");
+            }
             defaultConfig.getParameterConfiguration().updateChecksum();
             allSelectedConfigs.add(defaultConfig.getParameterConfiguration());
         }
@@ -335,16 +339,34 @@ public class SMBO extends SearchMethods {
             pacc.log("c wall time: " + pacc.getWallTime() + "s, job CPU time: " + pacc.getCumulatedCPUTime() + "s");
 
             // Update the model
-            int numJobs = 0;
+            int numFinishedJobs = 0;
             boolean anyUncensored = false;
             for (SolverConfiguration config: generatedConfigs) {
-                numJobs += config.getNumFinishedJobs();
+                numFinishedJobs += config.getNumFinishedJobs();
                 for (ExperimentResult run: config.getFinishedJobs()) {
                     if (!par1CostFunc.isSingleCostPenalized(run)) anyUncensored = true;
                 }
             }
-            if (numJobs == 0 || !anyUncensored) {
+            if (numFinishedJobs == 0 || !anyUncensored) {
                 pacc.log("c There are no jobs finished yet, or only censored runs available. Waiting for initial design to be evaluated.");
+                boolean allInitialConfigsFinished = true;
+                for (SolverConfiguration sc: initialDesignConfigs) {
+                    if (sc.getNumRunningJobs() > 0) allInitialConfigsFinished = false;
+                }
+                if (allInitialConfigsFinished) {
+                    // If the initial design did not lead to any uncensored data, add a random configuration
+                    List<SolverConfiguration> randomConfigs = new LinkedList<SolverConfiguration>();
+                    for (int i = 0; i < num; i++) {
+                        ParameterConfiguration paramConfig = pspace.getRandomConfiguration(rng);
+                        int idSC = api.createSolverConfig(parameters.getIdExperiment(), paramConfig, "Random configuration");
+                        SolverConfiguration solverConfig = new SolverConfiguration(idSC, paramConfig, parameters.getStatistics());
+                        randomConfigs.add(solverConfig);
+                        generatedConfigs.add(solverConfig);
+                        initialDesignConfigs.add(solverConfig);
+                    }
+                    pacc.log("c Adding " + num + " random configuration to the initial design.");
+                    return randomConfigs;
+                }
                 return new LinkedList<SolverConfiguration>(); // nothing to learn from (wait for initial design)
             }
             
@@ -365,7 +387,7 @@ public class SMBO extends SearchMethods {
             
             long start = System.currentTimeMillis();
             updateModel();
-            pacc.log("c Learning the model from " + generatedConfigs.size() + " configs and " + numJobs + " runs in total took " + (System.currentTimeMillis() - start) + " ms");
+            pacc.log("c Learning the model from " + generatedConfigs.size() + " configs and " + numFinishedJobs + " runs in total took " + (System.currentTimeMillis() - start) + " ms");
             
             double f_min = bestConfigs.get(0).getCost();
             if (logModel) f_min = Math.log10(f_min);
@@ -781,14 +803,14 @@ public class SMBO extends SearchMethods {
     @Override
     public void searchFinished() {
         pacc.log("c Out of " + statTotalOptimizations + " criterion optimizations, " + statNumBestRandom + " where due to a random config");
-        pacc.log("c Calculating variable importance measures from OOB samples:");
+        /*pacc.log("c Calculating variable importance measures from OOB samples:");
         double[] VI = model.calculateVI();
         for (int i = 0; i < configurableParameters.size(); i++) {
             pacc.log(configurableParameters.get(i).getName() + ": " + VI[i]);
         }
         for (int i = 0; i < instanceFeatureNames.size(); i++) {
             pacc.log(instanceFeatureNames.get(i) + ": " + VI[configurableParameters.size() + i]);
-        }
+        }*/
     }
     
     double calcExpectedImprovement(double mu, double sigma, double f_min) throws MathException {
@@ -862,6 +884,7 @@ public class SMBO extends SearchMethods {
                 } else {
                     // TODO
                     theta[pIx] = paramValue.hashCode();
+                    throw new RuntimeException("Domain " + p.getDomain().getName() + " not implemented yet.");
                 }
             }
             
@@ -879,7 +902,7 @@ public class SMBO extends SearchMethods {
         ParameterConfiguration pc = pspace.getRandomConfiguration(rng);
         int i = 0;
         for (Parameter p: configurableParameters) {
-            //if (pc.getParameterValue(p) == null) continue;
+            if (pc.getParameterValue(p) == null) continue;
             double v = values[i++];
             if (p.getDomain() instanceof RealDomain) {
                 RealDomain dom = (RealDomain)p.getDomain();

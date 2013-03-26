@@ -213,6 +213,7 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 					        generated = pacc.addRandomJob(course.getK(), sc, bestSC, sc.getJobCount());
 					    }
 				    }
+<<<<<<< HEAD
 				    else
 				    	if (aggressiveJobSelection) {
 					        generated = pacc.addRandomJobAggressive(sc.getJobCount(), sc, bestSC, sc.getJobCount());
@@ -224,6 +225,11 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 				        pacc.log("c Generated " + generated + " jobs for solver config id " + sc.getIdSolverConfiguration());
 				    }
 				    
+=======
+				    if (generated > 0) {
+				        pacc.log("c Generated " + generated + " jobs for solver config id " + sc.getIdSolverConfiguration());
+				    }
+>>>>>>> 9f6b1bbeb8917e26cf9e96457c700e8b230f77ce
 					pacc.addSolverConfigurationToListNewSC(sc);
 				}
 			} else {// lost against best on part of the actual (or should not be evaluated anymore)
@@ -242,6 +248,7 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
                     pacc.log("c Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration() + " by 1");
                     if (useClusterCourse) {
                         if (bestSC.getJobCount() < completeCourse.size()) {
+<<<<<<< HEAD
                         	if (clusterSizeExpansion){
                         		for (int i=0;i<course.getK();i++)
                         		pacc.addJob(bestSC, completeCourse.get(bestSC.getJobCount()).seed,
@@ -251,11 +258,23 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
                         		pacc.addJob(bestSC, completeCourse.get(bestSC.getJobCount()).seed,
                                     completeCourse.get(bestSC.getJobCount()).instanceId, bestSC.getJobCount());
                         	}
+=======
+                            pacc.addJob(bestSC, completeCourse.get(bestSC.getJobCount()).seed,
+                                    completeCourse.get(bestSC.getJobCount()).instanceId, bestSC.getJobCount());
+>>>>>>> 9f6b1bbeb8917e26cf9e96457c700e8b230f77ce
                         } else {
                             pacc.log("c Incumbent reached maximum number of evaluations. No more jobs are generated for it.");
                         }
                     } else {
+<<<<<<< HEAD
                            pacc.expandParcoursSC(bestSC, 1);
+=======
+                        if (useClusterCourse && clusterSizeExpansion) {
+                            pacc.expandParcoursSC(bestSC, Math.min(course.getK(), parameters.getMaxParcoursExpansionFactor() * num_instances - bestSC.getJobCount()));
+                        } else {
+                            pacc.expandParcoursSC(bestSC, 1);
+                        }
+>>>>>>> 9f6b1bbeb8917e26cf9e96457c700e8b230f77ce
                     }
                     pacc.addSolverConfigurationToListNewSC(bestSC);
                     curThreshold += increaseIncumbentRunsEvery;
