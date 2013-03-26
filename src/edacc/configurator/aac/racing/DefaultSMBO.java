@@ -47,6 +47,9 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 	private boolean aggressiveJobSelection = false;
 	private boolean adaptiveCapping = false;
 	private float slackFactor = 1.5f;
+	private boolean clusterSizeExpansion = false;
+	
+	StratifiedClusterCourse course = null;
 	
 	//public boolean initialDesignMode = true;
 	
@@ -74,6 +77,8 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
             adaptiveCapping = Integer.valueOf(val) == 1;
         if ((val = parameters.getRacingMethodParameters().get("DefaultSMBO_slackFactor")) != null)
             slackFactor = Float.valueOf(val);
+        if ((val = parameters.getRacingMethodParameters().get("DefaultSMBO_clusterSizeExpansion")) != null)
+            clusterSizeExpansion = Integer.valueOf(val) == 1;
         
         if (useClusterCourse) {
             rengine = RInterface.getRengine();
@@ -86,7 +91,7 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
                 throw new Exception("Did not find R library survival (should come with R though).");
             }
             
-            StratifiedClusterCourse course = new StratifiedClusterCourse(rengine, api.getExperimentInstances(parameters.getIdExperiment()), null, null, parameters.getMaxParcoursExpansionFactor(), rng, featureFolder, featureCacheFolder);
+            course = new StratifiedClusterCourse(rengine, api.getExperimentInstances(parameters.getIdExperiment()), null, null, parameters.getMaxParcoursExpansionFactor(), rng, featureFolder, featureCacheFolder);
             this.completeCourse = course.getCourse();
             List<Instance> instances = InstanceDAO.getAllByExperimentId(parameters.getIdExperiment());
             Map<Integer, Instance> instanceById = new HashMap<Integer, Instance>();
@@ -111,7 +116,10 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 		
 		int expansion = 0;
 		if (bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
-			expansion = Math.min(parameters.getMaxParcoursExpansionFactor() * num_instances - bestSC.getJobCount(), parameters.getInitialDefaultParcoursLength());
+			if (clusterSizeExpansion)
+					expansion = Math.min(parameters.getMaxParcoursExpansionFactor() * num_instances - bestSC.getJobCount(), parameters.getInitialDefaultParcoursLength());
+			else
+				expansion = Math.min(parameters.getMaxParcoursExpansionFactor() * num_instances - bestSC.getJobCount(), course.getK());
             if (useClusterCourse) {
                 for (int i = 0; i < expansion; i++) {
                     pacc.addJob(bestSC, completeCourse.get(bestSC.getJobCount()).seed,
@@ -127,7 +135,7 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 		}
 		// update the status of the jobs of bestSC and if first level wait
 		// also for jobs to finish
-		/*if (expansion > 0) {
+		if (expansion > 0) {
 			pacc.log("c Waiting for currently best solver config " + bestSC.getIdSolverConfiguration() + " to finish " + expansion + "job(s)");
 			while (true) {
 				pacc.updateJobsStatus(bestSC);
@@ -139,7 +147,7 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 			pacc.validateIncumbent(bestSC);
 		} else {
 			pacc.updateJobsStatus(bestSC);
-		}*/
+		}
 	}
 	
 
@@ -187,25 +195,35 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 					// all jobs from bestSC computed and won against
 					// best:
 					if (comp > 0) {
+					    challengers.remove(sc);
 						bestSC = sc;
 						sc.setIncumbentNumber(incumbentNumber++);
 						pacc.log("new incumbent: " + sc.getIdSolverConfiguration() + ":" + pacc.getWallTime() + ":" + pacc.getCumulatedCPUTime() + ":" + sc.getCost());
 						pacc.log("i " + pacc.getWallTime() + "," + sc.getCost() + ",n.A. ," + sc.getIdSolverConfiguration() + ",n.A. ," + sc.getParameterConfiguration().toString());
 						pacc.validateIncumbent(bestSC);
+					} else {
+					    pacc.log("c Configuration " + sc.getIdSolverConfiguration() + " tied with incumbent");
 					}
-					challengers.remove(sc);
-					// api.updateSolverConfigurationCost(sc.getIdSolverConfiguration(),
-					// sc.getCost(),
-					// statistics.getCostFunction());
-					// listNewSC.remove(i);
 				} else {
 				    int generated = 0;
-				    if (aggressiveJobSelection) {
-				        generated = pacc.addRandomJobAggressive(sc.getJobCount(), sc, bestSC, sc.getJobCount());
-				    } else {
-				        generated = pacc.addRandomJob(sc.getJobCount(), sc, bestSC, sc.getJobCount());
+				    if (clusterSizeExpansion){
+					    if (aggressiveJobSelection) {
+					        generated = pacc.addRandomJobAggressive(course.getK(), sc, bestSC, sc.getJobCount());
+					    } else {
+					        generated = pacc.addRandomJob(course.getK(), sc, bestSC, sc.getJobCount());
+					    }
 				    }
-					pacc.log("c Generated " + generated + " jobs for solver config id " + sc.getIdSolverConfiguration());
+				    else
+				    	if (aggressiveJobSelection) {
+					        generated = pacc.addRandomJobAggressive(sc.getJobCount(), sc, bestSC, sc.getJobCount());
+					    } else {
+					        generated = pacc.addRandomJob(sc.getJobCount(), sc, bestSC, sc.getJobCount());
+					    }
+				    	
+				    if (generated > 0) {
+				        pacc.log("c Generated " + generated + " jobs for solver config id " + sc.getIdSolverConfiguration());
+				    }
+				    
 					pacc.addSolverConfigurationToListNewSC(sc);
 				}
 			} else {// lost against best on part of the actual (or should not be evaluated anymore)
@@ -218,6 +236,30 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 					api.removeSolverConfig(sc.getIdSolverConfiguration());
 				pacc.log("d Solver config " + sc.getIdSolverConfiguration() + " with cost " + sc.getCost() + " lost against best solver config on " + sc.getJobCount() + " runs.");
 				api.updateSolverConfigurationName(sc.getIdSolverConfiguration(), "* " + sc.getName());
+				
+                numSCs += 1;
+                if (numSCs > curThreshold && bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
+                    pacc.log("c Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration() + " by 1");
+                    if (useClusterCourse) {
+                        if (bestSC.getJobCount() < completeCourse.size()) {
+                        	if (clusterSizeExpansion){
+                        		for (int i=0;i<course.getK();i++)
+                        		pacc.addJob(bestSC, completeCourse.get(bestSC.getJobCount()).seed,
+                                        completeCourse.get(bestSC.getJobCount()).instanceId, bestSC.getJobCount());
+                        	}
+                        	else{
+                        		pacc.addJob(bestSC, completeCourse.get(bestSC.getJobCount()).seed,
+                                    completeCourse.get(bestSC.getJobCount()).instanceId, bestSC.getJobCount());
+                        	}
+                        } else {
+                            pacc.log("c Incumbent reached maximum number of evaluations. No more jobs are generated for it.");
+                        }
+                    } else {
+                           pacc.expandParcoursSC(bestSC, 1);
+                    }
+                    pacc.addSolverConfigurationToListNewSC(bestSC);
+                    curThreshold += increaseIncumbentRunsEvery;
+                }
 			}
 		}
 	}
@@ -247,17 +289,26 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
                 }
 
             } else {*/
+			if (clusterSizeExpansion){
                 if (aggressiveJobSelection) {
+                    pacc.addRandomJobAggressive(course.getK(), sc, bestSC, sc.getJobCount());
+                } else {
+                    pacc.addRandomJob(course.getK(), sc, bestSC, sc.getJobCount());
+                }
+			}
+			else{
+				if (aggressiveJobSelection) {
                     pacc.addRandomJobAggressive(parameters.getMinRuns(), sc, bestSC, sc.getJobCount());
                 } else {
                     pacc.addRandomJob(parameters.getMinRuns(), sc, bestSC, sc.getJobCount());
                 }
+			}
             //}
 			pacc.addSolverConfigurationToListNewSC(sc);
 		}
 		
 		//if (!initialDesignMode) {
-    		for (int i = 0; i < scs.size(); i++) {
+    	/*	for (int i = 0; i < scs.size(); i++) {
     		    numSCs += 1;
     	        if (numSCs > curThreshold && bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
     	            pacc.log("c Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration() + " by 1");
@@ -274,7 +325,7 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
     	            pacc.addSolverConfigurationToListNewSC(bestSC);
     	            curThreshold += increaseIncumbentRunsEvery;
     	        }
-    		}
+    		}*/
 		//}
 
 		challengers.addAll(scs);
@@ -318,6 +369,14 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 		List<String> p = new LinkedList<String>();
         p.add("% --- Default_SMBO parameters ---");
         p.add("DefaultSMBO_adaptiveCapping = " + (adaptiveCapping ? 1 : 0) + " % (Use adaptive capping mechanism)");
+        p.add("DefaultSMBO_increaseIncumbentRunsEvery = " + increaseIncumbentRunsEvery + " % (How many challengers does the incumbent have to beat to gain additional runs)");
+        p.add("DefaultSMBO_aggressiveJobSelection = " + (aggressiveJobSelection ? 1 : 0) + " % (Challengers should start on instances where the best configuration did not time out)");
+        p.add("DefaultSMBO_featureFolder = " + featureFolder + " % (Instance feature computation folder containing a features.propertiers file)");
+        p.add("DefaultSMBO_featureCacheFolder = " + featureCacheFolder + " % (Temporary folder used for caching instance features)");
+        p.add("DefaultSMBO_useClusterCourse = " + (useClusterCourse ? 1 : 0) + " % (Cluster instances using instance properties for improved handling of heterogenous instance sets)");
+        p.add("DefaultSMBO_slackFactor = " + slackFactor + " % (Slack factor used with adaptive capping (new timeout = slackFactor * best known time))");
+        p.add("DefaultSMBO_adaptiveCapping = " + (adaptiveCapping ? 1 : 0) + " % (Lower time limit on instances according to the results of the best configuration)");
+        p.add("DefaultSMBO_clusterSizeExpansion = " + clusterSizeExpansion + " % (If the cluster course is used, give the incumbent configuration k additional runs instead of one (k = no. of clusters))");
 		return p;
 	}
 
