@@ -117,9 +117,9 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 		int expansion = 0;
 		if (bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
 			if (clusterSizeExpansion)
-					expansion = Math.min(parameters.getMaxParcoursExpansionFactor() * num_instances - bestSC.getJobCount(), parameters.getInitialDefaultParcoursLength());
+					expansion = Math.min(parameters.getMaxParcoursExpansionFactor() * num_instances - bestSC.getJobCount(), course.getK());
 			else
-				expansion = Math.min(parameters.getMaxParcoursExpansionFactor() * num_instances - bestSC.getJobCount(), course.getK());
+				expansion = Math.min(parameters.getMaxParcoursExpansionFactor() * num_instances - bestSC.getJobCount(), parameters.getInitialDefaultParcoursLength());
             if (useClusterCourse) {
                 for (int i = 0; i < expansion; i++) {
                     pacc.addJob(bestSC, completeCourse.get(bestSC.getJobCount()).seed,
@@ -213,6 +213,14 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 					        generated = pacc.addRandomJob(course.getK(), sc, bestSC, sc.getJobCount());
 					    }
 				    }
+				    else{
+				    	if (aggressiveJobSelection) {
+					        generated = pacc.addRandomJobAggressive(sc.getJobCount(), sc, bestSC, sc.getJobCount());
+					    } else {
+					        generated = pacc.addRandomJob(sc.getJobCount(), sc, bestSC, sc.getJobCount());
+					    }
+				    }
+				    	
 				    if (generated > 0) {
 				        pacc.log("c Generated " + generated + " jobs for solver config id " + sc.getIdSolverConfiguration());
 				    }
