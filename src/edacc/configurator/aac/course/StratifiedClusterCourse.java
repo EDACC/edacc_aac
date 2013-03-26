@@ -39,7 +39,7 @@ public class StratifiedClusterCourse {
     private List<InstanceIdSeed> course;
     private int k;
 
-    public StratifiedClusterCourse(Rengine rengine, List<Instance> instances, List<String> instanceFeatureNames, List<String> instanceSizeFeatureNames, int maxExpansionFactor, Random rng, String featureFolder, String featureCacheFolder) throws Exception {
+    public StratifiedClusterCourse(Rengine rengine, List<Instance> instances, List<String> instanceFeatureNames, List<String> instanceSizeFeatureNames, int maxExpansionFactor, Random rng, String featureFolder, String featureCacheFolder, final Map<Integer, Double> instanceHardness) throws Exception {
         if (instances.size() == 0) throw new IllegalArgumentException("List of instances has to contain at least one instance.");
         if (maxExpansionFactor <= 0) throw new IllegalArgumentException("maxExpansionFactor has to be >= 1.");
         this.course = new ArrayList<InstanceIdSeed>(maxExpansionFactor * instances.size());
@@ -159,27 +159,31 @@ public class StratifiedClusterCourse {
         
         /*Object[] clustering = kMeans(cleanedFeatures, k, rng);
         double C[][] = (double[][])clustering[0];
-        int S[][] = (int[][])clustering[1];
+        int S[][] = (int[][])clustering[1];*/
         
-        // Sort instances within each cluster by instance size features
-        for (int c = 0; c < k; c++) {
-            final Integer[] sorted = new Integer[S[c].length];
-            for (int i = 0; i < sorted.length; i++) sorted[i] = S[c][i];
-            Arrays.sort(sorted, new Comparator<Integer>() {
-                @Override
-                public int compare(Integer o1, Integer o2) {
-                    double[] i1 = instanceSizeFeatures[o1];
-                    double[] i2 = instanceSizeFeatures[o2];
-                    for (int i = 0; i < i1.length; i++) {
-                        if (i1[i] > i2[i]) return 1;
-                        else if (i1[i] < i2[i]) return -1;
-                        // otherwise check the next value to break ties
+        if (instanceHardness != null) {
+            // Sort instances within each cluster by instance hardness, easiest first
+            for (int c = 0; c < k; c++) {
+                final Integer[] sorted = new Integer[S[c].length];
+                for (int i = 0; i < sorted.length; i++) sorted[i] = S[c][i];
+                Arrays.sort(sorted, new Comparator<Integer>() {
+                    @Override
+                    public int compare(Integer o1, Integer o2) {
+                        double i1 = instanceHardness.get(o1);
+                        double i2 = instanceHardness.get(o2);
+                        return Double.compare(i1, i2);
+                        
+                        /*for (int i = 0; i < i1.length; i++) {
+                            if (i1[i] > i2[i]) return 1;
+                            else if (i1[i] < i2[i]) return -1;
+                            // otherwise check the next value to break ties
+                        }
+                        return 0;*/
                     }
-                    return 0;
-                }
-            });
-            for (int i = 0; i < sorted.length; i++) S[c][i] = sorted[i];
-        }*/
+                });
+                for (int i = 0; i < sorted.length; i++) S[c][i] = sorted[i];
+            }
+        }
         
         // build course
         for (int e = 0; e < maxExpansionFactor; e++) {

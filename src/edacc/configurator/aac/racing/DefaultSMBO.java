@@ -91,7 +91,26 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
                 throw new Exception("Did not find R library survival (should come with R though).");
             }
             
-            course = new StratifiedClusterCourse(rengine, api.getExperimentInstances(parameters.getIdExperiment()), null, null, parameters.getMaxParcoursExpansionFactor(), rng, featureFolder, featureCacheFolder);
+            pacc.log("[DefaultSMBO] Calculating instance hardness (" + parameters.getStatistics().getCostFunction().databaseRepresentation() + ") from reference configuration results:");
+            Map<Integer, Double> instanceHardness = new HashMap<Integer, Double>();
+            for (Instance instance: InstanceDAO.getAllByExperimentId(parameters.getIdExperiment())) {
+                double instanceAvg = 0.0;
+                int count = 0;
+                for (SolverConfiguration refConfig: referenceSCs) {
+                    for (ExperimentResult run: refConfig.getJobs()) {
+                        if (run.getInstanceId() == instance.getId()) {
+                            instanceAvg += parameters.getStatistics().getCostFunction().singleCost(run);
+                            count++;
+                        }
+                    }
+                }
+                if (count != 0) instanceAvg /= count;
+                else instanceAvg = Double.MAX_VALUE;
+                instanceHardness.put(instance.getId(), instanceAvg);
+                pacc.log("[DefaultSMBO] " + instance.getName() + ": " + instanceAvg);
+            }
+
+            course = new StratifiedClusterCourse(rengine, api.getExperimentInstances(parameters.getIdExperiment()), null, null, parameters.getMaxParcoursExpansionFactor(), rng, featureFolder, featureCacheFolder, instanceHardness);
             this.completeCourse = course.getCourse();
             List<Instance> instances = InstanceDAO.getAllByExperimentId(parameters.getIdExperiment());
             Map<Integer, Instance> instanceById = new HashMap<Integer, Instance>();

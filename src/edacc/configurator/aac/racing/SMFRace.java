@@ -116,7 +116,7 @@ public class SMFRace extends RacingMethods {
         this.numRaceConfigurations = (int) Math.max(1,
                 Math.round(numRaceConfigurationsFactor * api.getConfigurableParameters(parameters.getIdExperiment()).size()));
         
-        this.completeCourse = new StratifiedClusterCourse(rengine, api.getExperimentInstances(parameters.getIdExperiment()), null, null, parameters.getMaxParcoursExpansionFactor(), rng, null, null).getCourse();
+        this.completeCourse = new StratifiedClusterCourse(rengine, api.getExperimentInstances(parameters.getIdExperiment()), null, null, parameters.getMaxParcoursExpansionFactor(), rng, null, null, null).getCourse();
     }
 
     @Override

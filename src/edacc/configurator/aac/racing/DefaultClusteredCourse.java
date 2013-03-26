@@ -49,7 +49,7 @@ public class DefaultClusteredCourse extends RacingMethods {
             throw new Exception("Did not find R library survival (should come with R though).");
         }
 		
-		this.completeCourse = new StratifiedClusterCourse(rengine, api.getExperimentInstances(parameters.getIdExperiment()), null, null, parameters.getMaxParcoursExpansionFactor(), rng, featureFolder, featureCacheFolder).getCourse();
+		this.completeCourse = new StratifiedClusterCourse(rengine, api.getExperimentInstances(parameters.getIdExperiment()), null, null, parameters.getMaxParcoursExpansionFactor(), rng, featureFolder, featureCacheFolder, null).getCourse();
 		
         if (!firstSCs.isEmpty()) {
             // TODO: ...
