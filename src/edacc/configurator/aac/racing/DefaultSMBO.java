@@ -93,6 +93,8 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
             
             pacc.log("[DefaultSMBO] Calculating instance hardness (" + parameters.getStatistics().getCostFunction().databaseRepresentation() + ") from reference configuration results:");
             Map<Integer, Double> instanceHardness = new HashMap<Integer, Double>();
+            for (SolverConfiguration refConfig: referenceSCs) 
+            	pacc.log("Found reference solver: "+ refConfig.getName() + " with ID: "+refConfig.getIdSolverConfiguration()+ " with a total of "+refConfig.getNumFinishedJobs());
             for (Instance instance: InstanceDAO.getAllByExperimentId(parameters.getIdExperiment())) {
                 double instanceAvg = 0.0;
                 int count = 0;
@@ -107,7 +109,7 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
                 if (count != 0) instanceAvg /= count;
                 else instanceAvg = Double.MAX_VALUE;
                 instanceHardness.put(instance.getId(), instanceAvg);
-                pacc.log("[DefaultSMBO] " + instance.getName() + ": " + instanceAvg);
+               // pacc.log("[DefaultSMBO] " + instance.getName() + ": " + instanceAvg);
             }
 
             course = new StratifiedClusterCourse(rengine, api.getExperimentInstances(parameters.getIdExperiment()), null, null, parameters.getMaxParcoursExpansionFactor(), rng, featureFolder, featureCacheFolder, instanceHardness);
@@ -116,9 +118,9 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
             Map<Integer, Instance> instanceById = new HashMap<Integer, Instance>();
             for (Instance i: instances) instanceById.put(i.getId(), i);
             pacc.log("[DefaultSMBO] Clustered instances into " + course.getK() + " clusters. Complete course:");
-            for (InstanceIdSeed isp: completeCourse) {
+           /* for (InstanceIdSeed isp: completeCourse) {
                 pacc.log("[DefaultSMBO] " + instanceById.get(isp.instanceId) + ", " + isp.seed);
-            }
+            }*/
         }
         
         curThreshold = increaseIncumbentRunsEvery;

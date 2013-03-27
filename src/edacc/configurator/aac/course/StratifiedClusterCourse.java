@@ -39,7 +39,7 @@ public class StratifiedClusterCourse {
     private List<InstanceIdSeed> course;
     private int k;
 
-    public StratifiedClusterCourse(Rengine rengine, List<Instance> instances, List<String> instanceFeatureNames, List<String> instanceSizeFeatureNames, int maxExpansionFactor, Random rng, String featureFolder, String featureCacheFolder, final Map<Integer, Double> instanceHardness) throws Exception {
+    public StratifiedClusterCourse(Rengine rengine, final List<Instance> instances, List<String> instanceFeatureNames, List<String> instanceSizeFeatureNames, int maxExpansionFactor, Random rng, String featureFolder, String featureCacheFolder, final Map<Integer, Double> instanceHardness) throws Exception {
         if (instances.size() == 0) throw new IllegalArgumentException("List of instances has to contain at least one instance.");
         if (maxExpansionFactor <= 0) throw new IllegalArgumentException("maxExpansionFactor has to be >= 1.");
         this.course = new ArrayList<InstanceIdSeed>(maxExpansionFactor * instances.size());
@@ -169,8 +169,8 @@ public class StratifiedClusterCourse {
                 Arrays.sort(sorted, new Comparator<Integer>() {
                     @Override
                     public int compare(Integer o1, Integer o2) {
-                        double i1 = instanceHardness.get(o1);
-                        double i2 = instanceHardness.get(o2);
+                        double i1 = instanceHardness.get(instances.get(o1).getId());
+                        double i2 = instanceHardness.get(instances.get(o2).getId());
                         return Double.compare(i1, i2);
                         
                         /*for (int i = 0; i < i1.length; i++) {
@@ -181,7 +181,11 @@ public class StratifiedClusterCourse {
                         return 0;*/
                     }
                 });
-                for (int i = 0; i < sorted.length; i++) S[c][i] = sorted[i];
+                System.out.println("Cluster "+ c + " contains "+sorted.length + " instances:");
+                for (int i = 0; i < sorted.length; i++){
+                	S[c][i] = sorted[i];
+                	System.out.println("Instance: " +c+"."+i+ " : ID: "+instances.get(S[c][i]).getId() + " name: " + instances.get(S[c][i]).getName() + " hardness: " + instanceHardness.get(instances.get(S[c][i]).getId()));
+                }
             }
         }
         

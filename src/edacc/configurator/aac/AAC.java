@@ -273,11 +273,15 @@ public class AAC {
 		List<Integer> scIds = api.getSolverConfigurations(parameters.getIdExperiment(), "reference");
 		for (Integer scId : scIds) {
 			SolverConfiguration sc = new SolverConfiguration(scId, null, parameters.getStatistics());
-			for (ExperimentResult job : api.getRuns(parameters.idExperiment, sc.getIdSolverConfiguration())) {
+			sc.setNameRacing(api.getSolverConfigName(scId));
+			for (ExperimentResult job : api.getAllRuns(parameters.idExperiment, scId)) {
 				sc.putJob(job);
 			}
+			log("c Found reference solver configuration: "+sc.getName()+" with "+ sc.getJobCount() + " jobs");
 			res.add(sc);
+			
 		}
+		
 		return res;
 	}
 	
@@ -1050,6 +1054,7 @@ public class AAC {
 		
 		//System.out.println("Call: " + featuresRunCommand + " " + featuresParameters + " " + f.getAbsolutePath());
 		
+		System.out.println("Computing features for instances: "+instance.getName());
 		Process p = Runtime.getRuntime().exec(featuresRunCommand + " " + featuresParameters + " " + f.getAbsolutePath(), null, featureFolder);
 		BufferedReader br = new BufferedReader(new InputStreamReader(p.getInputStream()));
 		
