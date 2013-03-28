@@ -181,14 +181,21 @@ public class StratifiedClusterCourse {
                         return 0;*/
                     }
                 });
+                //print clustering with hardness sorting
                 System.out.println("Cluster "+ c + " contains "+sorted.length + " instances:");
                 for (int i = 0; i < sorted.length; i++){
                 	S[c][i] = sorted[i];
                 	System.out.println("Instance: " +c+"."+i+ " : ID: "+instances.get(S[c][i]).getId() + " name: " + instances.get(S[c][i]).getName() + " hardness: " + instanceHardness.get(instances.get(S[c][i]).getId()));
                 }
             }
+        } else { //Just print clustering
+        	for (int c = 0; c < k; c++) {
+	        	System.out.println("Cluster "+ c + " contains "+S[c].length + " instances:");
+		        for (int i = 0; i < S[c].length; i++){
+		        	System.out.println("Instance: " +c+"."+i+ " : ID: "+instances.get(S[c][i]).getId() + " name: " + instances.get(S[c][i]).getName() + " hardness: " + instanceHardness.get(instances.get(S[c][i]).getId()));
+		        }
+        	}
         }
-        
         // build course
         for (int e = 0; e < maxExpansionFactor; e++) {
             int curInstance[] = new int[k];

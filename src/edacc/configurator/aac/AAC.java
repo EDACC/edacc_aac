@@ -937,7 +937,8 @@ public class AAC {
 	 * @param args
 	 * @throws Exception
 	 */
-	public static void main(String[] args) throws Exception {
+	public static void main(String[] args) {
+		try{
 		Parameters params = new Parameters();
 		if (args.length < 1) {
 			System.out.println("% Missing configuration file. Use java -jar PROAR.jar <config file path> [<key=value>]*");
@@ -982,6 +983,10 @@ public class AAC {
 		AAC configurator = new AAC(params);
 		configurator.start();
 		configurator.shutdown();
+		}catch (Exception e){
+			e.printStackTrace();
+			return;
+		}
 	}
 	
 	/**
