@@ -215,6 +215,7 @@ public class AAC {
 		Course c = ConfigurationScenarioDAO.getConfigurationScenarioByExperimentId(parameters.getIdExperiment()).getCourse();
 		for (int sc_index = solverConfigs.size() - 1; sc_index >= 0; sc_index--) {
 			SolverConfiguration sc = solverConfigs.get(sc_index);
+			sc.setNameSearch(" default ");
 			HashSet<InstanceIdSeed> iis = new HashSet<InstanceIdSeed>();
 			for (ExperimentResult job : api.getRuns(parameters.getIdExperiment(), sc.getIdSolverConfiguration())) {
 				sc.putJob(job);
