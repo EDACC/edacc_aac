@@ -263,16 +263,19 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 				//api.updateSolverConfigurationName(sc.getIdSolverConfiguration(), "* " + sc.getName()); wird eh ueberschrieben!
 
 				numSCs += 1;
-				if (numSCs > curThreshold && bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
-					int expansionSize = 1;
-					if (bestSC.getJobCount() < completeCourse.size()) {
+				if (numSCs > curThreshold) {
+					if (bestSC.getJobCount() < parameters.getMaxParcoursExpansionFactor() * num_instances) {
+						int expansionSize = 1;
 						if (useClusterCourse) {
-							if (clusterSizeExpansion) {
-								expansionSize=Math.min(course.getK(), completeCourse.size()-bestSC.getJobCount());
-								for (int i = 0; i < expansionSize; i++)
+							if (bestSC.getJobCount() < completeCourse.size()) {
+								if (clusterSizeExpansion) {
+									expansionSize = Math.min(course.getK(), completeCourse.size() - bestSC.getJobCount());
+									for (int i = 0; i < expansionSize; i++)
+										pacc.addJob(bestSC, completeCourse.get(bestSC.getJobCount()).seed, completeCourse.get(bestSC.getJobCount()).instanceId, bestSC.getJobCount());
+								} else {
 									pacc.addJob(bestSC, completeCourse.get(bestSC.getJobCount()).seed, completeCourse.get(bestSC.getJobCount()).instanceId, bestSC.getJobCount());
+								}
 							} else {
-								pacc.addJob(bestSC, completeCourse.get(bestSC.getJobCount()).seed, completeCourse.get(bestSC.getJobCount()).instanceId, bestSC.getJobCount());
 							}
 						} else {
 							pacc.expandParcoursSC(bestSC, expansionSize);
@@ -280,9 +283,9 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 						pacc.addSolverConfigurationToListNewSC(bestSC);
 						curThreshold += increaseIncumbentRunsEvery;
 						pacc.log("c Expanding parcours of best solver config " + bestSC.getIdSolverConfiguration() + " by " + expansionSize);
-					}else {
+					} else {
 						pacc.log("c Incumbent reached maximum number of evaluations. No more jobs are generated for it.");
-					} 
+					}
 				}
 			}
 		}
