@@ -251,7 +251,7 @@ public class DefaultSMBO extends RacingMethods implements JobListener {
 			} else {// lost against best on part of the actual (or should not be
 				// evaluated anymore)
 				// parcours:
-				sc.setNameRacing("Looser");
+				sc.setNameRacing("Loser");
 				stopEvalSolverConfigIds.remove(sc.getIdSolverConfiguration());
 
 				challengers.remove(sc);
