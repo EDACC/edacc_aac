@@ -3,7 +3,6 @@
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="src" path="test"/>
 	<classpathentry kind="lib" path="libs/EDACCAPI.jar"/>
-	<classpathentry kind="lib" path="libs/mysql-connector-java-5.1.13-bin.jar"/>
 	<classpathentry kind="lib" path="libs/SevenZip.jar"/>
 	<classpathentry kind="lib" path="libs/EDACC_model.jar"/>
 	<classpathentry kind="lib" path="libs/commons-math-2.2.jar"/>
@@ -15,5 +14,6 @@
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="lib" path="libs/fastrf.jar"/>
 	<classpathentry kind="lib" path="libs/commons-cli-1.2.jar"/>
+	<classpathentry kind="lib" path="libs/mysql-connector-java-5.1.26.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
