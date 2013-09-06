@@ -5,3 +5,8 @@ dist/
 .settings/
 src/edacc/configurator/aac/solvercreator/private.properties
 /nbproject/private/
+.idea/workspace.xml
+.idea/*.iws
+.idea/tasks.xml
+lib/
+out/
