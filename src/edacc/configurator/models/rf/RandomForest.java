@@ -205,7 +205,7 @@ public class RandomForest implements java.io.Serializable {
         for (int i = 0; i < condParents.length; i++) augmentedCondParents[i] = condParents[i];
         condParents = augmentedCondParents;
         
-        for (int i = 0; i < configurableParameters.size(); i++) {
+        /*for (int i = 0; i < configurableParameters.size(); i++) {
             System.out.println("Conditional parents of " + configurableParameters.get(i));
             if (condParents[i] == null) {
                 System.out.println("None"); continue;
@@ -216,7 +216,7 @@ public class RandomForest implements java.io.Serializable {
                     System.out.println(condParentVals[i][j][k]);
                 }
             }
-        }
+        }*/
 
 
         rf = new CensoredRandomForest(nTrees, logModel ? 1 : 0, kappaMax, 1.0, catDomainSizes, rng, condParents, condParentVals);

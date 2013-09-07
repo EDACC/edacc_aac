@@ -726,7 +726,18 @@ public class SMBO extends SearchMethods {
             }
         }
 
-        model.learnModel(theta, instanceFeatures, configurableParameters.size(), instanceFeatureNames.size(), theta_inst_idxs, y, censored);
+        final int maxTries = 100;
+        for (int retry = 0; retry < maxTries; retry++) {
+            try {
+                model.learnModel(theta, instanceFeatures, configurableParameters.size(), instanceFeatureNames.size(), theta_inst_idxs, y, censored);
+            } catch (Exception e) {
+                if (retry >= maxTries - 1) {
+                    throw e;
+                } else {
+                    pacc.log("Error when building RF model, retrying " + retry + "/" + maxTries + " " + e.getMessage());
+                }
+            }
+        }
     }
     
     private void parseSMBOParameters() {
